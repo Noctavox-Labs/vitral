@@ -15,9 +15,11 @@ func printUsage() {
           vitral analizar [--json] <carpeta>   Revisa un programa ya instalado: cuál abrir y con qué está hecho.
           vitral icono <programa.exe> <salida.icns|.ico>
                                                Saca el ícono de un programa de Windows.
+          vitral motores                       Muestra los motores de Wine y si están instalados.
+          vitral motores instalar [id]         Descarga y verifica un motor (el recomendado si no se indica).
           vitral version                       Muestra la versión.
 
-        Los comandos también funcionan en inglés (analyze, icon). Idioma: VITRAL_LANG=es o en.
+        Los comandos también funcionan en inglés (analyze, icon, engines install). Idioma: VITRAL_LANG=es o en.
         """,
         """
         Vitral \(Vitral.version): Windows programs on your Mac.
@@ -27,9 +29,11 @@ func printUsage() {
           vitral analyze [--json] <folder>   Inspect an installed program: which file to open and what it is built with.
           vitral icon <program.exe> <output.icns|.ico>
                                              Extract the icon of a Windows program.
+          vitral engines                     List the Wine engines and whether they are installed.
+          vitral engines install [id]        Download and verify an engine (the recommended one by default).
           vitral version                     Show the version.
 
-        Commands also work in Spanish (analizar, icono). Language: VITRAL_LANG=en or es.
+        Commands also work in Spanish (analizar, icono, motores instalar). Language: VITRAL_LANG=en or es.
         """
     ))
 }
@@ -218,6 +222,54 @@ func extractIcon(_ options: [String]) {
     print(tr("Ícono guardado en \(output.path)", "Icon saved to \(output.path)"))
 }
 
+func engines(_ options: [String]) async {
+    let installer = ComponentInstaller()
+    if let action = options.first, ["instalar", "install"].contains(action) {
+        let id = options.dropFirst().first ?? EngineCatalog.default.id
+        guard let engine = EngineCatalog.engine(id: id) else {
+            fail(tr("No conozco el motor «\(id)». Mira la lista con: vitral motores",
+                    "Unknown engine “\(id)”. See the list with: vitral engines"))
+        }
+        for piece in engine.components {
+            if installer.isInstalled(piece) {
+                print(tr("✓ \(piece.name): ya estaba", "✓ \(piece.name): already installed"))
+                continue
+            }
+            print(tr("Descargando \(piece.name) (\(formatSize(piece.bytes)))…", "Downloading \(piece.name) (\(formatSize(piece.bytes)))…"))
+            print("  " + piece.url.absoluteString)
+            do {
+                let folder = try await installer.install(piece)
+                print(tr("✓ Verificado (SHA-256) e instalado en \(folder.path)", "✓ Verified (SHA-256) and installed in \(folder.path)"))
+            } catch {
+                fail("✗ " + String(describing: error))
+            }
+        }
+        if !MacSystem.hasRosetta {
+            print(tr("Ojo: falta Rosetta, y Wine la necesita. Instálala con: softwareupdate --install-rosetta",
+                     "Note: Rosetta is missing and Wine needs it. Install it with: softwareupdate --install-rosetta"))
+        }
+        return
+    }
+    guard options.isEmpty else {
+        printUsage()
+        exit(2)
+    }
+
+    print(tr("Motores de Wine:", "Wine engines:"))
+    for engine in EngineCatalog.all {
+        let ready = engine.components.allSatisfy(installer.isInstalled)
+        let mark = engine.id == EngineCatalog.default.id ? tr(" (recomendado)", " (recommended)") : ""
+        let state = ready ? tr("instalado", "installed") : tr("sin instalar", "not installed")
+        print("  \(engine.id)  \(engine.name)\(mark) · \(state)")
+        for piece in engine.components {
+            let pieceState = installer.isInstalled(piece) ? "✓" : "·"
+            print("      \(pieceState) \(piece.name) · \(formatSize(piece.bytes)) · \(piece.license)")
+        }
+    }
+    print("Rosetta: " + (MacSystem.hasRosetta ? tr("instalada", "installed")
+                                              : tr("falta (softwareupdate --install-rosetta)", "missing (softwareupdate --install-rosetta)")))
+}
+
 func analyze(_ options: [String]) {
     let json = options.contains("--json")
     let paths = options.filter { $0 != "--json" }
@@ -273,6 +325,8 @@ case "analizar", "analyze":
     analyze(Array(arguments.dropFirst()))
 case "icono", "icon":
     extractIcon(Array(arguments.dropFirst()))
+case "motores", "engines", "motor", "engine":
+    await engines(Array(arguments.dropFirst()))
 case "version", "versión", "--version", "-v":
     print("Vitral \(Vitral.version)")
 case "ayuda", "help", "--help", "-h":

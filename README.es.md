@@ -48,6 +48,8 @@ swift run vitral analizar "ruta/al/Setup.exe"          # un instalador
 swift run vitral analizar "ruta/a/Mi Programa"         # la carpeta de un programa instalado
 swift run vitral analizar --json "ruta/al/Setup.exe"   # para otros programas
 swift run vitral icono "ruta/al/Programa.exe" Programa.icns
+swift run vitral motores                               # motores de Wine y Rosetta
+swift run vitral motores instalar                      # baja y verifica el motor recomendado
 ```
 
 Ejemplos:

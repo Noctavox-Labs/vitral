@@ -23,14 +23,34 @@ Compatible sources we expect to draw from / Fuentes compatibles previstas:
 
 ## Components Vitral downloads or bundles / Componentes que Vitral descarga o incluye
 
-Planned, not yet in use. Each keeps its own license, and redistributed copies ship with it.
+Vitral downloads these when they are needed, from their official release pages, and checks each
+file against a SHA-256 pinned in the code (`Sources/VitralKit/Engines/WineEngine.swift`). Each keeps
+its own license, and redistributed copies ship with it.
 
-Previstos, todavía sin usar. Cada uno conserva su licencia, y las copias que se redistribuyan la
-incluyen.
+Vitral los descarga cuando hacen falta, desde sus páginas oficiales de versiones, y comprueba cada
+archivo contra un SHA-256 fijado en el código. Cada uno conserva su licencia, y las copias que se
+redistribuyan la incluyen.
+
+**In use / En uso:**
 
 | Component | License | Source |
 |-----------|---------|--------|
-| Wine | LGPL-2.1-or-later | [winehq.org](https://www.winehq.org), [Gcenx/macOS_Wine_builds](https://github.com/Gcenx/macOS_Wine_builds) |
+| Wine from CrossOver 24.0.7, built by the Sikarugir project ([`WS12WineCX24.0.7_7`](https://github.com/Sikarugir-App/Engines/releases/tag/v1.0)) | LGPL-2.1-or-later (Wine) | [CodeWeavers: crossover-sources-24.0.7](https://media.codeweavers.com/pub/crossover/source/crossover-sources-24.0.7.tar.gz) |
+| macOS libraries from Gcenx's official Wine build ([`wine-stable-11.0_1`](https://github.com/Gcenx/macOS_Wine_builds/releases/tag/11.0_1)): FreeType, GnuTLS and its dependencies, MoltenVK, SDL2, libinotify, gettext | Each project's own (FreeType License or GPL-2.0, LGPL, Apache-2.0, zlib, MIT) | [Gcenx/macOS_Wine_builds](https://github.com/Gcenx/macOS_Wine_builds) |
+
+Why CrossOver's Wine: the official builds crash with 32-bit programs such as Qt 5 apps on macOS,
+and CrossOver's patches fix that. Vitral only downloads the Sikarugir build; it does not copy any
+of Sikarugir's code. A Vitral-built engine from CodeWeavers' sources will replace it.
+
+Por qué el Wine de CrossOver: las versiones oficiales se caen con programas de 32 bits como las
+apps en Qt 5, y los parches de CrossOver lo resuelven. Vitral solo descarga la compilación de
+Sikarugir; no copia código de Sikarugir. La reemplazará un motor compilado por Vitral desde el
+código de CodeWeavers.
+
+**Planned / Previstos:**
+
+| Component | License | Source |
+|-----------|---------|--------|
 | DXVK-macOS | Zlib | [Gcenx/DXVK-macOS](https://github.com/Gcenx/DXVK-macOS) |
 | DXMT | to be confirmed before redistribution | [3Shain/dxmt](https://github.com/3Shain/dxmt) |
 | MoltenVK | Apache-2.0 | [KhronosGroup/MoltenVK](https://github.com/KhronosGroup/MoltenVK) |
@@ -45,7 +65,8 @@ D3DMetal de Apple (Game Porting Toolkit) nunca se redistribuye.
 
 The portable app-wrapper idea comes from [Sikarugir](https://github.com/Sikarugir-App) (formerly
 Wineskin). Its Creator, Template and Engines repositories have no license, so **no code from them
-is used**.
+is used** (the Engines repository only hosts the Wine build listed above, which Vitral downloads).
 
 La idea del envoltorio portable viene de Sikarugir (antes Wineskin). Sus repositorios Creator,
-Template y Engines no tienen licencia, así que **no se usa código de ellos**.
+Template y Engines no tienen licencia, así que **no se usa código de ellos** (de Engines solo se
+descarga la compilación de Wine de arriba).

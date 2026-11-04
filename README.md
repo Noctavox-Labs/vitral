@@ -45,6 +45,8 @@ swift run vitral analyze "path/to/Setup.exe"          # an installer
 swift run vitral analyze "path/to/My Program"         # the folder of an installed program
 swift run vitral analyze --json "path/to/Setup.exe"   # machine-readable
 swift run vitral icon "path/to/Program.exe" Program.icns
+swift run vitral engines                             # Wine engines and Rosetta
+swift run vitral engines install                     # download and verify the recommended engine
 ```
 
 Examples:
