@@ -47,8 +47,13 @@ private func writeQtProgram(_ folder: TemporaryFolder, at path: String, name: St
 
     #expect(applied.map(\.id) == ["qt5-retina", "qt5-quick-software", "qt-single-instance"])
     #expect(applied.first?.because == "Qt 5.12.4")
-    #expect(settings.environment == ["QT_SCALE_FACTOR": "2", "QMLSCENE_DEVICE": "softwarecontext"])
+    #expect(settings.environment == ["QMLSCENE_DEVICE": "softwarecontext"])
+    #expect(settings.registry.contains(.string(Recipes.windowsEnvironment, "QT_SCALE_FACTOR", "2")))
     #expect(settings.registry.contains(.string(Recipes.macDriver, "RetinaMode", "y")))
+    // Wine drops the Mac's QT_* variables: a recipe must never rely on them.
+    #expect(settings.environment.keys.allSatisfy(WineSession.reachesWindows))
+    #expect(!WineSession.reachesWindows("QT_SCALE_FACTOR"))
+    #expect(WineSession.reachesWindows("QMLSCENE_DEVICE"))
     #expect(settings.registry.filter { $0.name == "LogPixels" }.count == 2)
     #expect(settings.registry.contains(.dword(Recipes.wineDbg, "ShowCrashDialog", 0)))
     #expect(settings.cleanup == Recipes.qtLocks)
@@ -128,6 +133,17 @@ private func writeQtProgram(_ folder: TemporaryFolder, at path: String, name: St
     #expect(ProgramInstaller.looksLikeSetup("Setup.exe"))
     #expect(ProgramInstaller.looksLikeSetup("npp.8.7.Installer.x64.exe"))
     #expect(!ProgramInstaller.looksLikeSetup("putty.exe"))
+}
+
+@Test func findsTheProgramsInsideNewFolders() throws {
+    let folder = try TemporaryFolder()
+    try writeQtProgram(folder, at: "drive_c/Program Files (x86)/Shape it", name: "Shape it Level 1 PPlus")
+    try folder.write("drive_c/Program Files (x86)/Shape it/bin/QtWebEngineProcess.exe", SyntheticPE())
+    let names = ProgramFinder.executableNames(inFolders: ["Program Files (x86)/Shape it"],
+                                              driveC: folder.url.appendingPathComponent("drive_c"))
+    #expect(names == ["shape it level 1 pplus.exe", "qtwebengineprocess.exe"])
+    #expect(WineWindows.looksLikeWindows("Shape it Level 1 PPlus.tmp"))
+    #expect(!WineWindows.looksLikeWindows("Finder"))
 }
 
 // MARK: Wrapper

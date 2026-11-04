@@ -3,6 +3,10 @@ import VitralKit
 
 // `vitral` command-line tool. Every command has a Spanish and an English name.
 
+// Show each line as soon as it is printed, also when the output goes to a pipe or a file
+// (otherwise progress only appears when the command ends).
+setvbuf(stdout, nil, _IOLBF, 0)
+
 let arguments = Array(CommandLine.arguments.dropFirst())
 
 func printUsage() {
@@ -377,10 +381,12 @@ func install(_ options: [String]) async {
         case .downloadingEngine: break
         case .preparingWindows: print(tr("2/6 Preparando Windows (la primera vez tarda un poco)…", "2/6 Preparing Windows (the first time takes a while)…"))
         case .runningInstaller:
-            print(tr("3/6 Abriendo el instalador: sigue sus pasos en la ventana que aparece.",
-                     "3/6 Opening the installer: follow its steps in the window that appears."))
-            print(tr("    Si al terminar abre el programa, ciérralo para seguir.",
-                     "    If it opens the program when it finishes, close it to continue."))
+            print(tr("3/6 Abriendo el instalador: sigue sus pasos en su ventana.",
+                     "3/6 Opening the installer: follow its steps in its window."))
+            print(tr("    Si no la ves, puede estar detrás de esta: búscala en el Dock.",
+                     "    If you do not see it, it may be behind this one: look for it in the Dock."))
+            print(tr("    Si al terminar abre el programa, Vitral lo cierra y sigue.",
+                     "    If it opens the program when it finishes, Vitral closes it and goes on."))
         case .copyingProgram: print(tr("3/6 Copiando el programa…", "3/6 Copying the program…"))
         case .findingProgram: print(tr("4/6 Buscando el programa instalado…", "4/6 Looking for the installed program…"))
         case .applyingSettings: print(tr("5/6 Aplicando los ajustes recomendados…", "5/6 Applying the recommended settings…"))

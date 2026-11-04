@@ -73,7 +73,6 @@
   "Quedará como una app en Aplicaciones, en tu carpeta personal.": "It will become an app in the Applications folder of your home folder.",
   "Revisando el instalador…": "Checking the installer…",
   "Rosetta": "Rosetta",
-  "Si al terminar el instalador abre el programa, ciérralo para que Vitral siga.": "If the installer opens the program when it finishes, close it so Vitral can continue.",
   "Sigue los pasos del instalador en su ventana.": "Follow the installer's steps in its window.",
   "Sistema": "System",
   "Suficiente para la mayoría de los programas.": "Enough for most programs.",
@@ -97,5 +96,6 @@
   "Windows de 16 bits": "16-bit Windows",
   "Wine de CrossOver (compilación de Sikarugir), comprobado con SHA-256.": "CrossOver's Wine (Sikarugir build), checked with SHA-256.",
   "Wine de CrossOver, compilado por el proyecto Sikarugir. Se descarga de GitHub y se comprueba con SHA-256 antes de usarlo.": "CrossOver's Wine, built by the Sikarugir project. It's downloaded from GitHub and checked with SHA-256 before use.",
-  "Última revisión: %@": "Last checked: %@"
+  "Última revisión: %@": "Last checked: %@",
+  "Si al terminar abre el programa, Vitral lo cierra y sigue.": "If it opens the program when it finishes, Vitral closes it and goes on."
 }

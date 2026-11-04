@@ -29,6 +29,22 @@ public enum ProgramFinder {
         return found
     }
 
+    /// File names (lowercased) of the programs inside these folders, without uninstallers.
+    public static func executableNames(inFolders folders: Set<String>, driveC: URL) -> Set<String> {
+        var names = Set<String>()
+        for folder in folders {
+            // The enumerator does not go into linked folders.
+            guard let files = FileManager.default.enumerator(at: driveC.appendingPathComponent(folder),
+                                                             includingPropertiesForKeys: nil,
+                                                             options: [.skipsHiddenFiles]) else { continue }
+            for case let file as URL in files where file.pathExtension.lowercased() == "exe" {
+                let name = file.lastPathComponent.lowercased()
+                if !name.hasPrefix("unins") { names.insert(name) }
+            }
+        }
+        return names
+    }
+
     /// The installed program among the new folders: the one with a program to open, preferring
     /// a windowed one, then the biggest.
     public static func choose(newFolders: Set<String>, driveC: URL) -> (folder: String, report: ProgramReport)? {

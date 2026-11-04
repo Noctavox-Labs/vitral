@@ -165,18 +165,32 @@ final class AppModel {
         }
         installState = .working(.checking)
         do {
-            let result = try await ProgramInstaller().install(file.url, options: InstallOptions(launcher: launcher)) { stage in
-                Task { @MainActor in
-                    // Late progress messages must not hide the result.
-                    if case .working = self.installState { self.installState = .working(stage) }
-                }
-            }
+            let result = try await ProgramInstaller().install(
+                file.url, options: InstallOptions(launcher: launcher),
+                windowShown: { pid in
+                    Task { @MainActor in Self.bringForward(pid) }
+                },
+                progress: { stage in
+                    Task { @MainActor in
+                        // Late progress messages must not hide the result.
+                        if case .working = self.installState { self.installState = .working(stage) }
+                    }
+                })
             installState = .done(result.app)
         } catch {
             installState = .failed(String(describing: error))
         }
         refresh()
         refreshLibrary()
+    }
+
+    /// Brings the installer's window to the front. Wine windows open behind the active app, and
+    /// macOS only lets the active app hand the front over: if the person moved on to another
+    /// app meanwhile, the installer stays where it is.
+    private static func bringForward(_ pid: pid_t) {
+        guard NSApp.isActive, let app = NSRunningApplication(processIdentifier: pid) else { return }
+        NSApp.yieldActivation(to: app)
+        app.activate()
     }
 
     // MARK: Library

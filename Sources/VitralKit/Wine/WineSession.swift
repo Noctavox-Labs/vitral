@@ -94,6 +94,25 @@ public struct WineSession: Sendable {
 
     public var driveC: URL { prefix.appendingPathComponent("drive_c") }
 
+    /// Whether Wine passes a variable from the Mac's environment to Windows programs. It leaves
+    /// out `QT_…` and `VK_…` (so the Mac's own Qt and Vulkan settings do not leak in), and the
+    /// variables it handles itself. Those go in the registry instead (`HKCU\Environment`).
+    public static func reachesWindows(_ name: String) -> Bool {
+        let upper = name.uppercased()
+        if upper.hasPrefix("QT_") || upper.hasPrefix("VK_") { return false }
+        return !["PATH", "PWD", "HOME", "TEMP", "TMP", "XDG_SESSION_TYPE"].contains(upper)
+    }
+
+    /// Whether this prefix's Wine is running: while it runs, its server keeps a socket in
+    /// `/tmp/.wine-<user>/server-<device>-<inode>/`, named after the prefix folder.
+    public var serverIsRunning: Bool {
+        var info = stat()
+        guard stat(prefix.path, &info) == 0 else { return false }
+        let folder = String(format: "/tmp/.wine-%u/server-%llx-%llx", getuid(),
+                            UInt64(UInt32(bitPattern: info.st_dev)), UInt64(info.st_ino))
+        return FileManager.default.fileExists(atPath: folder + "/socket")
+    }
+
     /// A `wine` process, ready to start.
     public func process(_ arguments: [String], directory: URL? = nil, output: FileHandle? = nil) -> Process {
         let process = Process()

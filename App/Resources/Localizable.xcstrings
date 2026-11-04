@@ -747,12 +747,12 @@
         }
       }
     },
-    "Si al terminar el instalador abre el programa, ciérralo para que Vitral siga." : {
+    "Si al terminar abre el programa, Vitral lo cierra y sigue." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "If the installer opens the program when it finishes, close it so Vitral can continue."
+            "value" : "If it opens the program when it finishes, Vitral closes it and goes on."
           }
         }
       }

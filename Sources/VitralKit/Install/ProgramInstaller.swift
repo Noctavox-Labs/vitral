@@ -121,7 +121,12 @@ public struct ProgramInstaller: Sendable {
 
     /// Runs the whole installation. The installer's windows appear on screen; the person
     /// follows its steps, and this returns when it has finished.
+    ///
+    /// `windowShown` gets each installer process that opens a window. Wine windows open behind
+    /// the active app, and only the active app may hand the front over (an app calls
+    /// `NSApp.yieldActivation(to:)` and then `activate()`); a command-line tool cannot.
     public func install(_ installer: URL, options: InstallOptions,
+                        windowShown: @escaping @Sendable (pid_t) -> Void = { _ in },
                         progress: @escaping @Sendable (InstallStage) -> Void = { _ in }) async throws -> InstallResult {
         let fm = FileManager.default
         progress(.checking)
@@ -161,8 +166,18 @@ public struct ProgramInstaller: Sendable {
             let before = ProgramFinder.snapshot(driveC: session.driveC)
 
             progress(Self.needsInstaller(installer, report) ? .runningInstaller : .copyingProgram)
-            try await runInstaller(installer, report: report, session: session, log: logHandle, logURL: log)
-            await session.waitForServer()
+            let watcher = Task { await Self.reportNewWindows(to: windowShown) }
+            do {
+                try await runInstaller(installer, report: report, session: session, log: logHandle, logURL: log)
+            } catch {
+                watcher.cancel()
+                throw error
+            }
+            watcher.cancel()
+            if await waitForLeftovers(session, before: before) {
+                logHandle.write(Data(tr("[Vitral] El instalador abrió el programa: lo cerré para terminar la app.\n",
+                                        "[Vitral] The installer opened the program: closed it to finish the app.\n").utf8))
+            }
 
             progress(.findingProgram)
             let after = ProgramFinder.snapshot(driveC: session.driveC)
@@ -195,6 +210,50 @@ public struct ProgramInstaller: Sendable {
             try? fm.removeItem(at: work)
             throw error
         }
+    }
+
+    /// Calls `shown` once for each Windows process that opens a window from now on.
+    static func reportNewWindows(to shown: @Sendable (pid_t) -> Void) async {
+        var seen = Set(WineWindows.owners().map(\.pid))
+        while !Task.isCancelled {
+            for owner in WineWindows.owners() where !seen.contains(owner.pid) && WineWindows.looksLikeWindows(owner.name) {
+                seen.insert(owner.pid)
+                shown(owner.pid)
+            }
+            try? await Task.sleep(for: .milliseconds(500))
+        }
+    }
+
+    /// Waits until what the installer left running has ended. Many installers end with
+    /// "Launch <program>" checked: that copy runs without Vitral's settings and would keep the
+    /// installation waiting until the person closed it, so it is closed as soon as one of its
+    /// windows appears. Returns whether it closed the program.
+    private func waitForLeftovers(_ session: WineSession, before: Set<String>) async -> Bool {
+        await withTaskGroup(of: Bool.self) { group in
+            group.addTask {
+                await session.waitForServer()
+                return false
+            }
+            group.addTask {
+                while !Task.isCancelled {
+                    if Self.installedProgramIsOpen(driveC: session.driveC, before: before) { return true }
+                    try? await Task.sleep(for: .seconds(1))
+                }
+                return false
+            }
+            let closed = await group.next() ?? false
+            if closed { await session.killServer() }
+            group.cancelAll()
+            return closed
+        }
+    }
+
+    /// Whether a program the installer added has a window open.
+    static func installedProgramIsOpen(driveC: URL, before: Set<String>) -> Bool {
+        let open = Set(WineWindows.owners().map { $0.name.lowercased() }.filter { $0.hasSuffix(".exe") })
+        guard !open.isEmpty else { return false }
+        let added = ProgramFinder.snapshot(driveC: driveC).subtracting(before)
+        return !open.isDisjoint(with: ProgramFinder.executableNames(inFolders: added, driveC: driveC))
     }
 
     /// Opens the installer the right way for its kind, or copies a portable program in.

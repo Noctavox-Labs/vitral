@@ -35,6 +35,9 @@ public enum Recipes {
     static let desktop = #"HKEY_CURRENT_USER\Control Panel\Desktop"#
     static let fonts = #"HKEY_LOCAL_MACHINE\System\CurrentControlSet\Hardware Profiles\Current\Software\Fonts"#
     static let wineDbg = #"HKEY_CURRENT_USER\Software\Wine\WineDbg"#
+    /// Variables every Windows program of the prefix gets. Needed for the ones Wine does not
+    /// pass from the Mac (see `WineSession.reachesWindows`).
+    static let windowsEnvironment = #"HKEY_CURRENT_USER\Environment"#
 
     /// Every prefix: no crash dialog from Wine's debugger (Vitral reads the log instead).
     public static let base: [RegistryValue] = [
@@ -61,10 +64,11 @@ public enum Recipes {
         if let qt = report.technology(.qt) {
             let label = "Qt" + (qt.version.map { " " + $0 } ?? "")
             if qt.version?.hasPrefix("5.") == true {
-                // Qt 5 ignores the 192 dpi on its own; QT_SCALE_FACTOR=2 scales it (and QtWebEngine,
-                // which gets --device-scale-factor=2). QT_AUTO_SCREEN_SCALE_FACTOR breaks window creation.
+                // Qt 5 ignores the 192 dpi on its own; QT_SCALE_FACTOR=2 scales its windows and text
+                // (without it the window opens at half size, unreadable). It goes in the registry:
+                // Wine drops the Mac's QT_* variables. QT_AUTO_SCREEN_SCALE_FACTOR breaks window creation.
                 settings.registry += retina
-                settings.environment["QT_SCALE_FACTOR"] = "2"
+                settings.registry.append(.string(windowsEnvironment, "QT_SCALE_FACTOR", "2"))
                 applied.append(AppliedRecipe(id: "qt5-retina", because: label))
 
                 if report.technology(.qtQuick) != nil {

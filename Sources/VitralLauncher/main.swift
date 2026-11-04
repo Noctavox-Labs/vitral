@@ -32,7 +32,9 @@ final class Launcher: NSObject, NSApplicationDelegate {
         write("Vitral \(Vitral.version) · \(launch.manifest.name) · \(launch.manifest.program) · \(launch.manifest.engine)")
 
         // Already open (for example, the launcher was closed but the program was not): just show it.
-        if let running = launch.programWindowOwners().first {
+        // Only if this app's Wine is running: another copy of the program (made with Vitral or
+        // another tool) has windows with the same name.
+        if launch.session.serverIsRunning, let running = launch.programWindowOwners().first {
             programPID = running
             write(tr("Ya estaba abierto: lo traigo al frente.", "Already open: bringing it forward."))
             bringProgramForward()
@@ -93,6 +95,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
         while !Task.isCancelled {
             if let pid = launch?.programWindowOwners().first {
                 programPID = pid
+                bringProgramForward()
                 write(tr("Ventana a los \(String(format: "%.1f", Date().timeIntervalSince(started))) s",
                          "Window after \(String(format: "%.1f", Date().timeIntervalSince(started))) s"))
                 return true
@@ -102,9 +105,13 @@ final class Launcher: NSObject, NSApplicationDelegate {
         return false
     }
 
+    /// Wine windows open behind the active app. The launcher is active when the person opens
+    /// the app, so it hands the front over to the program (if the person moved on to another
+    /// app meanwhile, macOS ignores this and the program stays behind, as it should).
     private func bringProgramForward() {
         let pid = programPID ?? launch?.programWindowOwners().first
         if let pid, let app = NSRunningApplication(processIdentifier: pid) {
+            NSApp.yieldActivation(to: app)
             app.activate()
         }
     }

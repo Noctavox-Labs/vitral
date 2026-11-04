@@ -1,4 +1,3 @@
-import CoreGraphics
 import Foundation
 
 public enum LaunchProblem: Error, CustomStringConvertible {
@@ -61,17 +60,7 @@ public struct ProgramLaunch: Sendable {
     public func programWindowOwners() -> [pid_t] {
         let exe = program.lastPathComponent.lowercased()
         let stem = program.deletingPathExtension().lastPathComponent.lowercased()
-        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
-                as? [[String: Any]] else { return [] }
-        var owners: [pid_t] = []
-        for window in list {
-            guard let owner = (window[kCGWindowOwnerName as String] as? String)?.lowercased(),
-                  owner == exe || owner == stem,
-                  let pid = window[kCGWindowOwnerPID as String] as? pid_t,
-                  (window[kCGWindowLayer as String] as? Int) == 0 else { continue }
-            if !owners.contains(pid) { owners.append(pid) }
-        }
-        return owners
+        return WineWindows.owners().filter { [exe, stem].contains($0.name.lowercased()) }.map(\.pid)
     }
 }
 

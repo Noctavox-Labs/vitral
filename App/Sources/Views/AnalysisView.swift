@@ -89,7 +89,7 @@ struct AnalysisView: View {
                 Text(stageText(stage))
                     .font(.callout.weight(.medium))
                 if stage == .runningInstaller {
-                    Text("Si al terminar el instalador abre el programa, ciérralo para que Vitral siga.")
+                    Text("Si al terminar abre el programa, Vitral lo cierra y sigue.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
