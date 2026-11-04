@@ -101,6 +101,11 @@ xcodebuild -project Vitral.xcodeproj -scheme Vitral -configuration Debug \
 open .build/xcode/Build/Products/Debug/Vitral.app
 ```
 
+`scripts/make-dmg.sh` compila la versión Release y la empaqueta en
+`.build/dmg/Vitral-<versión>.dmg`, lista para arrastrar a Aplicaciones. Va firmada ad hoc, así
+que abre en la Mac que la compiló; las copias para otras personas deben ir firmadas con
+Developer ID y notarizadas.
+
 En macOS 26 o más nuevo la app usa Liquid Glass; en macOS 14 y 15, materiales translúcidos. Las
 copias compiladas desde el código no se actualizan solas; las versiones publicadas se actualizan
 dentro de la app con [Sparkle](https://sparkle-project.org), que comprueba la firma de cada
