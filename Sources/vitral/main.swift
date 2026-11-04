@@ -17,9 +17,12 @@ func printUsage() {
                                                Saca el ícono de un programa de Windows.
           vitral motores                       Muestra los motores de Wine y si están instalados.
           vitral motores instalar [id]         Descarga y verifica un motor (el recomendado si no se indica).
+          vitral instalar <instalador> [--destino <carpeta>] [--nombre <nombre>] [--reemplazar]
+                                               Instala un programa de Windows y lo deja como app de Mac
+                                               (en ~/Applications si no se indica otra carpeta).
           vitral version                       Muestra la versión.
 
-        Los comandos también funcionan en inglés (analyze, icon, engines install). Idioma: VITRAL_LANG=es o en.
+        Los comandos también funcionan en inglés (analyze, icon, engines install, install). Idioma: VITRAL_LANG=es o en.
         """,
         """
         Vitral \(Vitral.version): Windows programs on your Mac.
@@ -31,9 +34,12 @@ func printUsage() {
                                              Extract the icon of a Windows program.
           vitral engines                     List the Wine engines and whether they are installed.
           vitral engines install [id]        Download and verify an engine (the recommended one by default).
+          vitral install <installer> [--destination <folder>] [--name <name>] [--replace]
+                                             Install a Windows program and turn it into a Mac app
+                                             (in ~/Applications unless another folder is given).
           vitral version                     Show the version.
 
-        Commands also work in Spanish (analizar, icono, motores instalar). Language: VITRAL_LANG=en or es.
+        Commands also work in Spanish (analizar, icono, motores instalar, instalar). Language: VITRAL_LANG=en or es.
         """
     ))
 }
@@ -76,7 +82,7 @@ func describeExecutable(_ info: ExecutableInfo) -> String {
         let kind: String
         switch (info.isDLL, info.subsystem) {
         case (true, _): kind = tr("biblioteca (DLL)", "library (DLL)")
-        case (false, .gui?): kind = tr("con ventanas", "graphical")
+        case (false, .gui?): kind = tr("con interfaz gráfica", "graphical")
         case (false, .console?): kind = tr("de consola", "console")
         default: kind = tr("de otro tipo", "other type")
         }
@@ -315,6 +321,107 @@ func analyze(_ options: [String]) {
     }
 }
 
+func install(_ options: [String]) async {
+    var paths: [String] = []
+    var destination = InstallOptions.defaultDestination
+    var name: String?
+    var replace = false
+    var index = 0
+    func value() -> String {
+        index += 1
+        guard index < options.count else { printUsage(); exit(2) }
+        return options[index]
+    }
+    while index < options.count {
+        switch options[index] {
+        case "--destino", "--destination": destination = URL(fileURLWithPath: (value() as NSString).expandingTildeInPath)
+        case "--nombre", "--name": name = value()
+        case "--reemplazar", "--replace": replace = true
+        default: paths.append(options[index])
+        }
+        index += 1
+    }
+    guard paths.count == 1 else {
+        printUsage()
+        exit(2)
+    }
+    guard let launcher = InstallOptions.findLauncher() else { fail(InstallError.launcherMissing.description) }
+    let installer = URL(fileURLWithPath: (paths[0] as NSString).expandingTildeInPath)
+
+    // Ctrl-C: Wine keeps running on its own, so stop it before leaving.
+    signal(SIGINT, SIG_IGN)
+    let interrupt = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
+    interrupt.setEventHandler {
+        print(tr("\nCancelando…", "\nCancelling…"))
+        let kill = Process()
+        kill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        kill.arguments = ["-f", "Vitral/Staging/"]
+        try? kill.run()
+        kill.waitUntilExit()
+        exit(130)
+    }
+    interrupt.resume()
+
+    let lastStage = Locked<InstallStage?>(nil)
+    let progress: @Sendable (InstallStage) -> Void = { stage in
+        if case .downloadingEngine(let fraction) = stage {
+            let percent = Int(fraction * 100)
+            if case .downloadingEngine(let old) = lastStage.value, Int(old * 100) / 10 == percent / 10 { return }
+            lastStage.value = stage
+            print(tr("  Descargando el motor… \(percent) %", "  Downloading the engine… \(percent) %"))
+            return
+        }
+        lastStage.value = stage
+        switch stage {
+        case .checking: print(tr("1/6 Revisando el instalador…", "1/6 Checking the installer…"))
+        case .downloadingEngine: break
+        case .preparingWindows: print(tr("2/6 Preparando Windows (la primera vez tarda un poco)…", "2/6 Preparing Windows (the first time takes a while)…"))
+        case .runningInstaller:
+            print(tr("3/6 Abriendo el instalador: sigue sus pasos en la ventana que aparece.",
+                     "3/6 Opening the installer: follow its steps in the window that appears."))
+            print(tr("    Si al terminar abre el programa, ciérralo para seguir.",
+                     "    If it opens the program when it finishes, close it to continue."))
+        case .copyingProgram: print(tr("3/6 Copiando el programa…", "3/6 Copying the program…"))
+        case .findingProgram: print(tr("4/6 Buscando el programa instalado…", "4/6 Looking for the installed program…"))
+        case .applyingSettings: print(tr("5/6 Aplicando los ajustes recomendados…", "5/6 Applying the recommended settings…"))
+        case .buildingApp: print(tr("6/6 Armando la app…", "6/6 Building the app…"))
+        }
+    }
+
+    do {
+        let result = try await ProgramInstaller().install(
+            installer, options: InstallOptions(destination: destination, name: name, launcher: launcher, replace: replace),
+            progress: progress)
+        print("")
+        print(tr("Listo: ", "Done: ") + result.app.path)
+        print("  " + tr("Programa: ", "Program:  ") + result.manifest.program)
+        if let main = result.report.executable { print("            " + describeExecutable(main)) }
+        let technologies = result.report.technologies.map(describeTechnology)
+        if !technologies.isEmpty { print("  " + tr("Hecho con: ", "Built with: ") + technologies.joined(separator: " · ")) }
+        for recipe in result.manifest.recipes {
+            print("  " + tr("Ajuste: ", "Setting: ") + Recipes.describe(recipe.id) + " (\(recipe.because))")
+        }
+        if !result.report.antiCheat.isEmpty {
+            print(tr("  Ojo: tiene antitrampas (\(result.report.antiCheat.map(describeAntiCheat).joined(separator: ", "))). Lo más probable es que no funcione con Wine; Vitral no lo elude.",
+                     "  Note: it has anti-cheat (\(result.report.antiCheat.map(describeAntiCheat).joined(separator: ", "))). It will most likely not work with Wine; Vitral does not bypass it."))
+        }
+        print(tr("Ábrela con doble clic o con: open \"\(result.app.path)\"", "Open it with a double click or with: open \"\(result.app.path)\""))
+    } catch {
+        fail("✗ " + String(describing: error))
+    }
+}
+
+/// A value shared between threads.
+final class Locked<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: Value
+    init(_ value: Value) { stored = value }
+    var value: Value {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
+    }
+}
+
 guard let command = arguments.first else {
     printUsage()
     exit(0)
@@ -327,6 +434,8 @@ case "icono", "icon":
     extractIcon(Array(arguments.dropFirst()))
 case "motores", "engines", "motor", "engine":
     await engines(Array(arguments.dropFirst()))
+case "instalar", "install":
+    await install(Array(arguments.dropFirst()))
 case "version", "versión", "--version", "-v":
     print("Vitral \(Vitral.version)")
 case "ayuda", "help", "--help", "-h":

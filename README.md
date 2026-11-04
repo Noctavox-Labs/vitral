@@ -4,12 +4,11 @@
 
 [Leer en español](README.es.md)
 
-> **Status: early development.** Nothing to download yet. The repository has `vitral`, a
-> command-line tool that inspects a Windows installer or an installed program without running
-> it and downloads the Wine engine, and the first version of the app: a setup assistant that
-> checks your Mac and installs what is missing, and a window where you drop an installer to see
-> what it is. It does not install programs yet. Follow the [roadmap](#roadmap) to see what
-> comes next.
+> **Status: early development.** Nothing to download yet; you can build it from source. The
+> repository has `vitral`, a command-line tool that inspects Windows installers and turns
+> programs into Mac apps, and the first version of the app: a setup assistant that checks your
+> Mac and installs what is missing, a window where you drop an installer to install it, and
+> your library of Windows apps. Follow the [roadmap](#roadmap) to see what comes next.
 
 ## The idea
 
@@ -50,7 +49,15 @@ swift run vitral analyze --json "path/to/Setup.exe"   # machine-readable
 swift run vitral icon "path/to/Program.exe" Program.icns
 swift run vitral engines                             # Wine engines and Rosetta
 swift run vitral engines install                     # download and verify the recommended engine
+swift build && .build/debug/vitral install "path/to/Setup.exe"   # install it as a Mac app
 ```
+
+`vitral install` creates Windows (a Wine prefix) inside a new app, opens the installer so you
+can follow its steps, finds the installed program, applies the settings its framework needs
+(for Qt 5: sharp on Retina, Qt Quick without OpenGL, no stale single-instance lock) and leaves
+`~/Applications/<Program>.app` with the program's icon. Each app carries a small launcher that
+checks Rosetta and the engine, opens the program, tries again if it crashes while starting, and
+keeps a log in `~/Library/Logs/Vitral/`.
 
 Examples:
 

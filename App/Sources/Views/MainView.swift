@@ -14,16 +14,24 @@ struct MainView: View {
         ZStack {
             StainedGlassBackground().ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 26) {
-                header
-                DropZone(isTargeted: isTargeted) { choosingFile = true }
-                if model.needsSetup { setupBanner }
-                Spacer(minLength: 0)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 26) {
+                    header
+                    if model.needsSetup { setupBanner }
+                    if !model.library.isEmpty { LibraryGrid() }
+                    DropZone(isTargeted: isTargeted, compact: !model.library.isEmpty) { choosingFile = true }
+                }
+                .padding(.horizontal, 36)
+                .padding(.top, 18)
+                .padding(.bottom, 30)
+                .frame(maxWidth: 980)
+                .frame(maxWidth: .infinity)
             }
-            .padding(.horizontal, 36)
-            .padding(.top, 18)
-            .padding(.bottom, 30)
-            .frame(maxWidth: 980)
+            .scrollContentBackground(.hidden)
+        }
+        .onAppear { model.refreshLibrary() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            model.refreshLibrary()
         }
         .dropDestination(for: URL.self) { urls, _ in
             guard let url = urls.first else { return false }
@@ -93,6 +101,7 @@ struct MainView: View {
 /// The big target for installers. Glows when something is dragged over it.
 struct DropZone: View {
     let isTargeted: Bool
+    var compact = false
     let choose: () -> Void
 
     var body: some View {
@@ -114,7 +123,7 @@ struct DropZone: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
-        .padding(.vertical, 44)
+        .padding(.vertical, compact ? 26 : 44)
         .padding(.horizontal, 30)
         .frame(maxWidth: .infinity)
         .vitralGlass(cornerRadius: 26, tint: isTargeted ? Palette.accent : nil)
@@ -126,5 +135,62 @@ struct DropZone: View {
         }
         .scaleEffect(isTargeted ? 1.01 : 1)
         .animation(.spring(duration: 0.3), value: isTargeted)
+    }
+}
+
+/// The apps Vitral has made, as glass cards.
+struct LibraryGrid: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 190), spacing: 16)], alignment: .leading, spacing: 16) {
+            ForEach(model.library) { app in
+                LibraryCard(app: app)
+            }
+        }
+        .glassGroup(spacing: 16)
+    }
+}
+
+struct LibraryCard: View {
+    @Environment(AppModel.self) private var model
+    let app: AppModel.LibraryApp
+    @State private var hovering = false
+
+    var body: some View {
+        Button { model.openApp(app.url) } label: {
+            VStack(spacing: 10) {
+                Image(nsImage: app.icon)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 72, height: 72)
+                    .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
+                Text(app.name)
+                    .font(.callout.weight(.medium))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity)
+                if let company = app.manifest.product?.companyName {
+                    Text(company)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .padding(.vertical, 18)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, minHeight: 170)
+            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .vitralGlass(cornerRadius: 22, tint: hovering ? Palette.accent : nil)
+        .scaleEffect(hovering ? 1.02 : 1)
+        .animation(.spring(duration: 0.25), value: hovering)
+        .onHover { hovering = $0 }
+        .help("Abrir \(app.name)")
+        .contextMenu {
+            Button("Abrir") { model.openApp(app.url) }
+            Button("Mostrar en Finder") { model.showInFinder(app.url) }
+        }
     }
 }

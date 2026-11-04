@@ -13,6 +13,22 @@ final class AppModel {
         case failed(String)
     }
 
+    enum InstallState: Equatable {
+        case idle
+        case working(InstallStage)
+        case done(URL)
+        case failed(String)
+    }
+
+    /// An app made by Vitral, found in ~/Applications.
+    struct LibraryApp: Identifiable {
+        var id: URL { url }
+        let url: URL
+        let name: String
+        let icon: NSImage
+        let manifest: WrapperManifest
+    }
+
     /// A Windows installer or program the person dropped, already analyzed.
     struct DroppedFile: Identifiable {
         let id = UUID()
@@ -28,12 +44,15 @@ final class AppModel {
     var showSetup = false
     var dropped: DroppedFile?
     var dropError: String?
+    var installState: InstallState = .idle
+    private(set) var library: [LibraryApp] = []
 
     let engine = EngineCatalog.default
     private let installer = ComponentInstaller()
 
     init() {
         refresh()
+        refreshLibrary()
         showSetup = needsSetup
     }
 
@@ -124,9 +143,60 @@ final class AppModel {
                 .flatMap(NSImage.init(data:))
             // Only one sheet at a time: the analysis replaces the setup assistant.
             showSetup = false
+            if case .working = installState {} else { installState = .idle }
             dropped = DroppedFile(url: url, report: report, icon: icon)
         } catch {
             dropError = String(localized: "No pude leer ese archivo.")
         }
+    }
+
+    // MARK: Installing
+
+    var isInstalling: Bool {
+        if case .working = installState { return true }
+        return false
+    }
+
+    /// Installs the dropped program and turns it into an app in ~/Applications.
+    func install(_ file: DroppedFile) async {
+        guard let launcher = InstallOptions.findLauncher() else {
+            installState = .failed(InstallError.launcherMissing.description)
+            return
+        }
+        installState = .working(.checking)
+        do {
+            let result = try await ProgramInstaller().install(file.url, options: InstallOptions(launcher: launcher)) { stage in
+                Task { @MainActor in
+                    // Late progress messages must not hide the result.
+                    if case .working = self.installState { self.installState = .working(stage) }
+                }
+            }
+            installState = .done(result.app)
+        } catch {
+            installState = .failed(String(describing: error))
+        }
+        refresh()
+        refreshLibrary()
+    }
+
+    // MARK: Library
+
+    func refreshLibrary() {
+        let folder = InstallOptions.defaultDestination
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        library = names.filter { $0.hasSuffix(".app") }.sorted().compactMap { name in
+            let wrapper = Wrapper(url: folder.appendingPathComponent(name))
+            guard let manifest = try? wrapper.readManifest() else { return nil }
+            return LibraryApp(url: wrapper.url, name: name.replacingOccurrences(of: ".app", with: ""),
+                              icon: NSWorkspace.shared.icon(forFile: wrapper.url.path), manifest: manifest)
+        }
+    }
+
+    func openApp(_ url: URL) {
+        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+    }
+
+    func showInFinder(_ url: URL) {
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 }

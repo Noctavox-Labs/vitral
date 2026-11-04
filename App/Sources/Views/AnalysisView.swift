@@ -1,13 +1,15 @@
 import SwiftUI
 import VitralKit
 
-/// What Vitral found in a dropped installer, before installing anything.
+/// What Vitral found in a dropped installer, and the installation itself.
 struct AnalysisView: View {
+    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let file: AppModel.DroppedFile
 
     private var report: InstallerReport { file.report }
     private var version: VersionInfo? { report.executable?.version }
+    private var refusal: String? { ProgramInstaller.refusal(report) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -42,29 +44,110 @@ struct AnalysisView: View {
             .padding(.vertical, 4)
             .vitralGlass(cornerRadius: 16)
 
-            if let warning {
-                Label(warning, systemImage: "exclamationmark.triangle.fill")
+            if let refusal {
+                Label(refusal, systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            footer
+        }
+        .padding(30)
+        .frame(width: 560)
+        .interactiveDismissDisabled(model.isInstalling)
+    }
+
+    // MARK: Footer: install, progress, result
+
+    @ViewBuilder
+    private var footer: some View {
+        switch model.installState {
+        case .idle:
             HStack {
-                Text("La instalación automática llega en la próxima versión.")
+                Text(model.mac.hasRosetta ? "Quedará como una app en Aplicaciones, en tu carpeta personal." : "Antes hace falta instalar Rosetta.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Button("Cerrar") { dismiss() }
                     .glassButton()
                     .keyboardShortcut(.cancelAction)
-                Button("Instalar") {}
+                Button("Instalar") { Task { await model.install(file) } }
                     .prominentGlassButton()
-                    .disabled(true)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(refusal != nil || !model.mac.hasRosetta)
             }
             .controlSize(.large)
+
+        case .working(let stage):
+            VStack(alignment: .leading, spacing: 8) {
+                if case .downloadingEngine(let fraction) = stage {
+                    ProgressView(value: fraction)
+                } else {
+                    ProgressView().progressViewStyle(.linear)
+                }
+                Text(stageText(stage))
+                    .font(.callout.weight(.medium))
+                if stage == .runningInstaller {
+                    Text("Si al terminar el instalador abre el programa, ciérralo para que Vitral siga.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(16)
+            .vitralGlass(cornerRadius: 16, tint: Palette.accent)
+
+        case .done(let app):
+            HStack {
+                Label("\(app.deletingPathExtension().lastPathComponent) está lista", systemImage: "checkmark.seal.fill")
+                    .foregroundStyle(.green)
+                    .font(.callout.weight(.medium))
+                Spacer()
+                Button("Mostrar en Finder") { model.showInFinder(app) }
+                    .glassButton()
+                Button("Abrir") {
+                    model.openApp(app)
+                    dismiss()
+                }
+                .prominentGlassButton()
+                .keyboardShortcut(.defaultAction)
+            }
+            .controlSize(.large)
+
+        case .failed(let message):
+            VStack(alignment: .leading, spacing: 12) {
+                Label(message, systemImage: "xmark.octagon.fill")
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Spacer()
+                    Button("Cerrar") { dismiss() }
+                        .glassButton()
+                        .keyboardShortcut(.cancelAction)
+                    Button("Intentar otra vez") { Task { await model.install(file) } }
+                        .prominentGlassButton()
+                }
+                .controlSize(.large)
+            }
         }
-        .padding(30)
-        .frame(width: 560)
     }
+
+    private func stageText(_ stage: InstallStage) -> String {
+        switch stage {
+        case .checking: String(localized: "Revisando el instalador…")
+        case .downloadingEngine(let fraction): String(localized: "Descargando el motor de Windows… \(Int(fraction * 100)) %")
+        case .preparingWindows: String(localized: "Preparando Windows…")
+        case .runningInstaller: String(localized: "Sigue los pasos del instalador en su ventana.")
+        case .copyingProgram: String(localized: "Copiando el programa…")
+        case .findingProgram: String(localized: "Buscando el programa instalado…")
+        case .applyingSettings: String(localized: "Aplicando los ajustes recomendados…")
+        case .buildingApp: String(localized: "Creando la app…")
+        }
+    }
+
+    // MARK: Facts
 
     @ViewBuilder
     private var icon: some View {
@@ -128,21 +211,5 @@ struct AnalysisView: View {
                 ? String(localized: "Windows de \(info.bits) bits, de consola")
                 : String(localized: "Windows de \(info.bits) bits, con interfaz gráfica")
         }
-    }
-
-    private var warning: String? {
-        if report.executable?.format == .windows16 {
-            return String(localized: "Los programas de Windows de 16 bits no funcionan con Wine en Mac.")
-        }
-        if report.executable?.format == .dos {
-            return String(localized: "Es un programa de MS-DOS: Vitral no lo puede abrir.")
-        }
-        if report.executable?.isDLL == true {
-            return String(localized: "Es una biblioteca (DLL), no un programa: no se abre sola.")
-        }
-        if report.kind == .unknown {
-            return String(localized: "No parece un instalador ni un programa de Windows.")
-        }
-        return nil
     }
 }

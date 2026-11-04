@@ -4,11 +4,11 @@
 
 [Read in English](README.md)
 
-> **Estado: en desarrollo temprano.** Todavía no hay nada para descargar. El repositorio tiene
-> `vitral`, una herramienta de línea de comandos que revisa un instalador de Windows o un
-> programa ya instalado sin ejecutarlo y descarga el motor de Wine, y la primera versión de la
-> app: un asistente que revisa tu Mac e instala lo que falta, y una ventana donde sueltas un
-> instalador para ver qué es. Todavía no instala programas. En la
+> **Estado: en desarrollo temprano.** Todavía no hay nada para descargar; se puede compilar
+> desde el código. El repositorio tiene `vitral`, una herramienta de línea de comandos que
+> revisa instaladores de Windows y convierte programas en apps de Mac, y la primera versión de
+> la app: un asistente que revisa tu Mac e instala lo que falta, una ventana donde sueltas un
+> instalador para instalarlo, y tu biblioteca de apps de Windows. En la
 > [hoja de ruta](#hoja-de-ruta) está lo que viene.
 
 ## La idea
@@ -52,21 +52,29 @@ swift run vitral analizar --json "ruta/al/Setup.exe"   # para otros programas
 swift run vitral icono "ruta/al/Programa.exe" Programa.icns
 swift run vitral motores                               # motores de Wine y Rosetta
 swift run vitral motores instalar                      # baja y verifica el motor recomendado
+swift build && .build/debug/vitral instalar "ruta/a/Setup.exe"   # instalarlo como app de Mac
 ```
+
+`vitral instalar` crea un Windows (un prefijo de Wine) dentro de una app nueva, abre el
+instalador para que sigas sus pasos, encuentra el programa instalado, aplica los ajustes que
+necesita su tecnología (en Qt 5: nítido en Retina, Qt Quick sin OpenGL y sin el candado de
+instancia única trabado) y deja `~/Applications/<Programa>.app` con el ícono del programa. Cada
+app lleva un lanzador pequeño que revisa Rosetta y el motor, abre el programa, vuelve a intentar
+si se cae al arrancar y guarda un registro en `~/Library/Logs/Vitral/`.
 
 Ejemplos:
 
 ```text
 Setup.exe  (422 KB)
   Tipo:     Instalador Inno Setup 5.5.7
-  Archivo:  Windows de 32 bits, con ventanas
+  Archivo:  Windows de 32 bits, con interfaz gráfica
   Instala:  Mi Programa 28.0.0.0 · Ejemplo S.A.
   Necesita: Setup-1a.bin (1,36 GB)
             (tienen que estar en la misma carpeta)
 
 Mi Programa  (carpeta · 1203 archivos · 1,67 GB)
   Programa:    Mi Programa.exe
-               Windows de 32 bits, con ventanas · con ícono
+               Windows de 32 bits, con interfaz gráfica · con ícono
   Producto:    Mi Programa 28.0.0 · Ejemplo S.A.
   Hecho con:   Qt 5.12.4 · Qt Quick (QML) · navegador QtWebEngine (Chromium) · ANGLE (OpenGL ES → Direct3D)
   Necesita:    Visual C++ 2015-2022 de 32 bits (trae vc_redist.x86.exe)

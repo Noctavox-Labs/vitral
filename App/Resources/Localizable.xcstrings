@@ -1,6 +1,16 @@
 {
   "sourceLanguage" : "es",
   "strings" : {
+    "%@ está lista" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is ready"
+          }
+        }
+      }
+    },
     "%@ · %lld %%" : {
       "localizations" : {
         "en" : {
@@ -23,6 +33,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : ".exe · .msi · .zip"
+          }
+        }
+      }
+    },
+    "Abrir" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open"
+          }
+        }
+      }
+    },
+    "Abrir %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open %@"
           }
         }
       }
@@ -77,6 +107,26 @@
         }
       }
     },
+    "Antes hace falta instalar Rosetta." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rosetta has to be installed first."
+          }
+        }
+      }
+    },
+    "Aplicando los ajustes recomendados…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Applying the recommended settings…"
+          }
+        }
+      }
+    },
     "Apple anunció que Rosetta deja de ser de uso general después de macOS 27; algunos programas podrían no abrir." : {
       "localizations" : {
         "en" : {
@@ -123,6 +173,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Drop a Windows installer here"
+          }
+        }
+      }
+    },
+    "Buscando el programa instalado…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Looking for the installed program…"
           }
         }
       }
@@ -207,6 +267,26 @@
         }
       }
     },
+    "Copiando el programa…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copying the program…"
+          }
+        }
+      }
+    },
+    "Creando la app…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creating the app…"
+          }
+        }
+      }
+    },
     "Código fuente en GitHub" : {
       "localizations" : {
         "en" : {
@@ -223,6 +303,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Downloading %@"
+          }
+        }
+      }
+    },
+    "Descargando el motor de Windows… %lld %%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading the Windows engine… %lld %%"
           }
         }
       }
@@ -263,26 +353,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Get Started"
-          }
-        }
-      }
-    },
-    "Es un programa de MS-DOS: Vitral no lo puede abrir." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This is an MS-DOS program: Vitral can't open it."
-          }
-        }
-      }
-    },
-    "Es una biblioteca (DLL), no un programa: no se abre sola." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This is a library (DLL), not a program: it doesn't open on its own."
           }
         }
       }
@@ -437,12 +507,12 @@
         }
       }
     },
-    "La instalación automática llega en la próxima versión." : {
+    "Intentar otra vez" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Automatic installation arrives in the next version."
+            "value" : "Try Again"
           }
         }
       }
@@ -453,16 +523,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "License"
-          }
-        }
-      }
-    },
-    "Los programas de Windows de 16 bits no funcionan con Wine en Mac." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "16-bit Windows programs don't work with Wine on Mac."
           }
         }
       }
@@ -497,6 +557,16 @@
         }
       }
     },
+    "Mostrar en Finder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show in Finder"
+          }
+        }
+      }
+    },
     "Motor de Windows" : {
       "localizations" : {
         "en" : {
@@ -523,16 +593,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Needs"
-          }
-        }
-      }
-    },
-    "No parece un instalador ni un programa de Windows." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "It doesn't look like a Windows installer or program."
           }
         }
       }
@@ -573,6 +633,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Windows Installer package"
+          }
+        }
+      }
+    },
+    "Preparando Windows…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing Windows…"
           }
         }
       }
@@ -647,12 +717,52 @@
         }
       }
     },
+    "Quedará como una app en Aplicaciones, en tu carpeta personal." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It will become an app in the Applications folder of your home folder."
+          }
+        }
+      }
+    },
+    "Revisando el instalador…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking the installer…"
+          }
+        }
+      }
+    },
     "Rosetta" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rosetta"
+          }
+        }
+      }
+    },
+    "Si al terminar el instalador abre el programa, ciérralo para que Vitral siga." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the installer opens the program when it finishes, close it so Vitral can continue."
+          }
+        }
+      }
+    },
+    "Sigue los pasos del instalador en su ventana." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Follow the installer's steps in its window."
           }
         }
       }
