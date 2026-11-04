@@ -38,4 +38,29 @@ struct ByteReader {
     func contains(_ pattern: [UInt8]) -> Bool { firstOffset(of: pattern) != nil }
 
     func contains(_ ascii: String) -> Bool { contains(Array(ascii.utf8)) }
+
+    /// NUL-terminated ASCII text starting at `offset` (at most `limit` bytes).
+    func cString(_ offset: Int, limit: Int = 256) -> String? {
+        var bytes: [UInt8] = []
+        var position = offset
+        while bytes.count < limit, let byte = u8(position) {
+            if byte == 0 { return String(decoding: bytes, as: UTF8.self) }
+            bytes.append(byte)
+            position += 1
+        }
+        return nil
+    }
+
+    /// UTF-16LE text starting at `offset`, up to a NUL or `maxUnits` code units.
+    /// Returns the text and how many units were consumed, counting the NUL if present.
+    func utf16(_ offset: Int, maxUnits: Int) -> (text: String, units: Int) {
+        var units: [UInt16] = []
+        var position = offset
+        while units.count < maxUnits, let unit = u16(position) {
+            if unit == 0 { return (String(decoding: units, as: UTF16.self), units.count + 1) }
+            units.append(unit)
+            position += 2
+        }
+        return (String(decoding: units, as: UTF16.self), units.count)
+    }
 }

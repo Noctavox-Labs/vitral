@@ -6,7 +6,8 @@
 
 > **Estado: en desarrollo temprano.** Todavía no hay una app para instalar. Hoy el repositorio
 > tiene `vitral analizar`, una herramienta de línea de comandos que revisa un instalador de
-> Windows sin ejecutarlo. En la [hoja de ruta](#hoja-de-ruta) está lo que viene.
+> Windows o un programa ya instalado sin ejecutarlo. En la [hoja de ruta](#hoja-de-ruta) está
+> lo que viene.
 
 ## La idea
 
@@ -43,23 +44,37 @@ comandos).
 ```sh
 git clone https://github.com/noctavoxfilms/vitral.git
 cd vitral
-swift run vitral analizar "ruta/al/Setup.exe"
+swift run vitral analizar "ruta/al/Setup.exe"          # un instalador
+swift run vitral analizar "ruta/a/Mi Programa"         # la carpeta de un programa instalado
 swift run vitral analizar --json "ruta/al/Setup.exe"   # para otros programas
+swift run vitral icono "ruta/al/Programa.exe" Programa.icns
 ```
 
-Ejemplo:
+Ejemplos:
 
 ```text
 Setup.exe  (422 KB)
   Tipo:     Instalador Inno Setup 5.5.7
   Archivo:  Windows de 32 bits, con ventanas
+  Instala:  Mi Programa 28.0.0.0 · Ejemplo S.A.
   Necesita: Setup-1a.bin (1,36 GB)
             (tienen que estar en la misma carpeta)
+
+Mi Programa  (carpeta · 1203 archivos · 1,67 GB)
+  Programa:    Mi Programa.exe
+               Windows de 32 bits, con ventanas · con ícono
+  Producto:    Mi Programa 28.0.0 · Ejemplo S.A.
+  Hecho con:   Qt 5.12.4 · Qt Quick (QML) · navegador QtWebEngine (Chromium) · ANGLE (OpenGL ES → Direct3D)
+  Necesita:    Visual C++ 2015-2022 de 32 bits (trae vc_redist.x86.exe)
 ```
 
-Reconoce Inno Setup, NSIS, Windows Installer (`.msi`), WiX Burn, InstallShield, archivos 7-Zip
-autoextraíbles, ZIP y programas sueltos, y distingue 16, 32 y 64 bits. Habla español e inglés
-(sigue el idioma de macOS; `VITRAL_LANG=es` fuerza español).
+En los instaladores reconoce Inno Setup, NSIS, Windows Installer (`.msi`), WiX Burn,
+InstallShield, archivos 7-Zip autoextraíbles, ZIP y programas sueltos, y distingue 16, 32 y 64
+bits. En un programa instalado encuentra el archivo que hay que abrir y detecta Qt, Electron,
+CEF, .NET, Java, Unity, Unreal, el runtime de Visual C++, la interfaz gráfica (DirectX, OpenGL,
+Vulkan) y los antitrampas. `vitral icono` convierte el ícono del programa en uno de Mac, con
+todos los tamaños Retina. Habla español e inglés (sigue el idioma de macOS; `VITRAL_LANG=es`
+fuerza español).
 
 ## Hoja de ruta
 

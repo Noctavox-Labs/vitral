@@ -55,7 +55,7 @@ public enum InstallerAnalyzer {
         let data = try Data(contentsOf: url, options: .alwaysMapped)
         let (kind, version) = classify(data.prefix(scanLimit), fileExtension: url.pathExtension)
         let executable = data.prefix(2) == Data([0x4D, 0x5A])
-            ? PortableExecutable.parse(data.prefix(1024 * 1024))
+            ? PortableExecutable.parse(data)
             : nil
 
         return InstallerReport(

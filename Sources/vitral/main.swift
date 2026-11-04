@@ -12,18 +12,24 @@ func printUsage() {
 
         Uso:
           vitral analizar [--json] <archivo>   Revisa un instalador o programa de Windows sin ejecutarlo.
+          vitral analizar [--json] <carpeta>   Revisa un programa ya instalado: cuál abrir y con qué está hecho.
+          vitral icono <programa.exe> <salida.icns|.ico>
+                                               Saca el ícono de un programa de Windows.
           vitral version                       Muestra la versión.
 
-        Los comandos también funcionan en inglés (analyze). Idioma: VITRAL_LANG=es o en.
+        Los comandos también funcionan en inglés (analyze, icon). Idioma: VITRAL_LANG=es o en.
         """,
         """
         Vitral \(Vitral.version): Windows programs on your Mac.
 
         Usage:
-          vitral analyze [--json] <file>   Inspect a Windows installer or program without running it.
-          vitral version                   Show the version.
+          vitral analyze [--json] <file>     Inspect a Windows installer or program without running it.
+          vitral analyze [--json] <folder>   Inspect an installed program: which file to open and what it is built with.
+          vitral icon <program.exe> <output.icns|.ico>
+                                             Extract the icon of a Windows program.
+          vitral version                     Show the version.
 
-        Commands also work in Spanish (analizar). Language: VITRAL_LANG=en or es.
+        Commands also work in Spanish (analizar, icono). Language: VITRAL_LANG=en or es.
         """
     ))
 }
@@ -76,6 +82,142 @@ func describeExecutable(_ info: ExecutableInfo) -> String {
     }
 }
 
+func describeProduct(_ version: VersionInfo?) -> String? {
+    guard let version, let name = version.productName ?? version.fileDescription else { return nil }
+    var text = name
+    if let number = version.productVersion ?? version.fileVersion { text += " " + number }
+    if let company = version.companyName { text += " · " + company }
+    return text
+}
+
+func describeTechnology(_ technology: Technology) -> String {
+    let version = technology.version.map { " " + $0 } ?? ""
+    switch technology.kind {
+    case .qt: return "Qt\(version)"
+    case .qtQuick: return "Qt Quick (QML)"
+    case .qtWebEngine: return tr("navegador QtWebEngine (Chromium)", "QtWebEngine browser (Chromium)")
+    case .angle: return "ANGLE (OpenGL ES → Direct3D)"
+    case .electron: return "Electron\(version)"
+    case .cef: return "CEF (Chromium)\(version)"
+    case .dotNetFramework: return ".NET Framework\(version)"
+    case .dotNet: return ".NET\(version)"
+    case .java: return "Java"
+    case .unity: return "Unity\(version)"
+    case .unreal: return "Unreal Engine"
+    case .visualCpp: return "Visual C++\(version)"
+    }
+}
+
+func describeGraphics(_ api: GraphicsAPI) -> String {
+    switch api {
+    case .directDraw: "DirectDraw"
+    case .direct3D8: "Direct3D 8"
+    case .direct3D9: "Direct3D 9"
+    case .direct3D10: "Direct3D 10"
+    case .direct3D11: "Direct3D 11"
+    case .direct3D12: "Direct3D 12"
+    case .openGL: "OpenGL"
+    case .vulkan: "Vulkan"
+    }
+}
+
+func describeAntiCheat(_ antiCheat: AntiCheat) -> String {
+    switch antiCheat {
+    case .easyAntiCheat: "Easy Anti-Cheat"
+    case .battlEye: "BattlEye"
+    case .gameGuard: "nProtect GameGuard"
+    case .xigncode: "XIGNCODE3"
+    }
+}
+
+func printJSON<T: Encodable>(_ value: T) {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+    let data = (try? encoder.encode(value)) ?? Data()
+    print(String(decoding: data, as: UTF8.self))
+}
+
+func analyzeFolder(_ url: URL, json: Bool) {
+    let report: ProgramReport
+    do {
+        report = try ProgramAnalyzer.analyze(folderAt: url)
+    } catch {
+        fail(tr("No pude revisar la carpeta: \(url.path)", "Could not inspect the folder: \(url.path)"))
+    }
+    if json { return printJSON(report) }
+
+    let files = tr("\(report.fileCount) archivos", "\(report.fileCount) files")
+    print("\(report.folderName)  (" + tr("carpeta", "folder") + " · \(files) · \(formatSize(report.totalBytes)))")
+
+    guard let main = report.mainExecutable, let info = report.executable else {
+        print("  " + tr("No encontré ningún programa de Windows para abrir.", "Found no Windows program to open."))
+        return
+    }
+    let pad = "               "
+    print("  " + tr("Programa:    ", "Program:     ") + main)
+    let icon = info.hasIcon ? tr(" · con ícono", " · has an icon") : tr(" · sin ícono", " · no icon")
+    print(pad + describeExecutable(info) + icon)
+    if let product = describeProduct(info.version) {
+        print("  " + tr("Producto:    ", "Product:     ") + product)
+    }
+
+    let runtimes: Set<Technology.Kind> = [.visualCpp, .dotNetFramework, .dotNet, .java]
+    let built = report.technologies.filter { !runtimes.contains($0.kind) }
+    if !built.isEmpty {
+        print("  " + tr("Hecho con:   ", "Built with:  ") + built.map(describeTechnology).joined(separator: " · "))
+    }
+    var needs = report.technologies.filter { runtimes.contains($0.kind) }.map { technology -> String in
+        technology.kind == .visualCpp
+            ? describeTechnology(technology) + tr(" de \(info.bits) bits", " (\(info.bits)-bit)")
+            : describeTechnology(technology)
+    }
+    if !report.bundledRedistributables.isEmpty {
+        let names = report.bundledRedistributables.map { ($0 as NSString).lastPathComponent }.joined(separator: ", ")
+        needs.append(tr("(trae \(names))", "(ships \(names))"))
+    }
+    if !needs.isEmpty {
+        print("  " + tr("Necesita:    ", "Needs:       ") + needs.joined(separator: " "))
+    }
+    if !report.graphics.isEmpty {
+        print("  " + tr("Gráficos:    ", "Graphics:    ") + report.graphics.map(describeGraphics).joined(separator: " · "))
+    }
+    if !report.antiCheat.isEmpty {
+        let names = report.antiCheat.map(describeAntiCheat).joined(separator: ", ")
+        print("  " + tr("Antitrampas: ", "Anti-cheat:  ") + names)
+        print(pad + tr("No funciona con Wine en Mac; Vitral no lo va a esquivar.",
+                       "It does not work with Wine on Mac; Vitral will not bypass it."))
+    }
+    if !report.alternatives.isEmpty {
+        print("  " + tr("Otros:       ", "Others:      ") + report.alternatives.joined(separator: ", "))
+    }
+}
+
+func extractIcon(_ options: [String]) {
+    guard options.count == 2 else {
+        printUsage()
+        exit(2)
+    }
+    let input = URL(fileURLWithPath: (options[0] as NSString).expandingTildeInPath)
+    let output = URL(fileURLWithPath: (options[1] as NSString).expandingTildeInPath)
+    guard let data = try? Data(contentsOf: input, options: .alwaysMapped) else {
+        fail(tr("No pude leer el archivo: \(options[0])", "Could not read the file: \(options[0])"))
+    }
+    guard let ico = PortableExecutable.icon(data) else {
+        fail(tr("Ese programa no tiene ícono.", "That program has no icon."))
+    }
+    let wantsICNS = output.pathExtension.lowercased() != "ico"
+    guard let result = wantsICNS ? AppIcon.icns(fromICO: ico) : ico else {
+        fail(tr("No pude convertir el ícono.", "Could not convert the icon."))
+    }
+    do {
+        try result.write(to: output)
+    } catch {
+        fail(tr("No pude guardar \(output.path): \(error.localizedDescription)",
+                "Could not save \(output.path): \(error.localizedDescription)"))
+    }
+    print(tr("Ícono guardado en \(output.path)", "Icon saved to \(output.path)"))
+}
+
 func analyze(_ options: [String]) {
     let json = options.contains("--json")
     let paths = options.filter { $0 != "--json" }
@@ -85,30 +227,30 @@ func analyze(_ options: [String]) {
     }
 
     let url = URL(fileURLWithPath: (paths[0] as NSString).expandingTildeInPath)
+    var isDirectory: ObjCBool = false
+    if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
+        return analyzeFolder(url, json: json)
+    }
     let report: InstallerReport
     do {
         report = try InstallerAnalyzer.analyze(fileAt: url)
     } catch InstallerAnalyzerError.notFound {
         fail(tr("No encontré el archivo: \(paths[0])", "File not found: \(paths[0])"))
-    } catch InstallerAnalyzerError.notAFile {
-        fail(tr("Es una carpeta, no un archivo: \(paths[0])", "That is a folder, not a file: \(paths[0])"))
     } catch {
         fail(tr("No pude leer el archivo: \(error.localizedDescription)", "Could not read the file: \(error.localizedDescription)"))
     }
 
-    if json {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        let data = (try? encoder.encode(report)) ?? Data()
-        print(String(decoding: data, as: UTF8.self))
-        return
-    }
+    if json { return printJSON(report) }
 
     print("\(report.fileName)  (\(formatSize(report.sizeBytes)))")
     print("  " + tr("Tipo:     ", "Type:     ") + describeKind(report))
     if let info = report.executable {
         let label = report.kind == .executable ? tr("Programa: ", "Program:  ") : tr("Archivo:  ", "File:     ")
         print("  " + label + describeExecutable(info))
+        if let product = describeProduct(info.version) {
+            let label = report.kind == .executable ? tr("Producto: ", "Product:  ") : tr("Instala:  ", "Installs: ")
+            print("  " + label + product)
+        }
     }
     if !report.companionFiles.isEmpty {
         let folder = url.deletingLastPathComponent()
@@ -129,6 +271,8 @@ guard let command = arguments.first else {
 switch command {
 case "analizar", "analyze":
     analyze(Array(arguments.dropFirst()))
+case "icono", "icon":
+    extractIcon(Array(arguments.dropFirst()))
 case "version", "versión", "--version", "-v":
     print("Vitral \(Vitral.version)")
 case "ayuda", "help", "--help", "-h":
