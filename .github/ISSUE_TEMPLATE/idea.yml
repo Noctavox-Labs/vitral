@@ -1,0 +1,13 @@
+name: "Idea / Sugerencia"
+description: "Suggest an improvement / Propón una mejora"
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: "What would make Vitral better? / ¿Qué haría mejor a Vitral?"
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: "Why? Which program or situation? / ¿Por qué? ¿Para qué programa o situación?"

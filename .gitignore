@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# Swift Package Manager / Xcode
+/.build
+/.swiftpm
+/Packages
+xcuserdata/
+DerivedData/
+*.xcuserstate
+
+# Never commit Windows installers, programs, prefixes or wrapped apps.
+# Tests use synthetic files built in code.
+*.exe
+*.msi
+*.bin
+*.cab
+*.dll
+*.app/
