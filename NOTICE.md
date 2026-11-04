@@ -47,6 +47,12 @@ apps en Qt 5, y los parches de CrossOver lo resuelven. Vitral solo descarga la c
 Sikarugir; no copia código de Sikarugir. La reemplazará un motor compilado por Vitral desde el
 código de CodeWeavers.
 
+**Bundled in the app / Incluido en la app:**
+
+| Component | License | Source |
+|-----------|---------|--------|
+| Sparkle 2.10.1 (automatic updates / actualizaciones automáticas) | MIT, plus the notices in its `LICENSE` file | [sparkle-project/Sparkle](https://github.com/sparkle-project/Sparkle) |
+
 **Planned / Previstos:**
 
 | Component | License | Source |

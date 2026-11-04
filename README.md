@@ -4,9 +4,12 @@
 
 [Leer en español](README.es.md)
 
-> **Status: early development.** There is no app to install yet. Today the repository has
-> `vitral analyze`, a command-line tool that inspects a Windows installer or an installed
-> program without running it. Follow the [roadmap](#roadmap) to see what comes next.
+> **Status: early development.** Nothing to download yet. The repository has `vitral`, a
+> command-line tool that inspects a Windows installer or an installed program without running
+> it and downloads the Wine engine, and the first version of the app: a setup assistant that
+> checks your Mac and installs what is missing, and a window where you drop an installer to see
+> what it is. It does not install programs yet. Follow the [roadmap](#roadmap) to see what
+> comes next.
 
 ## The idea
 
@@ -75,14 +78,31 @@ Vulkan) and anti-cheat systems. `vitral icon` turns the program's icon into a ma
 every Retina size. The tool speaks English and Spanish (it follows your macOS language;
 `VITRAL_LANG=en` forces English).
 
+## Build the app
+
+You need Xcode 26 or later and [XcodeGen](https://github.com/yonaskolb/XcodeGen)
+(`brew install xcodegen`). The Xcode project is generated from `project.yml` and is not in the
+repository.
+
+```sh
+xcodegen generate
+xcodebuild -project Vitral.xcodeproj -scheme Vitral -configuration Debug \
+  -derivedDataPath .build/xcode build
+open .build/xcode/Build/Products/Debug/Vitral.app
+```
+
+On macOS 26 and later the app uses Liquid Glass; on macOS 14 and 15 it uses translucent
+materials. Copies built from source do not update themselves; published releases update inside
+the app with [Sparkle](https://sparkle-project.org), checking the signature of each update.
+
 ## Roadmap
 
 | Phase | Goal |
 |-------|------|
-| **0. Foundations** *(now)* | Repository, CI, installer analyzer |
-| **1. One command** | `vitral install Setup.exe` creates a sharp, portable Mac app with its icon, with no manual steps beyond the program's own installer. First target: a Qt 5 + QtWebEngine educational app that today needs a dozen manual fixes |
-| **2. The app** | SwiftUI app: library, drag and drop, "Does it look right?", advanced settings |
-| **3. Sharing** | Export and import, signed and notarized releases, updates |
+| **0. Foundations** *(done)* | Repository, CI, installer and program analyzer, Wine engine download |
+| **1. One command** *(now)* | `vitral install Setup.exe` creates a sharp, portable Mac app with its icon, with no manual steps beyond the program's own installer. First target: a Qt 5 + QtWebEngine educational app that today needs a dozen manual fixes |
+| **2. The app** *(started)* | SwiftUI app with Liquid Glass: setup assistant (Rosetta, engine), drag and drop, library, "Does it look right?", advanced settings |
+| **3. Sharing** | Export and import, signed and notarized releases, automatic updates inside the app |
 | **4. More programs** | Compatibility list, community recipes |
 | **5. After Rosetta** | Apple is phasing out general Rosetta support after macOS 27; Vitral is built so a Rosetta-free Wine engine can drop in |
 

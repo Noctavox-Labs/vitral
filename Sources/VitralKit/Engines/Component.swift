@@ -78,15 +78,18 @@ public enum ComponentError: Error, Equatable, CustomStringConvertible {
 /// Downloads, verifies and unpacks components.
 public struct ComponentInstaller: Sendable {
     public let home: VitralHome
-    /// Fetches a URL into a local file. Replaceable in tests.
-    public var fetch: @Sendable (URL) async throws -> URL
+    /// Reports how much of a download is done, from 0 to 1.
+    public typealias Progress = @Sendable (Double) -> Void
+    /// Fetches a URL into a local file, reporting progress. Replaceable in tests.
+    public typealias Fetch = @Sendable (URL, @escaping Progress) async throws -> URL
+    public var fetch: Fetch
 
     /// Name of the receipt written inside a component folder once it is complete.
     static let receiptName = ".vitral-component.json"
 
-    public init(home: VitralHome = .default, fetch: (@Sendable (URL) async throws -> URL)? = nil) {
+    public init(home: VitralHome = .default, fetch: Fetch? = nil) {
         self.home = home
-        self.fetch = fetch ?? ComponentInstaller.download
+        self.fetch = fetch ?? { url, progress in try await Downloader.download(url, progress: progress) }
     }
 
     /// `true` if the component is unpacked and was verified against this exact checksum.
@@ -99,7 +102,7 @@ public struct ComponentInstaller: Sendable {
 
     /// Installs the component unless it is already there. Returns its folder.
     @discardableResult
-    public func install(_ component: Component) async throws -> URL {
+    public func install(_ component: Component, progress: @escaping Progress = { _ in }) async throws -> URL {
         let destination = home.folder(of: component)
         if isInstalled(component) { return destination }
 
@@ -112,7 +115,7 @@ public struct ComponentInstaller: Sendable {
 
         let archive: URL
         do {
-            archive = try await fetch(component.url)
+            archive = try await fetch(component.url, progress)
         } catch {
             throw ComponentError.downloadFailed(error.localizedDescription)
         }
@@ -169,17 +172,61 @@ public struct ComponentInstaller: Sendable {
                 .trimmingCharacters(in: .whitespacesAndNewlines))
         }
     }
+}
 
-    /// Default fetcher: a plain HTTPS download to a temporary file.
-    @Sendable static func download(_ url: URL) async throws -> URL {
-        let (temporary, response) = try await URLSession.shared.download(from: url)
-        if let http = response as? HTTPURLResponse, !(200 ..< 300).contains(http.statusCode) {
-            try? FileManager.default.removeItem(at: temporary)
-            throw ComponentError.downloadFailed("HTTP \(http.statusCode)")
+/// HTTPS downloads to a temporary file, with progress.
+enum Downloader {
+    static func download(_ url: URL, progress: @escaping ComponentInstaller.Progress) async throws -> URL {
+        let delegate = DownloadDelegate(progress: progress)
+        let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+        defer { session.finishTasksAndInvalidate() }
+        return try await withCheckedThrowingContinuation { continuation in
+            delegate.continuation = continuation
+            session.downloadTask(with: url).resume()
         }
-        // URLSession deletes its file when this returns; keep our own copy.
-        let kept = FileManager.default.temporaryDirectory.appendingPathComponent("vitral-\(UUID().uuidString)-\(url.lastPathComponent)")
-        try FileManager.default.moveItem(at: temporary, to: kept)
-        return kept
+    }
+
+    final class DownloadDelegate: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+        let progress: ComponentInstaller.Progress
+        var continuation: CheckedContinuation<URL, Error>?
+        private var lastReported = -1.0
+
+        init(progress: @escaping ComponentInstaller.Progress) { self.progress = progress }
+
+        func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64,
+                        totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+            guard totalBytesExpectedToWrite > 0 else { return }
+            let fraction = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+            // About 200 updates per download are plenty.
+            if fraction - lastReported >= 0.005 || fraction >= 1 {
+                lastReported = fraction
+                progress(fraction)
+            }
+        }
+
+        func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+            if let http = downloadTask.response as? HTTPURLResponse, !(200 ..< 300).contains(http.statusCode) {
+                finish(.failure(ComponentError.downloadFailed("HTTP \(http.statusCode)")))
+                return
+            }
+            // The system deletes `location` when this returns; keep our own copy.
+            let name = downloadTask.originalRequest?.url?.lastPathComponent ?? "download"
+            let kept = FileManager.default.temporaryDirectory.appendingPathComponent("vitral-\(UUID().uuidString)-\(name)")
+            do {
+                try FileManager.default.moveItem(at: location, to: kept)
+                finish(.success(kept))
+            } catch {
+                finish(.failure(error))
+            }
+        }
+
+        func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+            if let error { finish(.failure(error)) }
+        }
+
+        private func finish(_ result: Result<URL, Error>) {
+            continuation?.resume(with: result)
+            continuation = nil
+        }
     }
 }

@@ -4,10 +4,12 @@
 
 [Read in English](README.md)
 
-> **Estado: en desarrollo temprano.** Todavía no hay una app para instalar. Hoy el repositorio
-> tiene `vitral analizar`, una herramienta de línea de comandos que revisa un instalador de
-> Windows o un programa ya instalado sin ejecutarlo. En la [hoja de ruta](#hoja-de-ruta) está
-> lo que viene.
+> **Estado: en desarrollo temprano.** Todavía no hay nada para descargar. El repositorio tiene
+> `vitral`, una herramienta de línea de comandos que revisa un instalador de Windows o un
+> programa ya instalado sin ejecutarlo y descarga el motor de Wine, y la primera versión de la
+> app: un asistente que revisa tu Mac e instala lo que falta, y una ventana donde sueltas un
+> instalador para ver qué es. Todavía no instala programas. En la
+> [hoja de ruta](#hoja-de-ruta) está lo que viene.
 
 ## La idea
 
@@ -78,14 +80,36 @@ Vulkan) y los antitrampas. `vitral icono` convierte el ícono del programa en un
 todos los tamaños Retina. Habla español e inglés (sigue el idioma de macOS; `VITRAL_LANG=es`
 fuerza español).
 
+## Compilar la app
+
+Necesitas Xcode 26 o más nuevo y [XcodeGen](https://github.com/yonaskolb/XcodeGen)
+(`brew install xcodegen`). El proyecto de Xcode se genera desde `project.yml` y no está en el
+repositorio.
+
+```sh
+xcodegen generate
+xcodebuild -project Vitral.xcodeproj -scheme Vitral -configuration Debug \
+  -derivedDataPath .build/xcode build
+open .build/xcode/Build/Products/Debug/Vitral.app
+```
+
+En macOS 26 o más nuevo la app usa Liquid Glass; en macOS 14 y 15, materiales translúcidos. Las
+copias compiladas desde el código no se actualizan solas; las versiones publicadas se actualizan
+dentro de la app con [Sparkle](https://sparkle-project.org), que comprueba la firma de cada
+actualización.
+
+Para agregar o cambiar textos de la app: compilar, sincronizar el catálogo con
+`xcrun xcstringstool sync App/Resources/Localizable.xcstrings --stringsdata $(find .build/xcode -name '*.stringsdata')`,
+poner la traducción en `scripts/translations-en.json` y correr `python3 scripts/apply-translations.py`.
+
 ## Hoja de ruta
 
 | Fase | Meta |
 |------|------|
-| **0. Cimientos** *(ahora)* | Repositorio, pruebas automáticas, analizador de instaladores |
-| **1. Un comando** | `vitral instalar Setup.exe` crea una app de Mac nítida, portable y con ícono, sin pasos a mano aparte del instalador del programa. Primer objetivo: una app educativa en Qt 5 + QtWebEngine que hoy necesita una docena de arreglos manuales |
-| **2. La app** | App en SwiftUI: biblioteca, arrastrar y soltar, «¿Se ve bien?», ajustes avanzados |
-| **3. Compartir** | Exportar e importar, versiones firmadas y notarizadas, actualizaciones |
+| **0. Cimientos** *(hecho)* | Repositorio, pruebas automáticas, analizador de instaladores y programas, descarga del motor de Wine |
+| **1. Un comando** *(ahora)* | `vitral instalar Setup.exe` crea una app de Mac nítida, portable y con ícono, sin pasos a mano aparte del instalador del programa. Primer objetivo: una app educativa en Qt 5 + QtWebEngine que hoy necesita una docena de arreglos manuales |
+| **2. La app** *(empezada)* | App en SwiftUI con Liquid Glass: asistente de preparación (Rosetta, motor), arrastrar y soltar, biblioteca, «¿Se ve bien?», ajustes avanzados |
+| **3. Compartir** | Exportar e importar, versiones firmadas y notarizadas, actualizaciones automáticas dentro de la app |
 | **4. Más programas** | Lista de compatibilidad, recetas de la comunidad |
 | **5. Después de Rosetta** | Apple deja Rosetta para uso general después de macOS 27; Vitral está hecho para cambiar a un motor de Wine que no lo necesite |
 

@@ -1,0 +1,892 @@
+{
+  "sourceLanguage" : "es",
+  "strings" : {
+    "%@ · %lld %%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$lld %%"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld %%"
+          }
+        }
+      }
+    },
+    ".exe · .msi · .zip" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ".exe · .msi · .zip"
+          }
+        }
+      }
+    },
+    "Abrir instalador…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Installer…"
+          }
+        }
+      }
+    },
+    "Abrir un instalador de Windows (.exe, .msi o .zip)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open a Windows installer (.exe, .msi or .zip)"
+          }
+        }
+      }
+    },
+    "Aceptar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
+    },
+    "Acerca de" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About"
+          }
+        }
+      }
+    },
+    "Actualizaciones" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updates"
+          }
+        }
+      }
+    },
+    "Apple anunció que Rosetta deja de ser de uso general después de macOS 27; algunos programas podrían no abrir." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple announced that Rosetta stops being generally available after macOS 27; some programs might not open."
+          }
+        }
+      }
+    },
+    "Archivo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File"
+          }
+        }
+      }
+    },
+    "Archivo 7-Zip autoextraíble" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Self-extracting 7-Zip archive"
+          }
+        }
+      }
+    },
+    "Archivo ZIP" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ZIP archive"
+          }
+        }
+      }
+    },
+    "Arrastra aquí un instalador de Windows" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop a Windows installer here"
+          }
+        }
+      }
+    },
+    "Buscar actualizaciones automáticamente" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check for updates automatically"
+          }
+        }
+      }
+    },
+    "Buscar actualizaciones…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check for Updates…"
+          }
+        }
+      }
+    },
+    "Buscar ahora" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check Now"
+          }
+        }
+      }
+    },
+    "Cada programa queda como una app de Mac, con su ícono, lista para abrir con doble clic." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each program becomes a Mac app with its own icon, ready to open with a double click."
+          }
+        }
+      }
+    },
+    "Cerrar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        }
+      }
+    },
+    "Chip" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chip"
+          }
+        }
+      }
+    },
+    "Compatible." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supported."
+          }
+        }
+      }
+    },
+    "Con poca memoria, los programas grandes pueden ir lentos." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With little memory, large programs may run slowly."
+          }
+        }
+      }
+    },
+    "Código fuente en GitHub" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Source code on GitHub"
+          }
+        }
+      }
+    },
+    "Descargando %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading %@"
+          }
+        }
+      }
+    },
+    "Descargar %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download %@"
+          }
+        }
+      }
+    },
+    "Desconocido" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown"
+          }
+        }
+      }
+    },
+    "Elegir archivo…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose File…"
+          }
+        }
+      }
+    },
+    "Empezar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get Started"
+          }
+        }
+      }
+    },
+    "Es un programa de MS-DOS: Vitral no lo puede abrir." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This is an MS-DOS program: Vitral can't open it."
+          }
+        }
+      }
+    },
+    "Es una biblioteca (DLL), no un programa: no se abre sola." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This is a library (DLL), not a program: it doesn't open on its own."
+          }
+        }
+      }
+    },
+    "Eso no parece un instalador de Windows. Vitral abre archivos .exe, .msi y .zip." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That doesn't look like a Windows installer. Vitral opens .exe, .msi and .zip files."
+          }
+        }
+      }
+    },
+    "Espacio" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Storage"
+          }
+        }
+      }
+    },
+    "Esta copia se compiló desde el código fuente, así que no se actualiza sola. Las versiones publicadas sí." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This copy was built from source, so it doesn't update itself. Published releases do."
+          }
+        }
+      }
+    },
+    "Falta preparar tu Mac" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your Mac isn't ready yet"
+          }
+        }
+      }
+    },
+    "General" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "General"
+          }
+        }
+      }
+    },
+    "Hacen falta al menos 3 GB libres." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "At least 3 GB of free space is needed."
+          }
+        }
+      }
+    },
+    "Hay lugar para el motor y tus programas." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There's room for the engine and your programs."
+          }
+        }
+      }
+    },
+    "Instalador Inno Setup%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inno Setup installer%@"
+          }
+        }
+      }
+    },
+    "Instalador InstallShield" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "InstallShield installer"
+          }
+        }
+      }
+    },
+    "Instalador NSIS%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NSIS installer%@"
+          }
+        }
+      }
+    },
+    "Instalador WiX (varios paquetes)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WiX installer (several packages)"
+          }
+        }
+      }
+    },
+    "Instalando Rosetta…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installing Rosetta…"
+          }
+        }
+      }
+    },
+    "Instalar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install"
+          }
+        }
+      }
+    },
+    "Instalar las actualizaciones automáticamente" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install updates automatically"
+          }
+        }
+      }
+    },
+    "Instalar todo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install Everything"
+          }
+        }
+      }
+    },
+    "La instalación automática llega en la próxima versión." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic installation arrives in the next version."
+          }
+        }
+      }
+    },
+    "Licencia" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "License"
+          }
+        }
+      }
+    },
+    "Los programas de Windows de 16 bits no funcionan con Wine en Mac." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "16-bit Windows programs don't work with Wine on Mac."
+          }
+        }
+      }
+    },
+    "MS-DOS" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MS-DOS"
+          }
+        }
+      }
+    },
+    "Mac con chip de Apple." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac with Apple silicon."
+          }
+        }
+      }
+    },
+    "Memoria" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memory"
+          }
+        }
+      }
+    },
+    "Motor de Windows" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Windows engine"
+          }
+        }
+      }
+    },
+    "Más tarde" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Later"
+          }
+        }
+      }
+    },
+    "Necesita" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Needs"
+          }
+        }
+      }
+    },
+    "No parece un instalador ni un programa de Windows." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It doesn't look like a Windows installer or program."
+          }
+        }
+      }
+    },
+    "No pude leer ese archivo." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I couldn't read that file."
+          }
+        }
+      }
+    },
+    "No se pudo instalar Rosetta. Revisa tu conexión a internet e inténtalo otra vez." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rosetta couldn't be installed. Check your internet connection and try again."
+          }
+        }
+      }
+    },
+    "No se puede abrir" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't Open"
+          }
+        }
+      }
+    },
+    "Paquete de Windows Installer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Windows Installer package"
+          }
+        }
+      }
+    },
+    "Preparando la descarga…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing the download…"
+          }
+        }
+      }
+    },
+    "Preparar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set Up"
+          }
+        }
+      }
+    },
+    "Preparar la Mac" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set Up This Mac"
+          }
+        }
+      }
+    },
+    "Preparemos tu Mac" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Let's get your Mac ready"
+          }
+        }
+      }
+    },
+    "Programa" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Program"
+          }
+        }
+      }
+    },
+    "Programa (no es un instalador)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Program (not an installer)"
+          }
+        }
+      }
+    },
+    "Puedes terminarlo después en Ajustes." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can finish later in Settings."
+          }
+        }
+      }
+    },
+    "Rosetta" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rosetta"
+          }
+        }
+      }
+    },
+    "Sistema" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System"
+          }
+        }
+      }
+    },
+    "Suficiente para la mayoría de los programas." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enough for most programs."
+          }
+        }
+      }
+    },
+    "Tipo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Type"
+          }
+        }
+      }
+    },
+    "Todo listo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All set"
+          }
+        }
+      }
+    },
+    "Traduce el código de los programas de Windows para tu chip." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Translates the code of Windows programs for your chip."
+          }
+        }
+      }
+    },
+    "Traduce el código de los programas de Windows para tu chip. macOS te pedirá tu contraseña." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Translates the code of Windows programs for your chip. macOS will ask for your password."
+          }
+        }
+      }
+    },
+    "Tus apps de Windows" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your Windows apps"
+          }
+        }
+      }
+    },
+    "Ver qué necesita tu Mac para abrir programas de Windows" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See what your Mac needs to open Windows programs"
+          }
+        }
+      }
+    },
+    "Versión" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version"
+          }
+        }
+      }
+    },
+    "Versión %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version %@"
+          }
+        }
+      }
+    },
+    "Vitral" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vitral"
+          }
+        }
+      }
+    },
+    "Vitral está hecho para Mac con chip de Apple; en Intel puede no funcionar." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vitral is made for Macs with Apple silicon; on Intel it may not work."
+          }
+        }
+      }
+    },
+    "Vitral lo revisa antes de instalar nada: qué es, con qué está hecho y qué necesita." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vitral checks it before installing anything: what it is, what it's built with and what it needs."
+          }
+        }
+      }
+    },
+    "Vitral necesita instalar algunas cosas antes de abrir programas de Windows." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vitral needs to install a few things before it can open Windows programs."
+          }
+        }
+      }
+    },
+    "Vitral necesita macOS 14 o más nuevo." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vitral needs macOS 14 or later."
+          }
+        }
+      }
+    },
+    "Vitral revisa lo que hace falta para abrir programas de Windows y se encarga de instalarlo. No necesitas la Terminal." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vitral checks what's needed to open Windows programs and installs it for you. No Terminal required."
+          }
+        }
+      }
+    },
+    "Vitral se actualiza solo, dentro de la app: baja la versión nueva, comprueba su firma y la instala al reiniciar." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vitral updates itself inside the app: it downloads the new version, checks its signature and installs it when you relaunch."
+          }
+        }
+      }
+    },
+    "Windows de %lld bits, con interfaz gráfica" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld-bit Windows, graphical"
+          }
+        }
+      }
+    },
+    "Windows de %lld bits, de consola" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld-bit Windows, console"
+          }
+        }
+      }
+    },
+    "Windows de 16 bits" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "16-bit Windows"
+          }
+        }
+      }
+    },
+    "Wine de CrossOver (compilación de Sikarugir), comprobado con SHA-256." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CrossOver's Wine (Sikarugir build), checked with SHA-256."
+          }
+        }
+      }
+    },
+    "Wine de CrossOver, compilado por el proyecto Sikarugir. Se descarga de GitHub y se comprueba con SHA-256 antes de usarlo." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CrossOver's Wine, built by the Sikarugir project. It's downloaded from GitHub and checked with SHA-256 before use."
+          }
+        }
+      }
+    },
+    "Última revisión: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last checked: %@"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

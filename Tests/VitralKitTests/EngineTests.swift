@@ -29,7 +29,10 @@ func component(_ archive: URL, sha256: String, root: String, members: [String] =
 
 /// An installer whose "download" is the local file itself.
 func localInstaller(_ folder: TemporaryFolder) -> ComponentInstaller {
-    ComponentInstaller(home: VitralHome(url: folder.url.appendingPathComponent("home")), fetch: { $0 })
+    ComponentInstaller(home: VitralHome(url: folder.url.appendingPathComponent("home")), fetch: { url, progress in
+        progress(1)
+        return url
+    })
 }
 
 @Test func sha256MatchesKnownValue() throws {
@@ -54,6 +57,24 @@ func localInstaller(_ folder: TemporaryFolder) -> ComponentInstaller {
     // No leftovers from the work folder.
     let names = try FileManager.default.contentsOfDirectory(atPath: installer.home.components.path)
     #expect(names == [piece.id])
+}
+
+@Test func reportsProgressAndDownloadsFromFileURL() async throws {
+    let folder = try TemporaryFolder()
+    let (archive, sum) = try makeArchive(in: folder, name: "net", root: "r", files: ["a": "a"])
+    // The real downloader, pointed at a local file.
+    let installer = ComponentInstaller(home: VitralHome(url: folder.url.appendingPathComponent("home")))
+    let reports = Reports()
+    try await installer.install(component(archive, sha256: sum, root: "r")) { reports.add($0) }
+    #expect(installer.isInstalled(component(archive, sha256: sum, root: "r")))
+    #expect(reports.values.allSatisfy { (0 ... 1).contains($0) })
+}
+
+final class Reports: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [Double] = []
+    func add(_ value: Double) { lock.withLock { stored.append(value) } }
+    var values: [Double] { lock.withLock { stored } }
 }
 
 @Test func rejectsWrongChecksumAndInstallsNothing() async throws {
@@ -123,4 +144,61 @@ func localInstaller(_ folder: TemporaryFolder) -> ComponentInstaller {
     #expect(environment["WINEPREFIX"] == "/tmp/prefix")
     #expect(environment["DYLD_FALLBACK_LIBRARY_PATH"] == "/tmp/vitral-home/Components/libraries-gcenx-11.0_1:/usr/lib")
     #expect(installed.wine.path == "/tmp/vitral-home/Components/wine-cx24.0.7_7/bin/wine")
+}
+
+// MARK: System check
+
+private func mac(
+    chip: String = "Apple M1",
+    appleSilicon: Bool = true,
+    memoryGB: UInt64 = 16,
+    macOS: Int = 15,
+    freeGB: Int64? = 100,
+    rosetta: Bool = true
+) -> MacInfo {
+    MacInfo(chip: chip, isAppleSilicon: appleSilicon, memoryBytes: memoryGB << 30,
+            macOSVersion: OperatingSystemVersion(majorVersion: macOS, minorVersion: 0, patchVersion: 0),
+            freeBytes: freeGB.map { $0 * 1_000_000_000 }, hasRosetta: rosetta)
+}
+
+private func status(_ requirements: [Requirement], _ kind: Requirement.Kind) -> Requirement.Status? {
+    requirements.first { $0.kind == kind }?.status
+}
+
+@Test func readyMacNeedsNothing() {
+    let list = SystemCheck.requirements(mac: mac(), engineInstalled: true, language: .english)
+    #expect(list.allSatisfy { $0.status == .ok })
+    #expect(list.map(\.kind) == [.appleSilicon, .macOS, .memory, .rosetta, .diskSpace, .engine])
+}
+
+@Test func freshMacCanBeFixedByVitral() {
+    let list = SystemCheck.requirements(mac: mac(rosetta: false), engineInstalled: false, language: .english)
+    #expect(status(list, .rosetta) == .fixable)
+    #expect(status(list, .engine) == .fixable)
+    #expect(!list.contains { $0.status == .blocking })
+}
+
+@Test func blocksWhatVitralCannotFix() {
+    let old = SystemCheck.requirements(mac: mac(macOS: 13), engineInstalled: true, language: .english)
+    #expect(status(old, .macOS) == .blocking)
+    let full = SystemCheck.requirements(mac: mac(freeGB: 1), engineInstalled: true, language: .english)
+    #expect(status(full, .diskSpace) == .blocking)
+}
+
+@Test func warnsAboutIntelLowMemoryAndMacOSWithoutRosetta() {
+    let intel = SystemCheck.requirements(mac: mac(chip: "Intel Core i7", appleSilicon: false), engineInstalled: true, language: .english)
+    #expect(status(intel, .appleSilicon) == .warning)
+    #expect(SystemCheck.requirements(mac: mac(memoryGB: 8), engineInstalled: true, language: .english)
+        .first { $0.kind == .memory }?.status == .ok)
+    #expect(status(SystemCheck.requirements(mac: mac(memoryGB: 4), engineInstalled: true, language: .english), .memory) == .warning)
+    #expect(status(SystemCheck.requirements(mac: mac(macOS: 28), engineInstalled: true, language: .english), .macOS) == .warning)
+}
+
+@Test func describesWhatItFound() {
+    let english = SystemCheck.requirements(mac: mac(rosetta: false), engineInstalled: false, language: .english)
+    #expect(english.first { $0.kind == .rosetta }?.detail == "Missing")
+    let spanish = SystemCheck.requirements(mac: mac(), engineInstalled: true, language: .spanish)
+    #expect(spanish.first { $0.kind == .memory }?.detail == "16 GB")
+    #expect(spanish.first { $0.kind == .rosetta }?.detail == "Instalada")
+    #expect(spanish.first { $0.kind == .engine }?.detail == EngineCatalog.default.name)
 }

@@ -1,0 +1,66 @@
+# Xcode project for the Vitral app. Generate it with `xcodegen` (brew install xcodegen);
+# the .xcodeproj is not committed. The command-line tool and VitralKit build with SwiftPM.
+name: Vitral
+options:
+  bundleIdPrefix: com.noctavox
+  deploymentTarget:
+    macOS: "14.0"
+  developmentLanguage: es
+  createIntermediateGroups: true
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "6.0"
+    ENABLE_HARDENED_RUNTIME: YES
+    DEAD_CODE_STRIPPING: YES
+    SWIFT_EMIT_LOC_STRINGS: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+packages:
+  VitralKit:
+    path: .
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.10.1
+targets:
+  Vitral:
+    type: application
+    platform: macOS
+    sources:
+      - path: App/Sources
+      - path: App/Resources
+    dependencies:
+      - package: VitralKit
+        product: VitralKit
+      - package: Sparkle
+        product: Sparkle
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleName: Vitral
+        CFBundleDisplayName: Vitral
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleDevelopmentRegion: es
+        CFBundleLocalizations: [es, en]
+        LSApplicationCategoryType: public.app-category.utilities
+        LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
+        NSHumanReadableCopyright: "© 2026 Noctavox Films · GPL-3.0"
+        # Sparkle: checks, downloads and installs updates inside the app.
+        SUFeedURL: https://github.com/noctavoxfilms/vitral/releases/latest/download/appcast.xml
+        SUEnableAutomaticChecks: true
+        SUAutomaticallyUpdate: true
+        SUScheduledCheckInterval: 86400
+        # SUPublicEDKey is added when the release signing key is created (phase 3).
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Windows installer
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [com.microsoft.windows-executable, com.microsoft.msi-installer, public.zip-archive]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.noctavox.vitral
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        COMBINE_HIDPI_IMAGES: YES
