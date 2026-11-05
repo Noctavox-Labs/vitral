@@ -165,11 +165,15 @@ final class AppModel {
             return
         }
         installState = .working(.checking)
+        installerWindows = []
         do {
             let result = try await ProgramInstaller().install(
                 file.url, options: InstallOptions(launcher: launcher),
                 windowShown: { pid in
-                    Task { @MainActor in Self.bringForward(pid) }
+                    Task { @MainActor in
+                        self.installerWindows.append(pid)
+                        Self.bringForward(pid)
+                    }
                 },
                 progress: { stage in
                     Task { @MainActor in
@@ -184,6 +188,20 @@ final class AppModel {
         }
         refresh()
         refreshLibrary()
+    }
+
+    /// Windows processes of the installer that opened a window, oldest first.
+    private var installerWindows: [pid_t] = []
+
+    /// "Show the installer": brings its newest window that is still open to the front. Wine
+    /// windows open behind Vitral, and stay there if the person was in another app meanwhile.
+    func showInstaller() {
+        let open = WineWindows.owners()
+        let pid = installerWindows.last { pid in open.contains { $0.pid == pid } }
+            ?? open.first { WineWindows.looksLikeWindows($0.name) }?.pid
+        guard let pid, let app = NSRunningApplication(processIdentifier: pid) else { return }
+        NSApp.yieldActivation(to: app)
+        app.activate()
     }
 
     /// Brings the installer's window to the front. Wine windows open behind the active app, and

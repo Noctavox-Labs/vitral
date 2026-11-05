@@ -337,6 +337,26 @@
         }
       }
     },
+    "El instalador abrió el programa: lo cierro para terminar la app…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The installer opened the program: closing it to finish the app…"
+          }
+        }
+      }
+    },
+    "El instalador terminó. Terminando de instalar…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The installer finished. Finishing the installation…"
+          }
+        }
+      }
+    },
     "Elegir archivo…" : {
       "localizations" : {
         "en" : {
@@ -557,6 +577,16 @@
         }
       }
     },
+    "Mostrar el instalador" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the installer"
+          }
+        }
+      }
+    },
     "Mostrar en Finder" : {
       "localizations" : {
         "en" : {
@@ -747,12 +777,12 @@
         }
       }
     },
-    "Si al terminar abre el programa, Vitral lo cierra y sigue." : {
+    "Si no ves su ventana, puede estar detrás de Vitral. Si al terminar abre el programa, Vitral lo cierra y sigue." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "If it opens the program when it finishes, Vitral closes it and goes on."
+            "value" : "If you do not see its window, it may be behind Vitral. If it opens the program when it finishes, Vitral closes it and goes on."
           }
         }
       }

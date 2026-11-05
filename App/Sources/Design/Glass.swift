@@ -67,6 +67,13 @@ enum Palette {
         Color(red: 0.24, green: 0.52, blue: 0.34),   // green
     ]
     static let accent = Color(red: 0.24, green: 0.45, blue: 0.85)
+    /// Progress: amber, like light through stained glass. Lighter on dark glass and deeper on
+    /// light glass, so the bar stands out in both (a blue bar on blue glass did not).
+    static let progress = Color(nsColor: NSColor(name: "VitralProgress") { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(srgbRed: 1.00, green: 0.74, blue: 0.32, alpha: 1)
+            : NSColor(srgbRed: 0.76, green: 0.45, blue: 0.04, alpha: 1)
+    })
 
     /// A pane color lifted toward white, so symbols stay readable on dark glass.
     static func symbol(_ color: Color, dark: Bool) -> Color {

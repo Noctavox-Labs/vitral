@@ -112,7 +112,7 @@ struct RequirementRow: View {
                 if case .working(let progress, let message) = task {
                     VStack(alignment: .leading, spacing: 3) {
                         if let progress {
-                            ProgressView(value: progress)
+                            ProgressView(value: progress).tint(Palette.progress)
                             Text("\(message) · \(Int(progress * 100)) %")
                                 .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                         } else {

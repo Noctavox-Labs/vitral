@@ -81,22 +81,30 @@ struct AnalysisView: View {
 
         case .working(let stage):
             VStack(alignment: .leading, spacing: 8) {
-                if case .downloadingEngine(let fraction) = stage {
-                    ProgressView(value: fraction)
-                } else {
-                    ProgressView().progressViewStyle(.linear)
+                Group {
+                    if case .downloadingEngine(let fraction) = stage {
+                        ProgressView(value: fraction)
+                    } else {
+                        ProgressView().progressViewStyle(.linear)
+                    }
                 }
+                .tint(Palette.progress)
                 Text(stageText(stage))
                     .font(.callout.weight(.medium))
                 if stage == .runningInstaller {
-                    Text("Si al terminar abre el programa, Vitral lo cierra y sigue.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(alignment: .center, spacing: 12) {
+                        Text("Si no ves su ventana, puede estar detrás de Vitral. Si al terminar abre el programa, Vitral lo cierra y sigue.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                        Button("Mostrar el instalador") { model.showInstaller() }
+                            .glassButton()
+                    }
                 }
             }
             .padding(16)
-            .vitralGlass(cornerRadius: 16, tint: Palette.accent)
+            .vitralGlass(cornerRadius: 16)
 
         case .done(let app, let warning):
             VStack(alignment: .leading, spacing: 12) {
@@ -149,6 +157,8 @@ struct AnalysisView: View {
         case .downloadingEngine(let fraction): String(localized: "Descargando el motor de Windows… \(Int(fraction * 100)) %")
         case .preparingWindows: String(localized: "Preparando Windows…")
         case .runningInstaller: String(localized: "Sigue los pasos del instalador en su ventana.")
+        case .finishingInstaller: String(localized: "El instalador terminó. Terminando de instalar…")
+        case .closingProgram: String(localized: "El instalador abrió el programa: lo cierro para terminar la app…")
         case .copyingProgram: String(localized: "Copiando el programa…")
         case .findingProgram: String(localized: "Buscando el programa instalado…")
         case .applyingSettings: String(localized: "Aplicando los ajustes recomendados…")

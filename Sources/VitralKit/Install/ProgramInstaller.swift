@@ -7,6 +7,10 @@ public enum InstallStage: Sendable, Equatable {
     case preparingWindows
     /// The installer is open: the person follows its steps.
     case runningInstaller
+    /// The installer ended; something it started is still running (the program, a helper).
+    case finishingInstaller
+    /// The installer opened the program ("Launch …" checked): Vitral closes that copy.
+    case closingProgram
     /// A ZIP or a program that is not an installer: copied in, nothing to click.
     case copyingProgram
     case findingProgram
@@ -181,7 +185,8 @@ public struct ProgramInstaller: Sendable {
                 throw error
             }
             watcher.cancel()
-            if await waitForLeftovers(session, before: before) {
+            if Self.needsInstaller(installer, report) { progress(.finishingInstaller) }
+            if await waitForLeftovers(session, before: before, closing: { progress(.closingProgram) }) {
                 logHandle.write(Data(tr("[Vitral] El instalador abrió el programa: lo cerré para terminar la app.\n",
                                         "[Vitral] The installer opened the program: closed it to finish the app.\n").utf8))
             }
@@ -242,7 +247,8 @@ public struct ProgramInstaller: Sendable {
     /// "Launch <program>" checked: that copy runs without Vitral's settings and would keep the
     /// installation waiting until the person closed it, so it is closed as soon as one of its
     /// windows appears. Returns whether it closed the program.
-    private func waitForLeftovers(_ session: WineSession, before: Set<String>) async -> Bool {
+    private func waitForLeftovers(_ session: WineSession, before: Set<String>,
+                                  closing: @escaping @Sendable () -> Void) async -> Bool {
         await withTaskGroup(of: Bool.self) { group in
             group.addTask {
                 await session.waitForServer()
@@ -256,7 +262,10 @@ public struct ProgramInstaller: Sendable {
                 return false
             }
             let closed = await group.next() ?? false
-            if closed { await session.killServer() }
+            if closed {
+                closing()
+                await session.killServer()
+            }
             group.cancelAll()
             return closed
         }

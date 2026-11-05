@@ -208,3 +208,16 @@ private func writeQtProgram(_ folder: TemporaryFolder, at path: String, name: St
     // Closed quickly without a crash (the person closed it, or another copy was open).
     #expect(!StartupWatch.shouldRetry(ranFor: 5, sawWindow: false, log: "fixme:ole:something", attempt: 1))
 }
+
+// MARK: Wine processes
+
+@Test func namesWineProcessesAfterTheirWindowsFile() {
+    // Wine 11 shows every Windows process as "wine"; its first argument keeps the Windows path.
+    #expect(WineWindows.windowsFileName(fromArgument: #"C:\users\crossover\AppData\Local\Programs\aTube Catcher\aTube Catcher.exe"#) == "aTube Catcher.exe")
+    #expect(WineWindows.windowsFileName(fromArgument: #"C:\windows\system32\explorer.exe"#) == "explorer.exe")
+    #expect(WineWindows.windowsFileName(fromArgument: #"\\?\Z:\Users\me\Downloads\Setup.tmp"#) == "Setup.tmp")
+    #expect(WineWindows.windowsFileName(fromArgument: "/Applications/Vitral.app/Contents/MacOS/Vitral") == nil)
+    #expect(WineWindows.windowsFileName(fromArgument: "wine") == nil)
+    // A real process that is not a Windows program keeps its own name.
+    #expect(WineWindows.windowsFileName(of: getpid()) == nil)
+}

@@ -425,6 +425,9 @@ func install(_ options: [String]) async {
                      "    If you do not see it, it may be behind this one: look for it in the Dock."))
             print(tr("    Si al terminar abre el programa, Vitral lo cierra y sigue.",
                      "    If it opens the program when it finishes, Vitral closes it and goes on."))
+        case .finishingInstaller: print(tr("    El instalador terminó.", "    The installer finished."))
+        case .closingProgram: print(tr("    El instalador abrió el programa: lo cierro para terminar la app.",
+                                       "    The installer opened the program: closing it to finish the app."))
         case .copyingProgram: print(tr("3/6 Copiando el programa…", "3/6 Copying the program…"))
         case .findingProgram: print(tr("4/6 Buscando el programa instalado…", "4/6 Looking for the installed program…"))
         case .applyingSettings: print(tr("5/6 Aplicando los ajustes recomendados…", "5/6 Applying the recommended settings…"))
