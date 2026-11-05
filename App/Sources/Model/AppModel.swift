@@ -232,12 +232,20 @@ final class AppModel {
 
     // MARK: Library
 
+    /// Apps whose launcher was already checked against this Vitral's.
+    private var launcherChecked: Set<URL> = []
+
     func refreshLibrary() {
         let folder = InstallOptions.defaultDestination
         let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        let launcher = InstallOptions.findLauncher()
         library = names.filter { $0.hasSuffix(".app") }.sorted().compactMap { name in
             let wrapper = Wrapper(url: folder.appendingPathComponent(name))
             guard let manifest = try? wrapper.readManifest() else { return nil }
+            // Apps made with an older Vitral get the current launcher (with its fixes) once.
+            if let launcher, launcherChecked.insert(wrapper.url).inserted {
+                _ = try? wrapper.updateLauncher(from: launcher)
+            }
             return LibraryApp(url: wrapper.url, name: name.replacingOccurrences(of: ".app", with: ""),
                               icon: NSWorkspace.shared.icon(forFile: wrapper.url.path), manifest: manifest)
         }

@@ -103,6 +103,25 @@ public struct Wrapper: Sendable {
         return parts.reduce(prefix.appendingPathComponent("drive_c")) { $0.appendingPathComponent($1) }
     }
 
+    /// Puts `launcher` in place of the app's launcher if they differ, so apps made with an older
+    /// Vitral get its fixes. Safe while the app is open: the new file takes the old one's name and
+    /// the running launcher keeps the file it started from. Returns whether it changed.
+    @discardableResult
+    public func updateLauncher(from launcher: URL) throws -> Bool {
+        guard isWrapper else { throw WrapperError.notAWrapper(url) }
+        let fm = FileManager.default
+        if fm.contentsEqual(atPath: launcher.path, andPath: launcherURL.path) { return false }
+        let staged = launcherURL.deletingLastPathComponent().appendingPathComponent(".launcher-\(UUID().uuidString)")
+        try fm.copyItem(at: launcher, to: staged)
+        do {
+            _ = try fm.replaceItemAt(launcherURL, withItemAt: staged)
+        } catch {
+            try? fm.removeItem(at: staged)
+            throw error
+        }
+        return true
+    }
+
     /// Writes everything except the prefix: launcher, icon, manifest and Info.plist.
     public func write(manifest: WrapperManifest, icns: Data?, launcher: URL, bundleIdentifier: String) throws {
         let fm = FileManager.default

@@ -224,3 +224,19 @@ private func writeQtProgram(_ folder: TemporaryFolder, at path: String, name: St
     // A real process that is not a Windows program keeps its own name.
     #expect(WineWindows.windowsFileName(of: getpid()) == nil)
 }
+
+@Test func updatesAnOlderLauncher() throws {
+    let folder = try TemporaryFolder()
+    let wrapper = Wrapper(url: folder.url.appendingPathComponent("P.app"))
+    let old = folder.url.appendingPathComponent("old"), new = folder.url.appendingPathComponent("new")
+    try Data("old".utf8).write(to: old)
+    try Data("new".utf8).write(to: new)
+    let manifest = WrapperManifest(name: "P", program: "p.exe", engine: "x", settings: LaunchSettings())
+    try wrapper.write(manifest: manifest, icns: nil, launcher: old, bundleIdentifier: "test.p")
+
+    #expect(try wrapper.updateLauncher(from: new))
+    #expect(try Data(contentsOf: wrapper.launcherURL) == Data("new".utf8))
+    #expect(try !wrapper.updateLauncher(from: new))
+    #expect(try FileManager.default.contentsOfDirectory(atPath: wrapper.launcherURL.deletingLastPathComponent().path) == ["launcher"])
+    #expect(throws: WrapperError.self) { try Wrapper(url: folder.url).updateLauncher(from: new) }
+}

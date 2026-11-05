@@ -13,6 +13,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
     private var log: FileHandle?
     private var logURL: URL?
     private var programPID: pid_t?
+    private var loading: LoadingPanel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { await start() }
@@ -41,6 +42,10 @@ final class Launcher: NSObject, NSApplicationDelegate {
             return quit(0)
         }
 
+        let loading = LoadingPanel(name: launch.manifest.name, icon: NSWorkspace.shared.icon(forFile: wrapper.url.path))
+        self.loading = loading
+        loading.show()
+
         var attempt = 1
         while true {
             let removed = launch.clean()
@@ -61,10 +66,13 @@ final class Launcher: NSObject, NSApplicationDelegate {
 
             if StartupWatch.shouldRetry(ranFor: seconds, sawWindow: sawWindow, log: attemptLog, attempt: attempt) {
                 write(tr("Se cayó al arrancar: vuelvo a intentar.", "It crashed while starting: trying again."))
+                loading.update(tr("Se cerró al arrancar. Vuelvo a intentar…", "It closed while starting. Trying again…"))
+                loading.show(after: .zero)
                 await launch.session.killServer()
                 attempt += 1
                 continue
             }
+            loading.close()
             if StartupWatch.failedToStart(ranFor: seconds, sawWindow: sawWindow, status: status, log: attemptLog) {
                 showFailure(attempts: attempt)
             }
@@ -95,6 +103,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
         while !Task.isCancelled {
             if let pid = launch?.programWindowOwners().first {
                 programPID = pid
+                loading?.close()
                 bringProgramForward()
                 write(tr("Ventana a los \(String(format: "%.1f", Date().timeIntervalSince(started))) s",
                          "Window after \(String(format: "%.1f", Date().timeIntervalSince(started))) s"))
