@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import VitralKit
 
@@ -17,4 +18,59 @@ import Testing
     #expect(BurnLog.friendlyName("NetFx462Web") == ".NET Framework 4.6.2")
     #expect(BurnLog.friendlyName("NetFx48") == ".NET Framework 4.8")
     #expect(BurnLog.friendlyName("ProductMSI") == "ProductMSI")
+}
+
+@Test func noticesTheLoopAsSoonAsThePrerequisiteIsMissingAgain() {
+    let log = """
+    i101: Detected package: NetFx462Web, state: Absent, cached: None
+    i319: Applied execute package: NetFx462Web, result: 0x0, restart: None
+    i101: Detected package: NetFx462Web, state: Absent, cached: Complete
+    """
+    #expect(BurnLog.repeatedPackage(in: log) == "NetFx462Web")
+    #expect(BurnLog.isDotNetFramework("NetFx462Web"))
+    #expect(!BurnLog.isDotNetFramework("ProductMSI"))
+}
+
+@Test func readsTheDotNetFrameworkReleaseOfAPrefix() throws {
+    let folder = try TemporaryFolder()
+    try folder.write("prefix/system.reg", Data("""
+    WINE REGISTRY Version 2
+
+    [Software\\\\Microsoft\\\\NET Framework Setup\\\\NDP\\\\v4\\\\Client] 1730000000
+    "Release"=dword:00000001
+
+    [Software\\\\Microsoft\\\\NET Framework Setup\\\\NDP\\\\v4\\\\Full] 1730000000
+    #time=1db
+    "Install"=dword:00000001
+    "Release"=dword:00080eb1
+    "Version"="4.8.03761"
+
+    """.utf8))
+    let prefix = folder.url.appendingPathComponent("prefix")
+    #expect(DotNetFramework.installedRelease(prefix: prefix) == 528_049)
+    #expect(DotNetFramework.isInstalled(prefix: prefix))
+    #expect(!DotNetFramework.isInstalled(prefix: folder.url))
+    #expect(DotNetFramework.needed(by: "v4.0.30319"))
+    #expect(!DotNetFramework.needed(by: "v2.0.50727"))
+    #expect(!DotNetFramework.needed(by: nil))
+}
+
+@Test func keepsAnInstallerDownloadAsItIs() async throws {
+    let folder = try TemporaryFolder()
+    let payload = Data("MZ installer".utf8)
+    try folder.write("download/setup.exe", payload)
+    let component = Component(id: "test-setup", name: "Setup", url: URL(string: "https://example.com/setup.exe")!,
+                              sha256: try ComponentInstaller.sha256(of: folder.url.appendingPathComponent("download/setup.exe")),
+                              bytes: Int64(payload.count), archiveRoot: "", license: "test",
+                              source: URL(string: "https://example.com")!, fileName: "setup.exe")
+    let source = folder.url.appendingPathComponent("download/setup.exe")
+    let root = folder.url
+    let installer = ComponentInstaller(home: VitralHome(url: folder.url.appendingPathComponent("home"))) { _, _ in
+        let copy = root.appendingPathComponent("fetched-\(UUID().uuidString).exe")
+        try FileManager.default.copyItem(at: source, to: copy)
+        return copy
+    }
+    let installed = try await installer.install(component)
+    #expect(try Data(contentsOf: installed.appendingPathComponent("setup.exe")) == payload)
+    #expect(installer.isInstalled(component))
 }

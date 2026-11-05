@@ -18,10 +18,13 @@ public struct Component: Codable, Sendable, Equatable {
     public let license: String
     /// Where the source code is (required for LGPL components that may be redistributed).
     public let source: URL
+    /// Set for a download kept as it is, under this name, instead of unpacked: an installer
+    /// Vitral runs inside a prefix (Microsoft's .NET Framework).
+    public let fileName: String?
 
     public init(
         id: String, name: String, url: URL, sha256: String, bytes: Int64, archiveRoot: String,
-        members: [String] = [], license: String, source: URL
+        members: [String] = [], license: String, source: URL, fileName: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -32,6 +35,7 @@ public struct Component: Codable, Sendable, Equatable {
         self.members = members
         self.license = license
         self.source = source
+        self.fileName = fileName
     }
 }
 
@@ -130,7 +134,11 @@ public struct ComponentInstaller: Sendable {
 
         let unpacked = work.appendingPathComponent("unpacked")
         try fileManager.createDirectory(at: unpacked, withIntermediateDirectories: false)
-        try Self.extract(archive, into: unpacked, members: component.members)
+        if let fileName = component.fileName {
+            try fileManager.copyItem(at: archive, to: unpacked.appendingPathComponent(fileName))
+        } else {
+            try Self.extract(archive, into: unpacked, members: component.members)
+        }
 
         let root = component.archiveRoot.isEmpty ? unpacked : unpacked.appendingPathComponent(component.archiveRoot)
         var isDirectory: ObjCBool = false

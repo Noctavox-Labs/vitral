@@ -95,6 +95,8 @@ struct AnalysisView: View {
                 Group {
                     if case .downloadingEngine(let fraction) = stage {
                         ProgressView(value: fraction)
+                    } else if case .installingDotNet(let fraction) = stage {
+                        ProgressView(value: fraction)
                     } else {
                         ProgressView().progressViewStyle(.linear)
                     }
@@ -228,6 +230,7 @@ struct AnalysisView: View {
         case .copyingProgram: String(localized: "Copiando el programa…")
         case .findingProgram: String(localized: "Buscando el programa instalado…")
         case .applyingSettings: String(localized: "Aplicando los ajustes recomendados…")
+        case .installingDotNet(let fraction): String(localized: "Instalando .NET Framework 4.8 de Microsoft (unos 5 minutos)… \(Int(fraction * 100)) %")
         case .buildingApp: String(localized: "Creando la app…")
         }
     }

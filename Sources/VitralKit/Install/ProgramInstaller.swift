@@ -15,6 +15,8 @@ public enum InstallStage: Sendable, Equatable {
     case copyingProgram
     case findingProgram
     case applyingSettings
+    /// Installing Microsoft's .NET Framework 4.8 into the prefix (about five minutes).
+    case installingDotNet(Double)
     case buildingApp
 }
 
@@ -27,6 +29,7 @@ public enum InstallError: Error, CustomStringConvertible {
     case prerequisiteLoop(String, log: URL)
     case windowsInUse(String)
     case sharedWindowsMissing
+    case dotNetFailed(release: Int?)
 
     public var description: String {
         switch self {
@@ -47,6 +50,9 @@ public enum InstallError: Error, CustomStringConvertible {
         case .windowsInUse(let name):
             return tr("Cierra \(name) (y los demás programas de su Windows) y vuelve a intentarlo: hay que cambiar ajustes de ese Windows.",
                       "Close \(name) (and the other programs of its Windows) and try again: settings of that Windows have to change.")
+        case .dotNetFailed(let release):
+            return tr("No se pudo instalar .NET Framework 4.8 (versión encontrada: \(release.map(String.init) ?? "ninguna")).",
+                      "Could not install .NET Framework 4.8 (version found: \(release.map(String.init) ?? "none")).")
         case .sharedWindowsMissing:
             return tr("Esta app es de una versión anterior de Vitral y lleva su Windows adentro. Desinstálala e instálala de nuevo para agregarle programas.",
                       "This app comes from an earlier Vitral and carries its Windows inside. Uninstall it and install it again to add programs to it.")
@@ -203,11 +209,21 @@ public struct ProgramInstaller: Sendable {
             let before = ProgramFinder.snapshot(driveC: session.driveC)
             let shortcutsBefore = ProgramShortcuts.snapshot(driveC: session.driveC)
 
-            progress(Self.needsInstaller(installer, report) ? .runningInstaller : .copyingProgram)
-            let watcher = Task { await Self.reportNewWindows(to: windowShown) }
-            // Cancelling closes every Windows process of the prefix: the installer and anything
-            // it opened. The waits below then end, and the staging folder is removed.
-            let closedProgram = try await withTaskCancellationHandler {
+            // Microsoft's .NET Framework, installed into this prefix when something needs it.
+            var dotNetRecipe: AppliedRecipe?
+            func installDotNet(because: String) async throws {
+                logHandle.write(Data("[Vitral] Installing .NET Framework 4.8: \(because)\n".utf8))
+                progress(.installingDotNet(0))
+                try await DotNetFramework.install(in: session, home: home, log: logHandle) { progress(.installingDotNet($0)) }
+                dotNetRecipe = DotNetFramework.recipe(because: because)
+            }
+
+            enum Outcome { case finished(closedProgram: Bool), loop(String) }
+            /// Runs the installer once and waits for what it left running.
+            func runOnce(ignoringLogs: Set<String>) async throws -> Outcome {
+                progress(Self.needsInstaller(installer, report) ? .runningInstaller : .copyingProgram)
+                let watcher = Task { await Self.reportNewWindows(to: windowShown) }
+                defer { watcher.cancel() }
                 // Some installers open the program and wait until it is closed (Inno Setup's
                 // [Run] entries without "nowait"): watch for it while the installer runs too.
                 let launch = Task { await Self.waitForLaunchedProgram(driveC: session.driveC, before: before) }
@@ -218,33 +234,53 @@ public struct ProgramInstaller: Sendable {
                     return true
                 }
                 // WiX Burn bundles that install a prerequisite again and again (.NET Framework).
-                let loop = Task { await BurnLog.waitForRepeat(driveC: session.driveC) }
+                let loop = Task { await BurnLog.waitForRepeat(driveC: session.driveC, ignoring: ignoringLogs) }
                 let stoppedLoop = Task { () -> String? in
                     guard let package = await loop.value else { return nil }
                     logHandle.write(Data("[Vitral] Burn installed \(package) twice: stopping the installer.\n".utf8))
                     await session.killServer()
                     return package
                 }
-                defer { loop.cancel() }
+                defer { loop.cancel(); launch.cancel() }
                 do {
                     try await runInstaller(installer, report: report, session: session, log: logHandle, logURL: log)
                 } catch {
                     launch.cancel()
-                    watcher.cancel()
                     loop.cancel()
-                    if let package = await stoppedLoop.value { throw InstallError.prerequisiteLoop(package, log: log) }
+                    if let package = await stoppedLoop.value { return .loop(package) }
                     // Closing everything may end msiexec with an error; the installation was done.
                     if !(await closedWhileRunning.value) { throw error }
                 }
                 launch.cancel()
-                watcher.cancel()
                 loop.cancel()
-                if let package = await stoppedLoop.value { throw InstallError.prerequisiteLoop(package, log: log) }
-                if await closedWhileRunning.value { return true }
+                if let package = await stoppedLoop.value { return .loop(package) }
+                if await closedWhileRunning.value { return .finished(closedProgram: true) }
                 try Task.checkCancellation()
                 if Self.needsInstaller(installer, report) { progress(.finishingInstaller) }
                 let closed = await waitForLeftovers(session, before: before, closing: { progress(.closingProgram) })
                 try Task.checkCancellation()
+                return .finished(closedProgram: closed)
+            }
+
+            // Cancelling closes every Windows process of the prefix: the installer and anything
+            // it opened. The waits below then end, and the staging folder is removed.
+            let closedProgram = try await withTaskCancellationHandler {
+                // An installer that is itself a .NET Framework program needs it to open.
+                if DotNetFramework.needed(by: report.executable?.dotNetRuntime) {
+                    try await installDotNet(because: "the installer is a .NET Framework program")
+                }
+                var outcome = try await runOnce(ignoringLogs: [])
+                if case .loop(let package) = outcome {
+                    // Microsoft's own .NET installer ends without installing anything under Wine
+                    // (it thinks Windows 10 has it): install it the way that works, then again.
+                    guard BurnLog.isDotNetFramework(package), dotNetRecipe == nil else {
+                        throw InstallError.prerequisiteLoop(package, log: log)
+                    }
+                    try await installDotNet(because: "the installer asks for \(BurnLog.friendlyName(package))")
+                    outcome = try await runOnce(ignoringLogs: BurnLog.logs(driveC: session.driveC))
+                    if case .loop(let again) = outcome { throw InstallError.prerequisiteLoop(again, log: log) }
+                }
+                guard case .finished(let closed) = outcome else { return false }
                 return closed
             } onCancel: {
                 Task { await session.killServer() }
@@ -279,12 +315,24 @@ public struct ProgramInstaller: Sendable {
             }
             let others = choices.filter { $0 != picked }
 
+            // A program built on .NET Framework 4 whose installer did not bring it.
+            if dotNetRecipe == nil, found.report.technology(.dotNet) == nil,
+               let runtime = found.report.technology(.dotNetFramework)?.version, DotNetFramework.needed(by: runtime),
+               !DotNetFramework.isInstalled(prefix: prefix) {
+                try await withTaskCancellationHandler {
+                    try await installDotNet(because: "the program is built on .NET Framework (\(runtime))")
+                } onCancel: {
+                    Task { await session.killServer() }
+                }
+            }
+
             progress(.applyingSettings)
             var (settings, applied) = Recipes.settings(for: found.report)
             if let picked { settings.arguments = picked.arguments + settings.arguments }
             // The installer's settings stay in the prefix; the manifest lists them too.
             settings.registry = setup.registry + settings.registry
             applied = setup.applied + applied
+            if let dotNetRecipe { applied.append(dotNetRecipe) }
             try await session.importRegistry(settings.registry)
 
             let program = found.folder + "/" + main

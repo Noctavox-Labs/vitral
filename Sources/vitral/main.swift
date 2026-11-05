@@ -443,10 +443,22 @@ func install(_ options: [String]) async {
             print(tr("  Descargando el motor… \(percent) %", "  Downloading the engine… \(percent) %"))
             return
         }
+        if case .installingDotNet(let fraction) = stage {
+            let step = Int(fraction * 4)
+            if case .installingDotNet(let old) = lastStage.value, Int(old * 4) == step { return }
+            lastStage.value = stage
+            if fraction == 0 {
+                print(tr("    Instalando .NET Framework 4.8 de Microsoft (unos 5 minutos)…",
+                         "    Installing Microsoft's .NET Framework 4.8 (about 5 minutes)…"))
+            } else {
+                print(tr("    .NET Framework… \(Int(fraction * 100)) %", "    .NET Framework… \(Int(fraction * 100)) %"))
+            }
+            return
+        }
         lastStage.value = stage
         switch stage {
         case .checking: print(tr("1/6 Revisando el instalador…", "1/6 Checking the installer…"))
-        case .downloadingEngine: break
+        case .downloadingEngine, .installingDotNet: break
         case .preparingWindows: print(tr("2/6 Preparando Windows (la primera vez tarda un poco)…", "2/6 Preparing Windows (the first time takes a while)…"))
         case .runningInstaller:
             print(tr("3/6 Abriendo el instalador: sigue sus pasos en su ventana.",

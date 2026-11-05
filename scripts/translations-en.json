@@ -56,6 +56,7 @@
   "Instalador InstallShield": "InstallShield installer",
   "Instalador NSIS%@": "NSIS installer%@",
   "Instalador WiX (varios paquetes)": "WiX installer (several packages)",
+  "Instalando .NET Framework 4.8 de Microsoft (unos 5 minutos)… %lld %%": "Installing Microsoft's .NET Framework 4.8 (about 5 minutes)… %lld %%",
   "Instalando Rosetta…": "Installing Rosetta…",
   "Instalar": "Install",
   "Instalar las actualizaciones automáticamente": "Install updates automatically",

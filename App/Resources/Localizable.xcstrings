@@ -577,6 +577,16 @@
         }
       }
     },
+    "Instalando .NET Framework 4.8 de Microsoft (unos 5 minutos)… %lld %%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installing Microsoft's .NET Framework 4.8 (about 5 minutes)… %lld %%"
+          }
+        }
+      }
+    },
     "Instalando Rosetta…" : {
       "localizations" : {
         "en" : {
