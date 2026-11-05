@@ -66,6 +66,11 @@ only opens apps whose signature covers everything inside them:
   electron-builder installers, Wine's stand-in PowerShell is turned off (it made the installer
   think the program was still open).
 
+The installer's own shortcuts tell Vitral which programs it brought. When there are several (a
+suite, or a program with its editor, like MetaTrader 5 and MetaEditor), Vitral makes the app for
+the main one and offers the others; each one you pick becomes its own app on the same Windows.
+From the Terminal: `vitral programs <app>` and `vitral add <app> <program>`.
+
 If the installer opens the program when it finishes, Vitral closes that copy (it runs without
 these settings) and goes on. Before finishing, Vitral compares the Windows functions the program
 uses with the ones the engine has, and warns if something would stop it from opening. Each app
