@@ -74,3 +74,19 @@ import Testing
     #expect(try Data(contentsOf: installed.appendingPathComponent("setup.exe")) == payload)
     #expect(installer.isInstalled(component))
 }
+
+@Test func readsWhyAnInnoSetupInstallerStopped() {
+    let log = """
+    2026-11-05 14:03:54.731   Successfully imported the DLL function. Delay loaded? No
+    2026-11-05 14:03:54.735   InitializeSetup raised an exception (fatal).
+    2026-11-05 14:03:54.736   Exception message:
+    2026-11-05 14:03:54.736   Defaulting to OK for suppressed message box (OK):
+                              Runtime error (at 65:679):
+
+                              Internal error: Unknown custom message name "lcid"
+    2026-11-05 14:03:54.736   Deinitializing Setup.
+    2026-11-05 14:03:54.741   Log closed.
+    """
+    #expect(InnoSetupLog.fatalError(in: log) == #"Runtime error (at 65:679): Internal error: Unknown custom message name "lcid""#)
+    #expect(InnoSetupLog.fatalError(in: "2026-11-05 14:04:27.061   Installation process succeeded.") == nil)
+}

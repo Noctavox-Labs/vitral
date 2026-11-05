@@ -30,6 +30,7 @@ public enum InstallError: Error, CustomStringConvertible {
     case windowsInUse(String)
     case sharedWindowsMissing
     case dotNetFailed(release: Int?)
+    case installerStopped(String, log: URL)
 
     public var description: String {
         switch self {
@@ -50,6 +51,9 @@ public enum InstallError: Error, CustomStringConvertible {
         case .windowsInUse(let name):
             return tr("Cierra \(name) (y los demás programas de su Windows) y vuelve a intentarlo: hay que cambiar ajustes de ese Windows.",
                       "Close \(name) (and the other programs of its Windows) and try again: settings of that Windows have to change.")
+        case .installerStopped(let message, let log):
+            return tr("El instalador se detuvo: «\(message)». Registro: \(log.path)",
+                      "The installer stopped: “\(message)”. Log: \(log.path)")
         case .dotNetFailed(let release):
             return tr("No se pudo instalar .NET Framework 4.8 (versión encontrada: \(release.map(String.init) ?? "ninguna")).",
                       "Could not install .NET Framework 4.8 (version found: \(release.map(String.init) ?? "none")).")
@@ -218,7 +222,7 @@ public struct ProgramInstaller: Sendable {
                 dotNetRecipe = DotNetFramework.recipe(because: because)
             }
 
-            enum Outcome { case finished(closedProgram: Bool), loop(String) }
+            enum Outcome { case finished(closedProgram: Bool), loop(String), stopped(String) }
             /// Runs the installer once and waits for what it left running.
             func runOnce(ignoringLogs: Set<String>) async throws -> Outcome {
                 progress(Self.needsInstaller(installer, report) ? .runningInstaller : .copyingProgram)
@@ -256,6 +260,11 @@ public struct ProgramInstaller: Sendable {
                 if let package = await stoppedLoop.value { return .loop(package) }
                 if await closedWhileRunning.value { return .finished(closedProgram: true) }
                 try Task.checkCancellation()
+                // An Inno Setup installer whose own checks failed before it showed anything.
+                if report.kind == .innoSetup, let message = InnoSetupLog.fatalError(driveC: session.driveC) {
+                    logHandle.write(Data("[Vitral] Inno Setup stopped: \(message)\n".utf8))
+                    return .stopped(message)
+                }
                 if Self.needsInstaller(installer, report) { progress(.finishingInstaller) }
                 let closed = await waitForLeftovers(session, before: before, closing: { progress(.closingProgram) })
                 try Task.checkCancellation()
@@ -278,6 +287,18 @@ public struct ProgramInstaller: Sendable {
                     }
                     try await installDotNet(because: "the installer asks for \(BurnLog.friendlyName(package))")
                     outcome = try await runOnce(ignoringLogs: BurnLog.logs(driveC: session.driveC))
+                    if case .loop(let again) = outcome { throw InstallError.prerequisiteLoop(again, log: log) }
+                }
+                if case .stopped(let message) = outcome {
+                    // Installers check for .NET Framework before anything else, and some fail
+                    // there when it is missing (Greenshot's: "Unknown custom message name lcid").
+                    // A real Windows has it; give this one too, once.
+                    guard dotNetRecipe == nil, !DotNetFramework.isInstalled(prefix: prefix) else {
+                        throw InstallError.installerStopped(message, log: log)
+                    }
+                    try await installDotNet(because: "the installer stopped while checking what it needs (\(message))")
+                    outcome = try await runOnce(ignoringLogs: BurnLog.logs(driveC: session.driveC))
+                    if case .stopped(let again) = outcome { throw InstallError.installerStopped(again, log: log) }
                     if case .loop(let again) = outcome { throw InstallError.prerequisiteLoop(again, log: log) }
                 }
                 guard case .finished(let closed) = outcome else { return false }
@@ -520,6 +541,10 @@ public struct ProgramInstaller: Sendable {
             let target = programFiles.appendingPathComponent(base)
             try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
             try FileManager.default.copyItem(at: installer, to: target.appendingPathComponent(installer.lastPathComponent))
+        case .innoSetup:
+            // Its own log says why it stopped, when it does (`InnoSetupLog`).
+            try? FileManager.default.removeItem(at: InnoSetupLog.file(driveC: session.driveC))
+            _ = try await session.run([installer.path, "/LOG=" + InnoSetupLog.windowsPath], directory: folder, output: log)
         default:
             // Run from its own folder, so it finds the files next to it (Setup-1a.bin…).
             let status = try await session.run([installer.path], directory: folder, output: log)
