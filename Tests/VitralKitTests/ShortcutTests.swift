@@ -101,3 +101,18 @@ private func makeSharedApp(_ folder: TemporaryFolder, name: String, program: Str
     // The last one takes it.
     #expect(try uninstaller.items(for: editor).map(\.lastPathComponent) == ["MetaEditor.app", "mt5"])
 }
+
+@Test func readsTheArgumentsAndEnvironmentOfAWineProcess() {
+    // KERN_PROCARGS2: argc, the executable's path, padding, the arguments, the environment.
+    var buffer: [UInt8] = [2, 0, 0, 0]
+    for part in ["/opt/wine/bin/wine-preloader", "", "", #"C:\Program Files\Greenshot\Greenshot.exe"#, "/language",
+                 "WINEPREFIX=/Users/x/Prefixes/greenshot", "", "WINEDEBUG=-all"] {
+        buffer += Array(part.utf8) + [0]
+    }
+    let parsed = WineProcesses.parse(buffer)
+    #expect(parsed?.0 == [#"C:\Program Files\Greenshot\Greenshot.exe"#, "/language"])
+    #expect(parsed?.1["WINEPREFIX"] == "/Users/x/Prefixes/greenshot")
+    #expect(parsed?.1["WINEDEBUG"] == "-all")
+    #expect(WineProcesses.isBackground("mscorsvw.exe"))
+    #expect(!WineProcesses.isBackground("Greenshot.exe"))
+}

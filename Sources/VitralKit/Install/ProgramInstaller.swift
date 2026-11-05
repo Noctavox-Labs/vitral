@@ -77,12 +77,16 @@ public struct InstallOptions: Sendable {
     public var launcher: URL
     /// Move an existing app with the same name to the Trash instead of picking a new name.
     public var replace: Bool
+    /// Passed to the installer, such as Inno Setup's `/VERYSILENT` (unattended installations).
+    public var installerArguments: [String]
 
-    public init(destination: URL = InstallOptions.defaultDestination, name: String? = nil, launcher: URL, replace: Bool = false) {
+    public init(destination: URL = InstallOptions.defaultDestination, name: String? = nil, launcher: URL, replace: Bool = false,
+                installerArguments: [String] = []) {
         self.destination = destination
         self.name = name
         self.launcher = launcher
         self.replace = replace
+        self.installerArguments = installerArguments
     }
 
     /// `~/Applications`, or `VITRAL_APPLICATIONS` if set (for tests).
@@ -247,7 +251,7 @@ public struct ProgramInstaller: Sendable {
                 }
                 defer { loop.cancel(); launch.cancel() }
                 do {
-                    try await runInstaller(installer, report: report, session: session, log: logHandle, logURL: log)
+                    try await runInstaller(installer, report: report, arguments: options.installerArguments, session: session, log: logHandle, logURL: log)
                 } catch {
                     launch.cancel()
                     loop.cancel()
@@ -460,26 +464,34 @@ public struct ProgramInstaller: Sendable {
     /// windows appears. Returns whether it closed the program.
     private func waitForLeftovers(_ session: WineSession, before: Set<String>,
                                   closing: @escaping @Sendable () -> Void) async -> Bool {
-        await withTaskGroup(of: Bool.self) { group in
-            group.addTask {
-                await session.waitForServer()
-                return false
-            }
-            group.addTask {
-                while !Task.isCancelled {
-                    if Self.installedProgramIsOpen(driveC: session.driveC, before: before) { return true }
-                    try? await Task.sleep(for: .seconds(1))
-                }
-                return false
-            }
-            let closed = await group.next() ?? false
-            if closed {
+        // Background services alone (the .NET optimizer, Edge's updater) do not keep the
+        // installation waiting: a few quiet seconds and the prefix is closed.
+        var quiet = 0
+        while !Task.isCancelled, session.serverIsRunning {
+            let processes = WineProcesses.list(prefix: session.prefix)
+            if Self.installedProgramIsRunning(processes, driveC: session.driveC, before: before) {
                 closing()
                 await session.killServer()
+                return true
             }
-            group.cancelAll()
-            return closed
+            quiet = processes.allSatisfy { WineProcesses.isBackground($0.name) } ? quiet + 1 : 0
+            if quiet >= 3 {
+                await session.killServer()
+                return false
+            }
+            try? await Task.sleep(for: .seconds(1))
         }
+        await session.waitForServer()
+        return false
+    }
+
+    /// Whether a program the installer added runs in the prefix, with a window or without one
+    /// (a menu bar program such as Greenshot).
+    static func installedProgramIsRunning(_ processes: [WineProcesses.Entry], driveC: URL, before: Set<String>) -> Bool {
+        let running = Set(processes.map { $0.name.lowercased() }.filter { $0.hasSuffix(".exe") && !WineProcesses.isBackground($0) })
+        guard !running.isEmpty else { return false }
+        let added = ProgramFinder.snapshot(driveC: driveC).subtracting(before)
+        return !running.isDisjoint(with: ProgramFinder.executableNames(inFolders: added, driveC: driveC))
     }
 
     /// Returns true as soon as the installed program's main executable (the one Vitral would
@@ -516,14 +528,14 @@ public struct ProgramInstaller: Sendable {
     }
 
     /// Opens the installer the right way for its kind, or copies a portable program in.
-    private func runInstaller(_ installer: URL, report: InstallerReport, session: WineSession,
+    private func runInstaller(_ installer: URL, report: InstallerReport, arguments: [String] = [], session: WineSession,
                               log: FileHandle, logURL: URL) async throws {
         let folder = installer.deletingLastPathComponent()
         let programFiles = session.driveC.appendingPathComponent("Program Files")
         let base = Wrapper.safeName(installer.deletingPathExtension().lastPathComponent)
         switch report.kind {
         case .msi:
-            let status = try await session.run(["msiexec", "/i", installer.path], directory: folder, output: log)
+            let status = try await session.run(["msiexec", "/i", installer.path] + arguments, directory: folder, output: log)
             if status != 0 { throw InstallError.installerDidNotStart(status, log: logURL) }
         case .zip:
             // A portable program in a ZIP: unpack it into Program Files.
@@ -544,10 +556,10 @@ public struct ProgramInstaller: Sendable {
         case .innoSetup:
             // Its own log says why it stopped, when it does (`InnoSetupLog`).
             try? FileManager.default.removeItem(at: InnoSetupLog.file(driveC: session.driveC))
-            _ = try await session.run([installer.path, "/LOG=" + InnoSetupLog.windowsPath], directory: folder, output: log)
+            _ = try await session.run([installer.path, "/LOG=" + InnoSetupLog.windowsPath] + arguments, directory: folder, output: log)
         default:
             // Run from its own folder, so it finds the files next to it (Setup-1a.bin…).
-            let status = try await session.run([installer.path], directory: folder, output: log)
+            let status = try await session.run([installer.path] + arguments, directory: folder, output: log)
             // Installers return non-zero when cancelled; the program search decides what happened.
             _ = status
         }

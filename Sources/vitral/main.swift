@@ -23,8 +23,10 @@ func printUsage() {
           vitral motores instalar [id]         Descarga y verifica un motor (el recomendado si no se indica).
           vitral motores limpiar               Borra los motores que ninguna app usa (se vuelven a bajar si hacen falta).
           vitral instalar <instalador> [--destino <carpeta>] [--nombre <nombre>] [--reemplazar]
+                          [--argumentos "<argumentos del instalador>"]
                                                Instala un programa de Windows y lo deja como app de Mac
-                                               (en ~/Applications si no se indica otra carpeta).
+                                               (en ~/Applications si no se indica otra carpeta). --argumentos
+                                               pasa opciones al instalador, como "/VERYSILENT" de Inno Setup.
           vitral desinstalar <app>             Cierra el programa si está abierto y manda la app y sus registros a la
                                                Papelera. Tus archivos de Documentos, Descargas… no se tocan.
                                                Si otra app usa su mismo Windows, el Windows se queda.
@@ -46,8 +48,10 @@ func printUsage() {
           vitral engines install [id]        Download and verify an engine (the recommended one by default).
           vitral engines clean               Delete the engines no app uses (downloaded again if needed).
           vitral install <installer> [--destination <folder>] [--name <name>] [--replace]
+                         [--arguments "<installer arguments>"]
                                              Install a Windows program and turn it into a Mac app
-                                             (in ~/Applications unless another folder is given).
+                                             (in ~/Applications unless another folder is given). --arguments
+                                             passes options to the installer, such as Inno Setup's "/VERYSILENT".
           vitral uninstall <app>             Close the program if it is open and move the app and its logs to the
                                              Trash. Your files in Documents, Downloads… are not touched.
                                              If another app uses the same Windows, the Windows stays.
@@ -398,6 +402,7 @@ func install(_ options: [String]) async {
     var destination = InstallOptions.defaultDestination
     var name: String?
     var replace = false
+    var installerArguments: [String] = []
     var index = 0
     func value() -> String {
         index += 1
@@ -409,6 +414,7 @@ func install(_ options: [String]) async {
         case "--destino", "--destination": destination = URL(fileURLWithPath: (value() as NSString).expandingTildeInPath)
         case "--nombre", "--name": name = value()
         case "--reemplazar", "--replace": replace = true
+        case "--argumentos", "--arguments": installerArguments = ShellLink.splitArguments(value())
         default: paths.append(options[index])
         }
         index += 1
@@ -479,7 +485,8 @@ func install(_ options: [String]) async {
 
     do {
         let result = try await ProgramInstaller().install(
-            installer, options: InstallOptions(destination: destination, name: name, launcher: launcher, replace: replace),
+            installer, options: InstallOptions(destination: destination, name: name, launcher: launcher, replace: replace,
+                                      installerArguments: installerArguments),
             progress: progress)
         print("")
         print(tr("Listo: ", "Done: ") + result.app.path)

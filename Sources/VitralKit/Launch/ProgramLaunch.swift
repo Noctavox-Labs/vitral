@@ -57,6 +57,12 @@ public struct ProgramLaunch: Sendable {
                         directory: program.deletingLastPathComponent(), output: log)
     }
 
+    /// Whether the program's process runs in this app's Windows, with or without a window.
+    public func programIsRunning() -> Bool {
+        let exe = program.lastPathComponent.lowercased()
+        return WineProcesses.list(prefix: session.prefix).contains { $0.name.lowercased() == exe }
+    }
+
     /// Windows on screen that belong to the program (its process is named after the `.exe`).
     public func programWindowOwners() -> [pid_t] {
         let exe = program.lastPathComponent.lowercased()
@@ -70,6 +76,8 @@ public enum StartupWatch {
     /// Seconds after which an exit is the person closing the program, not a failed start.
     public static let startupWindow: TimeInterval = 40
     public static let maxAttempts = 3
+    /// Seconds after which a program that runs without a window counts as open (menu bar programs).
+    public static let menuBarProgramDelay: TimeInterval = 15
 
     /// Lines in Wine's log that mean the program crashed.
     static let crashSignatures = [

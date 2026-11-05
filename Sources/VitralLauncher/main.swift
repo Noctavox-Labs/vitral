@@ -113,6 +113,14 @@ final class Launcher: NSObject, NSApplicationDelegate {
                          "Window after \(String(format: "%.1f", Date().timeIntervalSince(started))) s"))
                 return true
             }
+            // Programs that live in the menu bar (Greenshot) never show a window: running
+            // for a while without one, it has opened.
+            if Date().timeIntervalSince(started) > StartupWatch.menuBarProgramDelay, let launch, launch.programIsRunning() {
+                loading?.close()
+                write(tr("Abierto sin ventana a los \(Int(Date().timeIntervalSince(started))) s (¿en la barra de menú?)",
+                         "Open without a window after \(Int(Date().timeIntervalSince(started))) s (in the menu bar?)"))
+                return true
+            }
             try? await Task.sleep(for: .milliseconds(500))
         }
         return false
