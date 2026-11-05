@@ -71,7 +71,7 @@ public struct Requirement: Sendable, Equatable, Identifiable {
 
 /// Everything a fresh Mac needs before Vitral can install Windows programs.
 public enum SystemCheck {
-    /// Space for the engine (about 600 MB unpacked) plus a Windows prefix and a program.
+    /// Space for the engine (about 700 MB unpacked with its libraries) plus a Windows prefix and a program.
     public static let neededFreeBytes: Int64 = 3_000_000_000
     public static let minimumMacOS = 14
     /// Apple keeps Rosetta for general use up to macOS 27 (see PLAN, risk 1).

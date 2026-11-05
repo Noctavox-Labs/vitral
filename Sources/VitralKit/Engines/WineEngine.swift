@@ -14,10 +14,29 @@ public struct WineEngine: Sendable, Equatable {
 ///
 /// Why CrossOver: the official Wine builds (Gcenx 11.0 and 11.21) crash or hang with 32-bit
 /// programs such as Qt 5 apps on macOS, while CrossOver's Wine, which carries patches for that,
-/// opens them (tested 2026-11-04). Until Vitral builds its own engine from CodeWeavers' LGPL
-/// sources, it downloads Sikarugir's builds of CrossOver's Wine at the moment they are needed.
+/// opens them (tested 2026-11-04). Vitral builds its own from CodeWeavers' LGPL sources
+/// (`scripts/build-engine.sh`, run by the Engine workflow) and publishes it in its releases.
 public enum EngineCatalog {
-    /// Wine from CrossOver 24.0.7 (Wine 9.0 base), built by the Sikarugir project.
+    /// Wine from CrossOver 26.3.0 (Wine 11.0 base) with DXMT 0.80 (Direct3D 11 on Metal), built
+    /// by Vitral. Opens Qt 5 programs (32-bit) and Electron 37 programs (tested 2026-11-05).
+    public static let crossover26 = WineEngine(
+        id: "cx26.3.0-1",
+        name: "CrossOver 26.3.0 (Wine 11.0) + DXMT 0.80",
+        wine: Component(
+            id: "wine-cx26.3.0-1",
+            name: "Wine (CrossOver 26.3.0, Vitral build, with DXMT 0.80)",
+            url: URL(string: "https://github.com/noctavoxfilms/vitral/releases/download/engine-cx26.3.0-1/wine-cx26.3.0.tar.xz")!,
+            sha256: "a530935ad8f147171cb8faba68e2ed74fcdedf05bb1621ce8c19980702df633e",
+            bytes: 91_972_016,
+            archiveRoot: "wine-cx26.3.0",
+            license: "LGPL-2.1-or-later (Wine), MIT (DXMT); see share/licenses",
+            source: URL(string: "https://media.codeweavers.com/pub/crossover/source/crossover-sources-26.3.0.tar.gz")!
+        ),
+        libraries: gcenxLibraries
+    )
+
+    /// Wine from CrossOver 24.0.7 (Wine 9.0 base), built by the Sikarugir project. Kept for the
+    /// programs installed with it; it cannot open Electron programs.
     public static let crossover24 = WineEngine(
         id: "cx24.0.7_7",
         name: "CrossOver 24.0.7 (Wine 9.0)",
@@ -48,8 +67,8 @@ public enum EngineCatalog {
         source: URL(string: "https://github.com/Gcenx/macOS_Wine_builds")!
     )
 
-    public static let all: [WineEngine] = [crossover24]
-    public static let `default` = crossover24
+    public static let all: [WineEngine] = [crossover26, crossover24]
+    public static let `default` = crossover26
 
     public static func engine(id: String) -> WineEngine? { all.first { $0.id == id } }
 }
