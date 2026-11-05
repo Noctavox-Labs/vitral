@@ -240,3 +240,16 @@ private func writeQtProgram(_ folder: TemporaryFolder, at path: String, name: St
     #expect(try FileManager.default.contentsOfDirectory(atPath: wrapper.launcherURL.deletingLastPathComponent().path) == ["launcher"])
     #expect(throws: WrapperError.self) { try Wrapper(url: folder.url).updateLauncher(from: new) }
 }
+
+@Test func launcherCopiesLoseTheQuarantineMark() throws {
+    let folder = try TemporaryFolder()
+    let launcher = folder.url.appendingPathComponent("downloaded-launcher")
+    try Data("#!/bin/sh\n".utf8).write(to: launcher)
+    let mark = "0083;6a0b1c2d;Chrome;"
+    #expect(setxattr(launcher.path, "com.apple.quarantine", mark, mark.utf8.count, 0, 0) == 0)
+
+    let wrapper = Wrapper(url: folder.url.appendingPathComponent("P.app"))
+    let manifest = WrapperManifest(name: "P", program: "p.exe", engine: "x", settings: LaunchSettings())
+    try wrapper.write(manifest: manifest, icns: nil, launcher: launcher, bundleIdentifier: "test.p")
+    #expect(getxattr(wrapper.launcherURL.path, "com.apple.quarantine", nil, 0, 0, 0) < 0)
+}
