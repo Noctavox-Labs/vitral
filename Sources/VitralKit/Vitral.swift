@@ -2,7 +2,7 @@ import Foundation
 
 /// Project-wide constants.
 public enum Vitral {
-    public static let version = "0.1.2"
+    public static let version = "0.1.3"
 }
 
 /// Languages Vitral speaks. The user interface is always bilingual (Spanish and English).
