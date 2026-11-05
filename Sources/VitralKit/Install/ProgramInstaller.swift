@@ -182,13 +182,26 @@ public struct ProgramInstaller: Sendable {
             // Cancelling closes every Windows process of the prefix: the installer and anything
             // it opened. The waits below then end, and the staging folder is removed.
             let closedProgram = try await withTaskCancellationHandler {
+                // Some installers open the program and wait until it is closed (Inno Setup's
+                // [Run] entries without "nowait"): watch for it while the installer runs too.
+                let launch = Task { await Self.waitForLaunchedProgram(driveC: session.driveC, before: before) }
+                let closedWhileRunning = Task {
+                    guard await launch.value else { return false }
+                    progress(.closingProgram)
+                    await session.killServer()
+                    return true
+                }
                 do {
                     try await runInstaller(installer, report: report, session: session, log: logHandle, logURL: log)
                 } catch {
+                    launch.cancel()
                     watcher.cancel()
-                    throw error
+                    // Closing everything may end msiexec with an error; the installation was done.
+                    if !(await closedWhileRunning.value) { throw error }
                 }
+                launch.cancel()
                 watcher.cancel()
+                if await closedWhileRunning.value { return true }
                 try Task.checkCancellation()
                 if Self.needsInstaller(installer, report) { progress(.finishingInstaller) }
                 let closed = await waitForLeftovers(session, before: before, closing: { progress(.closingProgram) })
@@ -281,6 +294,31 @@ public struct ProgramInstaller: Sendable {
             group.cancelAll()
             return closed
         }
+    }
+
+    /// Returns true as soon as the installed program's main executable (the one Vitral would
+    /// make the app open) has a window; false if cancelled. Other new programs with a window,
+    /// such as a runtime installer the setup runs from the program's folder (Shape It! runs
+    /// `vc_redist.x86.exe` from there), do not count.
+    static func waitForLaunchedProgram(driveC: URL, before: Set<String>) async -> Bool {
+        var known: (added: Set<String>, main: String?)?
+        while !Task.isCancelled {
+            let open = Set(WineWindows.owners().map { $0.name.lowercased() }.filter { $0.hasSuffix(".exe") })
+            if !open.isEmpty {
+                let added = ProgramFinder.snapshot(driveC: driveC).subtracting(before)
+                // Cheap check first; the analysis only runs when a new program has a window,
+                // and again only if the new folders changed.
+                if !open.isDisjoint(with: ProgramFinder.executableNames(inFolders: added, driveC: driveC)) {
+                    if known?.added != added {
+                        let main = ProgramFinder.choose(newFolders: added, driveC: driveC)?.report.mainExecutable
+                        known = (added, main.map { ($0 as NSString).lastPathComponent.lowercased() })
+                    }
+                    if let main = known?.main, open.contains(main) { return true }
+                }
+            }
+            try? await Task.sleep(for: .seconds(1))
+        }
+        return false
     }
 
     /// Whether a program the installer added has a window open.
