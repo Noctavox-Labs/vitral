@@ -185,6 +185,7 @@ final class AppModel {
                 file.url, options: InstallOptions(launcher: launcher),
                 windowShown: { pid in
                     Task { @MainActor in
+                        self.installerWindows.removeAll { $0 == pid }
                         self.installerWindows.append(pid)
                         Self.bringForward(pid)
                     }

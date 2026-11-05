@@ -24,6 +24,7 @@ public enum InstallError: Error, CustomStringConvertible {
     case launcherMissing
     case programNotFound(log: URL)
     case installerDidNotStart(Int32, log: URL)
+    case prerequisiteLoop(String, log: URL)
 
     public var description: String {
         switch self {
@@ -41,6 +42,10 @@ public enum InstallError: Error, CustomStringConvertible {
         case .installerDidNotStart(let status, let log):
             return tr("El instalador no pudo abrirse (código \(status)). Registro: \(log.path)",
                       "The installer could not start (status \(status)). Log: \(log.path)")
+        case .prerequisiteLoop(let package, let log):
+            let name = BurnLog.friendlyName(package)
+            return tr("El instalador repetía sin parar la instalación de \(name): termina sin instalar nada en Wine y el instalador vuelve a pedirlo. Lo detuve. Este programa todavía no se puede instalar con Vitral. Registro: \(log.path)",
+                      "The installer kept installing \(name) over and over: under Wine it ends without installing anything, and the installer asks for it again. I stopped it. This program cannot be installed with Vitral yet. Log: \(log.path)")
         }
     }
 }
@@ -200,16 +205,29 @@ public struct ProgramInstaller: Sendable {
                     await session.killServer()
                     return true
                 }
+                // WiX Burn bundles that install a prerequisite again and again (.NET Framework).
+                let loop = Task { await BurnLog.waitForRepeat(driveC: session.driveC) }
+                let stoppedLoop = Task { () -> String? in
+                    guard let package = await loop.value else { return nil }
+                    logHandle.write(Data("[Vitral] Burn installed \(package) twice: stopping the installer.\n".utf8))
+                    await session.killServer()
+                    return package
+                }
+                defer { loop.cancel() }
                 do {
                     try await runInstaller(installer, report: report, session: session, log: logHandle, logURL: log)
                 } catch {
                     launch.cancel()
                     watcher.cancel()
+                    loop.cancel()
+                    if let package = await stoppedLoop.value { throw InstallError.prerequisiteLoop(package, log: log) }
                     // Closing everything may end msiexec with an error; the installation was done.
                     if !(await closedWhileRunning.value) { throw error }
                 }
                 launch.cancel()
                 watcher.cancel()
+                loop.cancel()
+                if let package = await stoppedLoop.value { throw InstallError.prerequisiteLoop(package, log: log) }
                 if await closedWhileRunning.value { return true }
                 try Task.checkCancellation()
                 if Self.needsInstaller(installer, report) { progress(.finishingInstaller) }
@@ -277,12 +295,16 @@ public struct ProgramInstaller: Sendable {
 
     /// Calls `shown` once for each Windows process that opens a window from now on.
     static func reportNewWindows(to shown: @Sendable (pid_t) -> Void) async {
-        var seen = Set(WineWindows.owners().map(\.pid))
+        // Programs that were already open are not the installer's.
+        let before = Set(WineWindows.owners().map(\.pid))
+        // A process is reported each time it goes from no window to a window: installers that
+        // close their window and open another (WiX Burn after each prerequisite) would
+        // otherwise open it behind Vitral.
+        var showing = Set<pid_t>()
         while !Task.isCancelled {
-            for owner in WineWindows.owners() where !seen.contains(owner.pid) && WineWindows.looksLikeWindows(owner.name) {
-                seen.insert(owner.pid)
-                shown(owner.pid)
-            }
+            let now = Set(WineWindows.owners().filter { !before.contains($0.pid) && WineWindows.looksLikeWindows($0.name) }.map(\.pid))
+            for pid in now.subtracting(showing) { shown(pid) }
+            showing = now
             try? await Task.sleep(for: .milliseconds(500))
         }
     }
