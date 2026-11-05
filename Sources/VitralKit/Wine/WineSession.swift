@@ -151,7 +151,9 @@ public struct WineSession: Sendable {
     /// Creates the Windows folders and registry of a new prefix.
     public func createPrefix() async throws {
         try FileManager.default.createDirectory(at: prefix, withIntermediateDirectories: true)
-        let status = try await run(["wineboot", "--init"])
+        let boot = process(["wineboot", "--init"])
+        boot.environment?["WINEDLLOVERRIDES"] = InstalledEngine.prefixCreationOverrides
+        let status = try await Self.wait(for: boot)
         await waitForServer()
         guard status == 0, FileManager.default.fileExists(atPath: prefix.appendingPathComponent("system.reg").path) else {
             throw WineError.failed(command: "wineboot --init", status: status)

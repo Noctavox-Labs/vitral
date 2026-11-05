@@ -88,6 +88,9 @@ public struct InstalledEngine: Sendable {
     public var wine: URL { wineRoot.appendingPathComponent("bin/wine") }
     public var wineserver: URL { wineRoot.appendingPathComponent("bin/wineserver") }
 
+    /// DLL overrides while the prefix is created: no Wine Mono or Gecko download offers.
+    public static let prefixCreationOverrides = "winemenubuilder.exe=d;mscoree=d;mshtml=d"
+
     /// Variables every Wine process of this engine needs.
     public func environment(prefix: URL) -> [String: String] {
         [
@@ -98,9 +101,11 @@ public struct InstalledEngine: Sendable {
             // MoltenVK prints every Vulkan extension otherwise.
             "MVK_CONFIG_LOG_LEVEL": "0",
             // Do not create macOS menu entries or file associations for Windows programs; and no
-            // Wine Mono (.NET) or Gecko (Internet Explorer), which newer engines would offer to
-            // download when the prefix is created, stopping there until someone answers.
-            "WINEDLLOVERRIDES": "winemenubuilder.exe=d;mscoree=d;mshtml=d",
+            // Gecko (Internet Explorer), which Wine would offer to download, stopping there until
+            // someone answers. Wine's .NET loader (mscoree) stays on: .NET 5 and later programs
+            // (Paint.NET) need it to load their own libraries; only creating the prefix turns it
+            // off, so wineboot does not offer to download Wine Mono (`prefixCreationOverrides`).
+            "WINEDLLOVERRIDES": "winemenubuilder.exe=d;mshtml=d",
         ]
     }
 }
