@@ -35,17 +35,24 @@ redistribuyan la incluyen.
 
 | Component | License | Source |
 |-----------|---------|--------|
-| Wine from CrossOver 24.0.7, built by the Sikarugir project ([`WS12WineCX24.0.7_7`](https://github.com/Sikarugir-App/Engines/releases/tag/v1.0)) | LGPL-2.1-or-later (Wine) | [CodeWeavers: crossover-sources-24.0.7](https://media.codeweavers.com/pub/crossover/source/crossover-sources-24.0.7.tar.gz) |
+| **Vitral's engine** ([`engine-cx26.3.0-1`](https://github.com/noctavoxfilms/vitral/releases/tag/engine-cx26.3.0-1)): Wine from CrossOver 26.3.0, built unmodified by `scripts/build-engine.sh` | LGPL-2.1-or-later (Wine) | [CodeWeavers: crossover-sources-26.3.0](https://media.codeweavers.com/pub/crossover/source/crossover-sources-26.3.0.tar.gz) |
+| DXMT 0.80, official build, inside Vitral's engine (license in its `share/licenses/`) | MIT | [3Shain/dxmt v0.80](https://github.com/3Shain/dxmt/releases/tag/v0.80) |
+| Wine from CrossOver 24.0.7, built by the Sikarugir project ([`WS12WineCX24.0.7_7`](https://github.com/Sikarugir-App/Engines/releases/tag/v1.0)), only for apps installed with it before | LGPL-2.1-or-later (Wine) | [CodeWeavers: crossover-sources-24.0.7](https://media.codeweavers.com/pub/crossover/source/crossover-sources-24.0.7.tar.gz) |
 | macOS libraries from Gcenx's official Wine build ([`wine-stable-11.0_1`](https://github.com/Gcenx/macOS_Wine_builds/releases/tag/11.0_1)): FreeType, GnuTLS and its dependencies, MoltenVK, SDL2, libinotify, gettext | Each project's own (FreeType License or GPL-2.0, LGPL, Apache-2.0, zlib, MIT) | [Gcenx/macOS_Wine_builds](https://github.com/Gcenx/macOS_Wine_builds) |
 
 Why CrossOver's Wine: the official builds crash with 32-bit programs such as Qt 5 apps on macOS,
-and CrossOver's patches fix that. Vitral only downloads the Sikarugir build; it does not copy any
-of Sikarugir's code. A Vitral-built engine from CodeWeavers' sources will replace it.
+and CrossOver's patches fix that. Vitral builds its own engine from CodeWeavers' sources; the
+older Sikarugir build is only downloaded for apps that were installed with it, and none of
+Sikarugir's code is copied. The way to build CrossOver's Wine on Apple silicon was learned from
+[calimocho](https://github.com/dragoshont/calimocho) (LGPL-2.1-or-later); no code from it is
+used, and Vitral does not ship Apple's D3DMetal as it does.
 
 Por qué el Wine de CrossOver: las versiones oficiales se caen con programas de 32 bits como las
-apps en Qt 5, y los parches de CrossOver lo resuelven. Vitral solo descarga la compilación de
-Sikarugir; no copia código de Sikarugir. La reemplazará un motor compilado por Vitral desde el
-código de CodeWeavers.
+apps en Qt 5, y los parches de CrossOver lo resuelven. Vitral compila su propio motor desde el
+código de CodeWeavers; la compilación de Sikarugir solo se baja para las apps que se instalaron
+con ella, y no se copia código de Sikarugir. La forma de compilar el Wine de CrossOver en chip
+Apple se aprendió de calimocho (LGPL-2.1 o posterior); no se usa código suyo, y Vitral no incluye
+el D3DMetal de Apple como hace ese proyecto.
 
 **Bundled in the app / Incluido en la app:**
 
@@ -58,7 +65,6 @@ código de CodeWeavers.
 | Component | License | Source |
 |-----------|---------|--------|
 | DXVK-macOS | Zlib | [Gcenx/DXVK-macOS](https://github.com/Gcenx/DXVK-macOS) |
-| DXMT | to be confirmed before redistribution | [3Shain/dxmt](https://github.com/3Shain/dxmt) |
 | MoltenVK | Apache-2.0 | [KhronosGroup/MoltenVK](https://github.com/KhronosGroup/MoltenVK) |
 | Winetricks | LGPL-2.1-or-later | [Winetricks/winetricks](https://github.com/Winetricks/winetricks) |
 | innoextract | zlib-style, to be confirmed | [constexpr.org/innoextract](https://constexpr.org/innoextract/) |

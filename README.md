@@ -8,7 +8,9 @@
 > repository has `vitral`, a command-line tool that inspects Windows installers and turns
 > programs into Mac apps, and the first version of the app: a setup assistant that checks your
 > Mac and installs what is missing, a window where you drop an installer to install it, and
-> your library of Windows apps. Follow the [roadmap](#roadmap) to see what comes next.
+> your library of Windows apps. It already installs and opens, from their own installers, a
+> 32-bit Qt 5 + QtWebEngine educational app and an Electron 37 app, on Vitral's own Wine engine.
+> Follow the [roadmap](#roadmap) to see what comes next.
 
 ## The idea
 
@@ -53,11 +55,19 @@ swift build && .build/debug/vitral install "path/to/Setup.exe"   # install it as
 ```
 
 `vitral install` creates Windows (a Wine prefix) inside a new app, opens the installer so you
-can follow its steps, finds the installed program, applies the settings its framework needs
-(for Qt 5: sharp on Retina, Qt Quick without OpenGL, no stale single-instance lock) and leaves
-`~/Applications/<Program>.app` with the program's icon. Each app carries a small launcher that
-checks Rosetta and the engine, opens the program, tries again if it crashes while starting, and
-keeps a log in `~/Library/Logs/Vitral/`.
+can follow its steps, finds the installed program, applies the settings its framework needs and
+leaves `~/Applications/<Program>.app` with the program's icon:
+
+- **Qt 5:** sharp on Retina, Qt Quick without OpenGL, no stale single-instance lock.
+- **Electron:** drawn inside the program (`--in-process-gpu`), so DXMT can show it; for
+  electron-builder installers, Wine's stand-in PowerShell is turned off (it made the installer
+  think the program was still open).
+
+If the installer opens the program when it finishes, Vitral closes that copy (it runs without
+these settings) and goes on. Before finishing, Vitral compares the Windows functions the program
+uses with the ones the engine has, and warns if something would stop it from opening. Each app
+carries a small launcher that checks Rosetta and the engine, opens the program, tries again if it
+crashes while starting, and keeps a log in `~/Library/Logs/Vitral/`.
 
 Examples:
 
@@ -106,12 +116,31 @@ On macOS 26 and later the app uses Liquid Glass; on macOS 14 and 15 it uses tran
 materials. Copies built from source do not update themselves; published releases update inside
 the app with [Sparkle](https://sparkle-project.org), checking the signature of each update.
 
+To add or change texts in the app: build it, sync the catalog with
+`xcrun xcstringstool sync App/Resources/Localizable.xcstrings --stringsdata $(find .build/xcode -name '*.stringsdata')`,
+put the translation in `scripts/translations-en.json` and run `python3 scripts/apply-translations.py`.
+
+## The Wine engine
+
+Vitral runs Windows programs with its own build of **CrossOver's Wine**, from the source code
+CodeWeavers publishes under the LGPL: today CrossOver 26.3.0 (Wine 11.0), for 32- and 64-bit
+programs, with [DXMT](https://github.com/3Shain/dxmt) 0.80 (Direct3D 11 on Metal, MIT) inside.
+The official Wine builds crash with 32-bit programs such as Qt 5 apps on macOS; CrossOver's
+patches fix that, and CrossOver 26 has what Electron apps need.
+
+- `scripts/build-engine.sh` builds it on a Mac with Apple silicon in a few minutes (Rosetta,
+  plus `brew install mingw-w64 bison flex freetype gnutls sdl2`; no Intel Homebrew needed).
+- The [Engine workflow](.github/workflows/engine.yml) builds it in GitHub Actions and leaves it
+  in a draft release; once checked, it is published as `engine-cx<version>-<n>` in this
+  repository's [releases](https://github.com/noctavoxfilms/vitral/releases).
+- Vitral downloads it the first time it is needed and checks it against the SHA-256 pinned in
+  `Sources/VitralKit/Engines/WineEngine.swift`. Inside, `share/licenses/` lists each source.
 ## Roadmap
 
 | Phase | Goal |
 |-------|------|
 | **0. Foundations** *(done)* | Repository, CI, installer and program analyzer, Wine engine download |
-| **1. One command** *(now)* | `vitral install Setup.exe` creates a sharp, portable Mac app with its icon, with no manual steps beyond the program's own installer. First target: a Qt 5 + QtWebEngine educational app that today needs a dozen manual fixes |
+| **1. One command** *(now)* | `vitral install Setup.exe` creates a sharp, portable Mac app with its icon, with no manual steps beyond the program's own installer. Reached for its first targets: a 32-bit Qt 5 + QtWebEngine educational app that needed a dozen manual fixes, and an Electron 37 app, on Vitral's own engine. Next: more test Macs and programs |
 | **2. The app** *(started)* | SwiftUI app with Liquid Glass: setup assistant (Rosetta, engine), drag and drop, library, "Does it look right?", advanced settings |
 | **3. Sharing** | Export and import, signed and notarized releases, automatic updates inside the app |
 | **4. More programs** | Compatibility list, community recipes |
@@ -134,7 +163,7 @@ officially supported.
 
 ## Standing on the shoulders of
 
-[Wine](https://www.winehq.org) · [Gcenx's macOS Wine builds](https://github.com/Gcenx/macOS_Wine_builds) ·
+[Wine](https://www.winehq.org) · [CrossOver's source code](https://www.codeweavers.com/crossover/source) · [Gcenx's macOS Wine builds](https://github.com/Gcenx/macOS_Wine_builds) ·
 [Whisky](https://github.com/Whisky-App/Whisky) · [Rum](https://github.com/lunguini/rum) ·
 [Obelisk](https://github.com/Zagrios/Obelisk) · [mapc-engine](https://github.com/abduzeedo/mapc-engine) ·
 [Sikarugir](https://github.com/Sikarugir-App) · [DXVK-macOS](https://github.com/Gcenx/DXVK-macOS) ·
