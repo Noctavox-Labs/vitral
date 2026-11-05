@@ -78,8 +78,10 @@ public struct InstalledEngine: Sendable {
             "WINEDEBUG": "err+all,fixme-all",
             // MoltenVK prints every Vulkan extension otherwise.
             "MVK_CONFIG_LOG_LEVEL": "0",
-            // Do not create macOS menu entries or file associations for Windows programs.
-            "WINEDLLOVERRIDES": "winemenubuilder.exe=d",
+            // Do not create macOS menu entries or file associations for Windows programs; and no
+            // Wine Mono (.NET) or Gecko (Internet Explorer), which newer engines would offer to
+            // download when the prefix is created, stopping there until someone answers.
+            "WINEDLLOVERRIDES": "winemenubuilder.exe=d;mscoree=d;mshtml=d",
         ]
     }
 }

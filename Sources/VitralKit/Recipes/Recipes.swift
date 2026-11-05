@@ -99,6 +99,14 @@ public enum Recipes {
             settings.cleanup += qtLocks
             applied.append(AppliedRecipe(id: "qt-single-instance", because: label))
         }
+
+        if report.technology(.electron) != nil {
+            // Chromium draws in a separate GPU process, and DXMT (Direct3D 11 on Metal) cannot yet
+            // show what another process draws: the window stays blank. In-process, it works
+            // (see `Caso aTube Catcher.md`).
+            settings.arguments.append("--in-process-gpu")
+            applied.append(AppliedRecipe(id: "electron-in-process-gpu", because: "Electron"))
+        }
         return (settings, applied)
     }
 
@@ -114,6 +122,9 @@ public enum Recipes {
         case "qt-single-instance":
             return tr("Borra el candado de instancia única antes de abrir",
                       "Removes the single-instance lock before opening", language)
+        case "electron-in-process-gpu":
+            return tr("Electron dibuja dentro del programa (--in-process-gpu): DXMT todavía no muestra lo que dibuja otro proceso",
+                      "Electron draws inside the program (--in-process-gpu): DXMT cannot yet show what another process draws", language)
         case "electron-builder-no-powershell":
             return tr("PowerShell desactivado: el de Wine no hace nada y el instalador creía que el programa seguía abierto",
                       "PowerShell turned off: Wine's does nothing, and the installer thought the program was still open", language)

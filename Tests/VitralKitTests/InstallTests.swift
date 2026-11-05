@@ -59,6 +59,16 @@ private func writeQtProgram(_ folder: TemporaryFolder, at path: String, name: St
     #expect(settings.cleanup == Recipes.qtLocks)
 }
 
+@Test func electronProgramDrawsInProcess() throws {
+    let folder = try TemporaryFolder()
+    try folder.write("aTube Catcher/aTube Catcher.exe", SyntheticPE())
+    try folder.write("aTube Catcher/resources/app.asar", Data("asar".utf8))
+    let report = try ProgramAnalyzer.analyze(folderAt: folder.url.appendingPathComponent("aTube Catcher"))
+    let (settings, applied) = Recipes.settings(for: report)
+    #expect(applied.map(\.id) == ["electron-in-process-gpu"])
+    #expect(settings.arguments == ["--in-process-gpu"])
+}
+
 @Test func programWithoutKnownFrameworkKeepsWineDefaults() throws {
     let folder = try TemporaryFolder()
     try folder.write("Tool/tool.exe", SyntheticPE())
