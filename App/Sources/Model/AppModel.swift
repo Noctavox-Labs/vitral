@@ -243,6 +243,31 @@ final class AppModel {
         }
     }
 
+    /// Last uninstall error, shown in an alert.
+    var uninstallError: String?
+
+    /// Closes the program if it is open and moves the app and its logs to the Trash.
+    func uninstall(_ app: LibraryApp) async {
+        do {
+            try await Uninstaller().uninstall(app.url)
+        } catch {
+            uninstallError = String(describing: error)
+        }
+        refreshLibrary()
+    }
+
+    /// Engine pieces no app uses, and their size on disk.
+    var unusedEngineBytes: Int64 {
+        EngineUsage.unusedComponents().reduce(0) { $0 + EngineUsage.folderSize(VitralHome.default.folder(of: $1)) }
+    }
+
+    /// Deletes the engine pieces no app uses. Returns the bytes freed.
+    func removeUnusedEngines() -> Int64 {
+        let freed = (try? EngineUsage.removeUnused()) ?? 0
+        refresh()
+        return freed
+    }
+
     func openApp(_ url: URL) {
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
     }

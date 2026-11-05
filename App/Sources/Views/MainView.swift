@@ -66,6 +66,11 @@ struct MainView: View {
         } message: {
             Text(model.dropError ?? "")
         }
+        .alert("No se pudo desinstalar", isPresented: Binding(get: { model.uninstallError != nil }, set: { if !$0 { model.uninstallError = nil } })) {
+            Button("Aceptar", role: .cancel) {}
+        } message: {
+            Text(model.uninstallError ?? "")
+        }
     }
 
     static let installerTypes: [UTType] = ["exe", "msi"].compactMap { UTType(filenameExtension: $0) } + [.zip]
@@ -156,6 +161,7 @@ struct LibraryCard: View {
     @Environment(AppModel.self) private var model
     let app: AppModel.LibraryApp
     @State private var hovering = false
+    @State private var confirmingUninstall = false
 
     var body: some View {
         Button { model.openApp(app.url) } label: {
@@ -191,6 +197,16 @@ struct LibraryCard: View {
         .contextMenu {
             Button("Abrir") { model.openApp(app.url) }
             Button("Mostrar en Finder") { model.showInFinder(app.url) }
+            Divider()
+            Button("Desinstalar…", role: .destructive) { confirmingUninstall = true }
+        }
+        .confirmationDialog("¿Desinstalar \(app.name)?", isPresented: $confirmingUninstall) {
+            Button("Mover a la Papelera", role: .destructive) {
+                Task { await model.uninstall(app) }
+            }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Si está abierto, se cierra. La app (con el programa y su configuración) y sus registros van a la Papelera, desde donde se pueden recuperar. Tus archivos en Documentos, Descargas, Música, Imágenes y Películas no se tocan.")
         }
     }
 }

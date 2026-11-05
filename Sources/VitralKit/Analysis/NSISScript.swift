@@ -16,6 +16,9 @@ public enum NSISScript {
         public let builder: InstallerBuilder?
         /// The script runs `powershell.exe`.
         public let runsPowerShell: Bool
+        /// Bits of the program it installs, when the script shows it (electron-builder packs
+        /// `app-64.7z` and/or `app-32.7z`).
+        public var programBits: Int? = nil
     }
 
     /// `siginfo` and `nsinst` of NSIS's first header.
@@ -81,9 +84,12 @@ public enum NSISScript {
             let utf16 = ascii.flatMap { byte -> [UInt8] in [byte, 0] }
             return lower.range(of: Data(utf16)) != nil || lower.range(of: Data(ascii)) != nil
         }
-        let packedApp = ["\\app-64.7z", "\\app-32.7z", "\\app-arm64.7z"].contains(where: mentions)
+        let has64 = mentions("\\app-64.7z"), has32 = mentions("\\app-32.7z")
+        let packedApp = has64 || has32 || mentions("\\app-arm64.7z")
         let electronBuilder = packedApp && mentions("nsis7z")
+        // With both, the installer picks by Windows' bits; Wine is 64-bit Windows.
+        let bits: Int? = electronBuilder ? (has64 ? 64 : has32 ? 32 : nil) : nil
         return Facts(builder: electronBuilder ? .electronBuilder : nil,
-                     runsPowerShell: mentions("\\powershell.exe"))
+                     runsPowerShell: mentions("\\powershell.exe"), programBits: bits)
     }
 }

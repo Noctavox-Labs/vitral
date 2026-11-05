@@ -21,12 +21,15 @@ func printUsage() {
                                                Saca el ícono de un programa de Windows.
           vitral motores                       Muestra los motores de Wine y si están instalados.
           vitral motores instalar [id]         Descarga y verifica un motor (el recomendado si no se indica).
+          vitral motores limpiar               Borra los motores que ninguna app usa (se vuelven a bajar si hacen falta).
           vitral instalar <instalador> [--destino <carpeta>] [--nombre <nombre>] [--reemplazar]
                                                Instala un programa de Windows y lo deja como app de Mac
                                                (en ~/Applications si no se indica otra carpeta).
+          vitral desinstalar <app>             Cierra el programa si está abierto y manda la app y sus registros a la
+                                               Papelera. Tus archivos de Documentos, Descargas… no se tocan.
           vitral version                       Muestra la versión.
 
-        Los comandos también funcionan en inglés (analyze, icon, engines install, install). Idioma: VITRAL_LANG=es o en.
+        Los comandos también funcionan en inglés (analyze, icon, engines install, engines clean, install, uninstall). Idioma: VITRAL_LANG=es o en.
         """,
         """
         Vitral \(Vitral.version): Windows programs on your Mac.
@@ -38,12 +41,15 @@ func printUsage() {
                                              Extract the icon of a Windows program.
           vitral engines                     List the Wine engines and whether they are installed.
           vitral engines install [id]        Download and verify an engine (the recommended one by default).
+          vitral engines clean               Delete the engines no app uses (downloaded again if needed).
           vitral install <installer> [--destination <folder>] [--name <name>] [--replace]
                                              Install a Windows program and turn it into a Mac app
                                              (in ~/Applications unless another folder is given).
+          vitral uninstall <app>             Close the program if it is open and move the app and its logs to the
+                                             Trash. Your files in Documents, Downloads… are not touched.
           vitral version                     Show the version.
 
-        Commands also work in Spanish (analizar, icono, motores instalar, instalar). Language: VITRAL_LANG=en or es.
+        Commands also work in Spanish (analizar, icono, motores instalar, motores limpiar, instalar, desinstalar). Language: VITRAL_LANG=en or es.
         """
     ))
 }
@@ -291,6 +297,21 @@ func engines(_ options: [String]) async {
         }
         return
     }
+    if let action = options.first, ["limpiar", "clean"].contains(action) {
+        let unused = EngineUsage.unusedComponents()
+        if unused.isEmpty {
+            print(tr("No hay motores sin usar.", "No unused engines."))
+            return
+        }
+        do {
+            for piece in unused { print(tr("Borrando \(piece.name)…", "Deleting \(piece.name)…")) }
+            let freed = try EngineUsage.removeUnused()
+            print(tr("✓ Liberados \(formatSize(freed)).", "✓ Freed \(formatSize(freed))."))
+        } catch {
+            fail("✗ " + String(describing: error))
+        }
+        return
+    }
     guard options.isEmpty else {
         printUsage()
         exit(2)
@@ -339,7 +360,10 @@ func analyze(_ options: [String]) {
     print("  " + tr("Tipo:     ", "Type:     ") + describeKind(report))
     if let info = report.executable {
         let label = report.kind == .executable ? tr("Programa: ", "Program:  ") : tr("Archivo:  ", "File:     ")
-        print("  " + label + describeExecutable(info))
+        print("  " + label + describeExecutable(info) + (report.kind == .executable ? "" : tr(" (el instalador)", " (the installer)")))
+        if let bits = report.programBits {
+            print("  " + tr("Programa: ", "Program:  ") + tr("Windows de \(bits) bits", "\(bits)-bit Windows"))
+        }
         if let product = describeProduct(info.version) {
             let label = report.kind == .executable ? tr("Producto: ", "Product:  ") : tr("Instala:  ", "Installs: ")
             print("  " + label + product)
@@ -461,6 +485,26 @@ func install(_ options: [String]) async {
     }
 }
 
+func uninstall(_ options: [String]) async {
+    guard options.count == 1 else {
+        printUsage()
+        exit(2)
+    }
+    var path = (options[0] as NSString).expandingTildeInPath
+    // A bare name ("aTube Catcher") means the app in ~/Applications.
+    if !path.contains("/") {
+        path = InstallOptions.defaultDestination.appendingPathComponent(path.hasSuffix(".app") ? path : path + ".app").path
+    }
+    let app = URL(fileURLWithPath: path)
+    do {
+        let trashed = try await Uninstaller().uninstall(app)
+        print(tr("✓ A la Papelera (se puede recuperar desde ahí):", "✓ Moved to the Trash (you can put it back from there):"))
+        for item in trashed { print("  " + item.path) }
+    } catch {
+        fail("✗ " + String(describing: error))
+    }
+}
+
 /// A value shared between threads.
 final class Locked<Value>: @unchecked Sendable {
     private let lock = NSLock()
@@ -486,6 +530,8 @@ case "motores", "engines", "motor", "engine":
     await engines(Array(arguments.dropFirst()))
 case "instalar", "install":
     await install(Array(arguments.dropFirst()))
+case "desinstalar", "uninstall":
+    await uninstall(Array(arguments.dropFirst()))
 case "version", "versión", "--version", "-v":
     print("Vitral \(Vitral.version)")
 case "ayuda", "help", "--help", "-h":

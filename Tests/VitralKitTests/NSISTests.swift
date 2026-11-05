@@ -38,6 +38,10 @@ let electronBuilderTexts = [
     let facts = try #require(NSISScript.facts(in: makeNSIS(texts: electronBuilderTexts), scanLimit: 1 << 20))
     #expect(facts.builder == .electronBuilder)
     #expect(facts.runsPowerShell)
+    // aTube Catcher's installer is 32-bit (all NSIS stubs are); the program it packs is 64-bit.
+    #expect(facts.programBits == 64)
+    let only32 = electronBuilderTexts.map { $0 == "\\app-64.7z" ? "\\app-32.7z" : $0 }
+    #expect(try #require(NSISScript.facts(in: makeNSIS(texts: only32), scanLimit: 1 << 20)).programBits == 32)
 
     let stored = try #require(NSISScript.facts(in: makeNSIS(texts: electronBuilderTexts, compressed: false), scanLimit: 1 << 20))
     #expect(stored == facts)

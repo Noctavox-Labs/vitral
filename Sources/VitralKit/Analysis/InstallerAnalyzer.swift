@@ -33,6 +33,9 @@ public struct InstallerReport: Codable, Sendable, Equatable {
     /// The installer's script runs PowerShell. Wine only has a stand-in for it, which does
     /// nothing and always answers "done".
     public var runsPowerShell = false
+    /// Bits of the program it installs, when the installer shows them before running (only
+    /// electron-builder, for now). The installer's own bits often differ: NSIS is always 32-bit.
+    public var programBits: Int? = nil
 }
 
 public enum InstallerAnalyzerError: Error, Equatable {
@@ -72,7 +75,8 @@ public enum InstallerAnalyzer {
             executable: executable,
             companionFiles: companionFiles(of: url, kind: kind),
             builder: script?.builder,
-            runsPowerShell: script?.runsPowerShell ?? false
+            runsPowerShell: script?.runsPowerShell ?? false,
+            programBits: script?.programBits
         )
     }
 

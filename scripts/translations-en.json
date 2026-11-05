@@ -101,5 +101,17 @@
   "Mostrar el instalador": "Show the installer",
   "El instalador terminó. Terminando de instalar…": "The installer finished. Finishing the installation…",
   "El instalador abrió el programa: lo cierro para terminar la app…": "The installer opened the program: closing it to finish the app…",
-  "Cancelar": "Cancel"
+  "Cancelar": "Cancel",
+  "Desinstalar…": "Uninstall…",
+  "¿Desinstalar %@?": "Uninstall %@?",
+  "Mover a la Papelera": "Move to Trash",
+  "Si está abierto, se cierra. La app (con el programa y su configuración) y sus registros van a la Papelera, desde donde se pueden recuperar. Tus archivos en Documentos, Descargas, Música, Imágenes y Películas no se tocan.": "If it is open, it closes. The app (with the program and its settings) and its logs go to the Trash, where you can put them back from. Your files in Documents, Downloads, Music, Pictures and Movies are not touched.",
+  "No se pudo desinstalar": "Could not uninstall",
+  "Motores sin usar": "Unused engines",
+  "Liberados %@.": "Freed %@.",
+  "%@ que ninguna app usa. Se vuelven a bajar si un programa los necesita.": "%@ no app uses. They are downloaded again if a program needs them.",
+  "Todos los motores instalados están en uso.": "Every installed engine is in use.",
+  "Borrar": "Delete",
+  "Instalador": "Installer",
+  "Windows de %lld bits": "%lld-bit Windows"
 }

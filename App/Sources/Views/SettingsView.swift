@@ -61,11 +61,60 @@ struct SystemSettings: View {
 
     var body: some View {
         ScrollView {
-            SetupView(embedded: true)
-                .padding(20)
+            VStack(spacing: 16) {
+                SetupView(embedded: true)
+                UnusedEngines()
+            }
+            .padding(20)
         }
         .frame(height: 520)
         .background(StainedGlassBackground())
         .onAppear { model.refresh() }
+    }
+}
+
+/// Engines that no installed app uses any more (for example after uninstalling the last app
+/// that needed an older one). They can be downloaded again if a program needs them.
+struct UnusedEngines: View {
+    @Environment(AppModel.self) private var model
+    @State private var bytes: Int64 = 0
+    @State private var freed: Int64?
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "externaldrive")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+                .frame(width: 30)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Motores sin usar").font(.headline)
+                Group {
+                    if let freed {
+                        Text("Liberados \(ByteCountFormatter.string(fromByteCount: freed, countStyle: .file)).")
+                    } else if bytes > 0 {
+                        Text("\(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)) que ninguna app usa. Se vuelven a bajar si un programa los necesita.")
+                    } else {
+                        Text("Todos los motores instalados están en uso.")
+                    }
+                }
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            if bytes > 0 && freed == nil {
+                Button("Borrar") {
+                    freed = model.removeUnusedEngines()
+                    bytes = 0
+                }
+                .glassButton()
+            }
+        }
+        .padding(16)
+        .vitralGlass(cornerRadius: 16)
+        .onAppear {
+            freed = nil
+            bytes = model.unusedEngineBytes
+        }
     }
 }

@@ -11,6 +11,16 @@
         }
       }
     },
+    "%@ que ninguna app usa. Se vuelven a bajar si un programa los necesita." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ no app uses. They are downloaded again if a program needs them."
+          }
+        }
+      }
+    },
     "%@ · %lld %%" : {
       "localizations" : {
         "en" : {
@@ -173,6 +183,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Drop a Windows installer here"
+          }
+        }
+      }
+    },
+    "Borrar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete"
           }
         }
       }
@@ -347,6 +367,16 @@
         }
       }
     },
+    "Desinstalar…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uninstall…"
+          }
+        }
+      }
+    },
     "El instalador abrió el programa: lo cierro para terminar la app…" : {
       "localizations" : {
         "en" : {
@@ -457,6 +487,16 @@
         }
       }
     },
+    "Instalador" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installer"
+          }
+        }
+      }
+    },
     "Instalador Inno Setup%@" : {
       "localizations" : {
         "en" : {
@@ -547,6 +587,16 @@
         }
       }
     },
+    "Liberados %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Freed %@."
+          }
+        }
+      }
+    },
     "Licencia" : {
       "localizations" : {
         "en" : {
@@ -617,6 +667,26 @@
         }
       }
     },
+    "Motores sin usar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unused engines"
+          }
+        }
+      }
+    },
+    "Mover a la Papelera" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move to Trash"
+          }
+        }
+      }
+    },
     "Más tarde" : {
       "localizations" : {
         "en" : {
@@ -643,6 +713,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "I couldn't read that file."
+          }
+        }
+      }
+    },
+    "No se pudo desinstalar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not uninstall"
           }
         }
       }
@@ -787,6 +867,16 @@
         }
       }
     },
+    "Si está abierto, se cierra. La app (con el programa y su configuración) y sus registros van a la Papelera, desde donde se pueden recuperar. Tus archivos en Documentos, Descargas, Música, Imágenes y Películas no se tocan." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If it is open, it closes. The app (with the program and its settings) and its logs go to the Trash, where you can put them back from. Your files in Documents, Downloads, Music, Pictures and Movies are not touched."
+          }
+        }
+      }
+    },
     "Si no ves su ventana, puede estar detrás de Vitral. Si al terminar abre el programa, Vitral lo cierra y sigue." : {
       "localizations" : {
         "en" : {
@@ -843,6 +933,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "All set"
+          }
+        }
+      }
+    },
+    "Todos los motores instalados están en uso." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every installed engine is in use."
           }
         }
       }
@@ -977,6 +1077,16 @@
         }
       }
     },
+    "Windows de %lld bits" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld-bit Windows"
+          }
+        }
+      }
+    },
     "Windows de %lld bits, con interfaz gráfica" : {
       "localizations" : {
         "en" : {
@@ -1023,6 +1133,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "CrossOver's Wine, built by the Sikarugir project. It's downloaded from GitHub and checked with SHA-256 before use."
+          }
+        }
+      }
+    },
+    "¿Desinstalar %@?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uninstall %@?"
           }
         }
       }

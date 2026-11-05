@@ -34,7 +34,17 @@ struct AnalysisView: View {
                 fact("Tipo", kindText, "shippingbox")
                 if let executable = report.executable {
                     Divider().padding(.leading, 44)
-                    fact("Programa", executableText(executable), "cpu")
+                    // For installers these headers are the installer's own (NSIS is always
+                    // 32-bit), not the program's.
+                    if report.kind == .executable {
+                        fact("Programa", executableText(executable), "cpu")
+                    } else {
+                        fact("Instalador", executableText(executable), "cpu")
+                    }
+                }
+                if let bits = report.programBits {
+                    Divider().padding(.leading, 44)
+                    fact("Programa", String(localized: "Windows de \(bits) bits"), "app.badge")
                 }
                 if !report.companionFiles.isEmpty {
                     Divider().padding(.leading, 44)
