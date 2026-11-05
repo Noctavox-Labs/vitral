@@ -64,5 +64,5 @@ jobs:
             cat "$archive.sha256" | sed 's|  .*/|  |'
             echo '```'
           } > notes.md
-          gh release create "$tag" "$archive" "$archive.sha256" --draft --target "$GITHUB_SHA" \
+          gh release create "$tag" "$archive" "$archive.sha256" --draft --latest=false --target "$GITHUB_SHA" \
               --title "Wine engine CX $version-${{ inputs.revision }}" --notes-file notes.md

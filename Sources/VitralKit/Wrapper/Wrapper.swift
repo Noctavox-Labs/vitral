@@ -113,6 +113,7 @@ public struct Wrapper: Sendable {
         if fm.contentsEqual(atPath: launcher.path, andPath: launcherURL.path) { return false }
         let staged = launcherURL.deletingLastPathComponent().appendingPathComponent(".launcher-\(UUID().uuidString)")
         try fm.copyItem(at: launcher, to: staged)
+        Self.removeQuarantine(staged)
         do {
             _ = try fm.replaceItemAt(launcherURL, withItemAt: staged)
         } catch {
@@ -120,6 +121,16 @@ public struct Wrapper: Sendable {
             throw error
         }
         return true
+    }
+
+    /// A Vitral downloaded from the internet carries macOS's quarantine mark on its files, and a
+    /// copy keeps it. The app Vitral makes is not signed as a whole (its Info.plist and icon are
+    /// written here), so with the mark macOS would say it is damaged. Vitral made it on this Mac:
+    /// the mark does not apply.
+    static func removeQuarantine(_ url: URL) {
+        _ = url.withUnsafeFileSystemRepresentation { path in
+            path.map { removexattr($0, "com.apple.quarantine", XATTR_NOFOLLOW) }
+        }
     }
 
     /// Writes everything except the prefix: launcher, icon, manifest and Info.plist.
@@ -130,6 +141,7 @@ public struct Wrapper: Sendable {
         }
         if fm.fileExists(atPath: launcherURL.path) { try fm.removeItem(at: launcherURL) }
         try fm.copyItem(at: launcher, to: launcherURL)
+        Self.removeQuarantine(launcherURL)
         if let icns { try icns.write(to: iconURL) }
         try manifest.encoded().write(to: manifestURL)
 

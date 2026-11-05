@@ -56,7 +56,9 @@ targets:
         SUEnableAutomaticChecks: true
         SUAutomaticallyUpdate: true
         SUScheduledCheckInterval: 86400
-        # SUPublicEDKey is added when the release signing key is created (phase 3).
+        # Public half of the EdDSA key that signs updates (the private half is in Javier's
+        # keychain, account "vitral"; scripts/release.sh uses it).
+        SUPublicEDKey: 3C1oUZNlIjNaUX3On334bkeR0gXpyS3Raz4VRRZOdD0=
         CFBundleDocumentTypes:
           - CFBundleTypeName: Windows installer
             CFBundleTypeRole: Viewer
