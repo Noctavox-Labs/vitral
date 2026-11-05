@@ -131,12 +131,19 @@ public struct ProgramInstaller: Sendable {
     /// `windowShown` gets each installer process that opens a window. Wine windows open behind
     /// the active app, and only the active app may hand the front over (an app calls
     /// `NSApp.yieldActivation(to:)` and then `activate()`); a command-line tool cannot.
-    public func install(_ installer: URL, options: InstallOptions,
+    public func install(_ file: URL, options: InstallOptions,
                         windowShown: @escaping @Sendable (pid_t) -> Void = { _ in },
                         progress: @escaping @Sendable (InstallStage) -> Void = { _ in }) async throws -> InstallResult {
         let fm = FileManager.default
         progress(.checking)
-        let report = try InstallerAnalyzer.analyze(fileAt: installer)
+        var installer = file
+        var report = try InstallerAnalyzer.analyze(fileAt: file)
+        // A ZIP that only holds an installer (Paint.NET): unpack it and run that installer.
+        var unpacked: URL?
+        defer { if let unpacked { try? fm.removeItem(at: unpacked) } }
+        if report.kind == .zip, let inner = try await Self.installerInside(zip: file, unpackingIn: staging) {
+            (unpacked, installer, report) = (inner.folder, inner.file, inner.report)
+        }
         if let reason = Self.refusal(report) { throw InstallError.unsupported(reason) }
         guard MacSystem.hasRosetta else { throw InstallError.rosettaMissing }
         guard fm.isExecutableFile(atPath: options.launcher.path) else { throw InstallError.launcherMissing }
@@ -373,6 +380,40 @@ public struct ProgramInstaller: Sendable {
             // Installers return non-zero when cancelled; the program search decides what happened.
             _ = status
         }
+    }
+
+    /// The installer a ZIP holds, unpacked into a new folder in `staging`, when the ZIP holds just
+    /// that: one `.exe` or `.msi` that is an installer. Nil for anything else (a portable program
+    /// is unpacked into Program Files later).
+    static func installerInside(zip: URL, unpackingIn staging: URL) async throws
+        -> (folder: URL, file: URL, report: InstallerReport)? {
+        let list = Process()
+        list.executableURL = URL(fileURLWithPath: "/usr/bin/zipinfo")
+        list.arguments = ["-1", zip.path]
+        let pipe = Pipe()
+        list.standardOutput = pipe
+        list.standardError = FileHandle.nullDevice
+        try list.run()
+        let names = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            .split(separator: "\n").map(String.init)
+            .filter { !$0.hasSuffix("/") && !$0.hasPrefix("__MACOSX/") && !($0 as NSString).lastPathComponent.hasPrefix(".") }
+        list.waitUntilExit()
+        guard list.terminationStatus == 0, names.count == 1, let name = names.first,
+              !name.contains(".."), ["exe", "msi"].contains((name as NSString).pathExtension.lowercased()) else { return nil }
+
+        let folder = staging.appendingPathComponent(UUID().uuidString + ".zip")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let unzip = Process()
+        unzip.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        unzip.arguments = ["-x", "-k", zip.path, folder.path]
+        let status = try await WineSession.wait(for: unzip)
+        let file = folder.appendingPathComponent(name)
+        guard status == 0, let report = try? InstallerAnalyzer.analyze(fileAt: file),
+              needsInstaller(file, report), report.kind != .zip else {
+            try? FileManager.default.removeItem(at: folder)
+            return nil
+        }
+        return (folder, file, report)
     }
 
     /// Whether the file is an installer to run (or a ZIP or portable program to copy in).

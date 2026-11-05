@@ -253,3 +253,31 @@ private func writeQtProgram(_ folder: TemporaryFolder, at path: String, name: St
     try wrapper.write(manifest: manifest, icns: nil, launcher: launcher, bundleIdentifier: "test.p")
     #expect(getxattr(wrapper.launcherURL.path, "com.apple.quarantine", nil, 0, 0, 0) < 0)
 }
+
+@Test func runsTheInstallerAZipHolds() async throws {
+    let folder = try TemporaryFolder()
+    func zip(_ files: [String: Data], as name: String) throws -> URL {
+        let source = folder.url.appendingPathComponent(name + "-src")
+        for (path, data) in files { try folder.write(name + "-src/" + path, data) }
+        let zip = folder.url.appendingPathComponent(name + ".zip")
+        let ditto = Process()
+        ditto.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        ditto.arguments = ["-c", "-k", source.path, zip.path]
+        try ditto.run()
+        ditto.waitUntilExit()
+        return zip
+    }
+    let staging = folder.url.appendingPathComponent("staging")
+    let setup = makeNSIS(texts: ["hello"])
+
+    let single = try zip(["paint.net.install.x64.exe": setup], as: "single")
+    let found = try #require(try await ProgramInstaller.installerInside(zip: single, unpackingIn: staging))
+    #expect(found.file.lastPathComponent == "paint.net.install.x64.exe")
+    #expect(found.report.kind == .nsis)
+
+    // A portable program (more than one file, or a program that is not an installer) stays a ZIP.
+    #expect(try await ProgramInstaller.installerInside(zip: try zip(["Setup.exe": setup, "readme.txt": Data()], as: "two"),
+                                                      unpackingIn: staging) == nil)
+    #expect(try await ProgramInstaller.installerInside(zip: try zip(["tool.txt": Data("x".utf8)], as: "text"),
+                                                      unpackingIn: staging) == nil)
+}
