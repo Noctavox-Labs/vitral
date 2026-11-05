@@ -116,3 +116,25 @@ private func makeSharedApp(_ folder: TemporaryFolder, name: String, program: Str
     #expect(WineProcesses.isBackground("mscorsvw.exe"))
     #expect(!WineProcesses.isBackground("Greenshot.exe"))
 }
+
+@Test func uninstallsEveryAppOfOneWindowsTogether() async throws {
+    let folder = try TemporaryFolder()
+    let home = VitralHome(url: folder.url.appendingPathComponent("home"))
+    let prefix = home.prefixes.appendingPathComponent("mt5")
+    try folder.write("home/Prefixes/mt5/drive_c/Program Files/MetaTrader 5/terminal64.exe", SyntheticPE())
+    try folder.write("home/Prefixes/mt5/drive_c/Program Files/MetaTrader 5/MetaEditor64.exe", SyntheticPE())
+    let terminal = try makeSharedApp(folder, name: "MetaTrader 5", program: "Program Files/MetaTrader 5/terminal64.exe", prefix: "mt5")
+    let editor = try makeSharedApp(folder, name: "MetaEditor", program: "Program Files/MetaTrader 5/MetaEditor64.exe", prefix: "mt5")
+    let alone = try makeSharedApp(folder, name: "Notepad++", program: "Program Files/Notepad++/notepad++.exe", prefix: "npp")
+
+    #expect(Uninstaller.companions(of: terminal).map(\.lastPathComponent) == [editor.lastPathComponent])
+    #expect(Uninstaller.companions(of: alone).isEmpty)
+
+    let uninstaller = Uninstaller(home: home, logs: folder.url.appendingPathComponent("logs")) { url in
+        try FileManager.default.removeItem(at: url)
+    }
+    let trashed = try await uninstaller.uninstallWithCompanions(terminal)
+    #expect(Set(trashed.map(\.lastPathComponent)) == ["MetaEditor.app", "MetaTrader 5.app", "mt5"])
+    #expect(!FileManager.default.fileExists(atPath: prefix.path))
+    #expect(FileManager.default.fileExists(atPath: alone.path))
+}

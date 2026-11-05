@@ -213,12 +213,27 @@ struct LibraryCard: View {
             Button("Desinstalar…", role: .destructive) { confirmingUninstall = true }
         }
         .confirmationDialog("¿Desinstalar \(app.name)?", isPresented: $confirmingUninstall) {
-            Button("Mover a la Papelera", role: .destructive) {
-                Task { await model.uninstall(app) }
+            let companions = model.companions(of: app)
+            if companions.isEmpty {
+                Button("Mover a la Papelera", role: .destructive) {
+                    Task { await model.uninstall(app) }
+                }
+            } else {
+                Button("Desinstalar también \(companions.formatted(.list(type: .and)))", role: .destructive) {
+                    Task { await model.uninstall(app, withCompanions: true) }
+                }
+                Button("Solo \(app.name)") {
+                    Task { await model.uninstall(app) }
+                }
             }
             Button("Cancelar", role: .cancel) {}
         } message: {
-            Text("Si está abierto, se cierra. La app (con el programa y su configuración) y sus registros van a la Papelera, desde donde se pueden recuperar. Tus archivos en Documentos, Descargas, Música, Imágenes y Películas no se tocan.")
+            let companions = model.companions(of: app)
+            if companions.isEmpty {
+                Text("Si está abierto, se cierra. La app (con el programa y su configuración) y sus registros van a la Papelera, desde donde se pueden recuperar. Tus archivos en Documentos, Descargas, Música, Imágenes y Películas no se tocan.")
+            } else {
+                Text("Vino con \(companions.formatted(.list(type: .and))), del mismo instalador: comparten un Windows. Si desinstalas también las otras, se va ese Windows; si solo esta, el Windows se queda para las otras. Todo va a la Papelera, desde donde se puede recuperar. Tus archivos en Documentos, Descargas, Música, Imágenes y Películas no se tocan.")
+            }
         }
     }
 }

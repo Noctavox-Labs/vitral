@@ -56,6 +56,27 @@ public struct Uninstaller: Sendable {
         return items
     }
 
+    /// Uninstalls `app` and every other app on its Windows (the programs of one installer, such as
+    /// MetaTrader 5 and MetaEditor). The last one takes the Windows with it.
+    @discardableResult
+    public func uninstallWithCompanions(_ app: URL) async throws -> [URL] {
+        var trashed: [URL] = []
+        for other in Self.companions(of: app) { trashed += try await uninstall(other) }
+        trashed += try await uninstall(app)
+        return trashed
+    }
+
+    /// The other apps in the same folder that open a program of the same Windows.
+    public static func companions(of app: URL) -> [URL] {
+        guard let prefix = (try? Wrapper(url: app).readManifest())?.prefix else { return [] }
+        let folder = app.deletingLastPathComponent()
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        return names.filter { $0.hasSuffix(".app") }.sorted()
+            .map { folder.appendingPathComponent($0) }
+            .filter { $0.standardizedFileURL != app.standardizedFileURL }
+            .filter { (try? Wrapper(url: $0).readManifest())?.prefix == prefix }
+    }
+
     /// Whether another app opens a program of the same Windows.
     static func sharesWindows(_ app: URL, manifest: WrapperManifest, others: [WrapperManifest]) -> Bool {
         guard let prefix = manifest.prefix else { return false }

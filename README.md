@@ -69,7 +69,8 @@ only opens apps whose signature covers everything inside them:
 The installer's own shortcuts tell Vitral which programs it brought. When there are several (a
 suite, or a program with its editor, like MetaTrader 5 and MetaEditor), Vitral makes the app for
 the main one and offers the others; each one you pick becomes its own app on the same Windows.
-From the Terminal: `vitral programs <app>` and `vitral add <app> <program>`.
+Uninstalling one offers to remove the others and their Windows too. From the Terminal:
+`vitral programs <app>`, `vitral add <app> <program>` and `vitral uninstall --all <app>`.
 
 If the installer opens the program when it finishes, Vitral closes that copy (it runs without
 these settings) and goes on. Before finishing, Vitral compares the Windows functions the program

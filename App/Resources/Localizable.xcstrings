@@ -397,6 +397,16 @@
         }
       }
     },
+    "Desinstalar también %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Also uninstall %@"
+          }
+        }
+      }
+    },
     "Desinstalar…" : {
       "localizations" : {
         "en" : {
@@ -957,6 +967,16 @@
         }
       }
     },
+    "Solo %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only %@"
+          }
+        }
+      }
+    },
     "Suficiente para la mayoría de los programas." : {
       "localizations" : {
         "en" : {
@@ -1053,6 +1073,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Version %@"
+          }
+        }
+      }
+    },
+    "Vino con %@, del mismo instalador: comparten un Windows. Si desinstalas también las otras, se va ese Windows; si solo esta, el Windows se queda para las otras. Todo va a la Papelera, desde donde se puede recuperar. Tus archivos en Documentos, Descargas, Música, Imágenes y Películas no se tocan." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It came with %@, from the same installer: they share one Windows. If you uninstall the others too, that Windows goes; if only this one, the Windows stays for the others. Everything goes to the Trash, where you can put it back. Your files in Documents, Downloads, Music, Pictures and Movies are not touched."
           }
         }
       }

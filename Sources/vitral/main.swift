@@ -27,9 +27,10 @@ func printUsage() {
                                                Instala un programa de Windows y lo deja como app de Mac
                                                (en ~/Applications si no se indica otra carpeta). --argumentos
                                                pasa opciones al instalador, como "/VERYSILENT" de Inno Setup.
-          vitral desinstalar <app>             Cierra el programa si está abierto y manda la app y sus registros a la
+          vitral desinstalar [--todas] <app>   Cierra el programa si está abierto y manda la app y sus registros a la
                                                Papelera. Tus archivos de Documentos, Descargas… no se tocan.
-                                               Si otra app usa su mismo Windows, el Windows se queda.
+                                               Si otra app usa su mismo Windows, el Windows se queda; con --todas
+                                               se van también esas apps y el Windows.
           vitral programas <app>               Los otros programas del Windows de una app (los de una suite).
           vitral agregar <app> <programa>      Crea otra app para uno de esos programas, sobre el mismo Windows.
           vitral version                       Muestra la versión.
@@ -52,9 +53,10 @@ func printUsage() {
                                              Install a Windows program and turn it into a Mac app
                                              (in ~/Applications unless another folder is given). --arguments
                                              passes options to the installer, such as Inno Setup's "/VERYSILENT".
-          vitral uninstall <app>             Close the program if it is open and move the app and its logs to the
+          vitral uninstall [--all] <app>     Close the program if it is open and move the app and its logs to the
                                              Trash. Your files in Documents, Downloads… are not touched.
-                                             If another app uses the same Windows, the Windows stays.
+                                             If another app uses the same Windows, the Windows stays; with --all
+                                             those apps and the Windows go too.
           vitral programs <app>              The other programs in an app's Windows (those of a suite).
           vitral add <app> <program>         Make another app for one of them, on the same Windows.
           vitral version                     Show the version.
@@ -561,15 +563,23 @@ func addProgram(_ options: [String]) async {
 }
 
 func uninstall(_ options: [String]) async {
-    guard options.count == 1 else {
+    let together = options.contains { ["--todas", "--all"].contains($0) }
+    let paths = options.filter { !["--todas", "--all"].contains($0) }
+    guard paths.count == 1 else {
         printUsage()
         exit(2)
     }
-    let app = appURL(options[0])
+    let app = appURL(paths[0])
     do {
-        let trashed = try await Uninstaller().uninstall(app)
+        let companions = Uninstaller.companions(of: app)
+        let trashed = together ? try await Uninstaller().uninstallWithCompanions(app) : try await Uninstaller().uninstall(app)
         print(tr("✓ A la Papelera (se puede recuperar desde ahí):", "✓ Moved to the Trash (you can put it back from there):"))
         for item in trashed { print("  " + item.path) }
+        if !together, !companions.isEmpty {
+            let names = companions.map { $0.deletingPathExtension().lastPathComponent }.joined(separator: ", ")
+            print(tr("Su Windows se queda: lo usa \(names). Para quitar todo: vitral desinstalar --todas <app>",
+                     "Its Windows stays: \(names) uses it. To remove everything: vitral uninstall --all <app>"))
+        }
     } catch {
         fail("✗ " + String(describing: error))
     }

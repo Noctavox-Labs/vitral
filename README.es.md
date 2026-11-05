@@ -72,7 +72,8 @@ porque macOS solo abre apps cuya firma cubre todo lo que llevan dentro:
 Los accesos directos del propio instalador le dicen a Vitral qué programas trae. Si son varios
 (una suite, o un programa con su editor, como MetaTrader 5 y MetaEditor), Vitral crea la app del
 principal y ofrece los demás; cada uno que elijas queda como su propia app, sobre el mismo
-Windows. Desde la Terminal: `vitral programas <app>` y `vitral agregar <app> <programa>`.
+Windows. Al desinstalar una, Vitral ofrece quitar también las demás y su Windows. Desde la Terminal:
+`vitral programas <app>`, `vitral agregar <app> <programa>` y `vitral desinstalar --todas <app>`.
 
 Si el instalador abre el programa al terminar, Vitral cierra esa copia (corre sin estos ajustes)
 y sigue. Antes de terminar compara las funciones de Windows que usa el programa con las que tiene

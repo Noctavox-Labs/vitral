@@ -299,9 +299,18 @@ final class AppModel {
     var uninstallError: String?
 
     /// Closes the program if it is open and moves the app and its logs to the Trash.
-    func uninstall(_ app: LibraryApp) async {
+    /// Names of the other library apps on the same Windows as `app` (programs of one installer).
+    func companions(of app: LibraryApp) -> [String] {
+        Uninstaller.companions(of: app.url).map { $0.deletingPathExtension().lastPathComponent }
+    }
+
+    func uninstall(_ app: LibraryApp, withCompanions: Bool = false) async {
         do {
-            try await Uninstaller().uninstall(app.url)
+            if withCompanions {
+                try await Uninstaller().uninstallWithCompanions(app.url)
+            } else {
+                try await Uninstaller().uninstall(app.url)
+            }
         } catch {
             uninstallError = String(describing: error)
         }
