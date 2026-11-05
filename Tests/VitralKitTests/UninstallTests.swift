@@ -89,3 +89,61 @@ private final class Locked<Value>: @unchecked Sendable {
         set { lock.withLock { stored = newValue } }
     }
 }
+
+// MARK: Windows outside the app (0.1.1)
+
+/// An app made before 0.1.1: Windows inside it, with a link to a folder outside.
+private func makeOldApp(_ folder: TemporaryFolder, name: String) throws -> URL {
+    let app = try makeApp(folder, name: name, installer: nil)
+    try folder.write("apps/\(name).app/Contents/SharedSupport/prefix/drive_c/Program Files/P/p.exe", Data("MZ".utf8))
+    return app
+}
+
+@Test func signsTheAppsItWrites() throws {
+    let folder = try TemporaryFolder()
+    let launcher = folder.url.appendingPathComponent("launcher-binary")
+    try FileManager.default.copyItem(at: URL(fileURLWithPath: "/usr/bin/true"), to: launcher)
+    let wrapper = Wrapper(url: folder.url.appendingPathComponent("P.app"))
+    try wrapper.write(manifest: WrapperManifest(name: "P", program: "p.exe", engine: "x", settings: LaunchSettings(), prefix: "p"),
+                      icns: nil, launcher: launcher, bundleIdentifier: "test.p")
+    #expect(wrapper.hasValidSignature)
+    // Anything changed inside afterwards breaks the seal, which is why Windows lives outside.
+    try Data("{}".utf8).write(to: wrapper.contents.appendingPathComponent("Resources/extra.json"))
+    #expect(!wrapper.hasValidSignature)
+}
+
+@Test func movesWindowsOutOfAnOlderApp() throws {
+    let folder = try TemporaryFolder()
+    try folder.write("My Documents/essay.txt", Data("mine".utf8))
+    let home = VitralHome(url: folder.url.appendingPathComponent("home"))
+    let app = try makeOldApp(folder, name: "Old")
+    let wrapper = Wrapper(url: app)
+    #expect(!wrapper.hasValidSignature)   // the link to the Mac's folder cannot be sealed
+
+    #expect(try wrapper.moveEmbeddedPrefix(to: home))
+    let moved = home.prefixes.appendingPathComponent("test.Old")
+    #expect(try wrapper.readManifest().prefix == "test.Old")
+    #expect(wrapper.prefix(in: home) == moved)
+    #expect(FileManager.default.fileExists(atPath: moved.appendingPathComponent("drive_c/Program Files/P/p.exe").path))
+    #expect(try FileManager.default.destinationOfSymbolicLink(atPath: moved.appendingPathComponent("drive_c/users/crossover/Documents").path)
+            == folder.url.appendingPathComponent("My Documents").path)
+    #expect(!FileManager.default.fileExists(atPath: app.appendingPathComponent("Contents/SharedSupport").path))
+    #expect(wrapper.hasValidSignature)
+    #expect(try !wrapper.moveEmbeddedPrefix(to: home))
+}
+
+@Test func uninstallTrashesWindowsOutsideTheAppToo() async throws {
+    let folder = try TemporaryFolder()
+    try folder.write("My Documents/essay.txt", Data("mine".utf8))
+    let home = VitralHome(url: folder.url.appendingPathComponent("home"))
+    let app = try makeOldApp(folder, name: "New")
+    try Wrapper(url: app).moveEmbeddedPrefix(to: home)
+
+    let trashed = Locked<[URL]>([])
+    try await Uninstaller(home: home, logs: folder.url.appendingPathComponent("logs")) { url in
+        trashed.value.append(url)
+        try FileManager.default.removeItem(at: url)
+    }.uninstall(app)
+    #expect(trashed.value.map(\.lastPathComponent) == ["New.app", "test.New"])
+    #expect(try String(contentsOf: folder.url.appendingPathComponent("My Documents/essay.txt"), encoding: .utf8) == "mine")
+}

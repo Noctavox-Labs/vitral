@@ -58,9 +58,11 @@ swift run vitral motores instalar                      # baja y verifica el moto
 swift build && .build/debug/vitral instalar "ruta/a/Setup.exe"   # instalarlo como app de Mac
 ```
 
-`vitral instalar` crea un Windows (un prefijo de Wine) dentro de una app nueva, abre el
-instalador para que sigas sus pasos, encuentra el programa instalado, aplica los ajustes que
-necesita su tecnología y deja `~/Applications/<Programa>.app` con el ícono del programa:
+`vitral instalar` crea un Windows (un prefijo de Wine) para el programa, abre el instalador
+para que sigas sus pasos, encuentra el programa instalado, aplica los ajustes que necesita su
+tecnología y deja `~/Applications/<Programa>.app` con el ícono del programa. La app es pequeña
+y se firma en tu Mac; su Windows vive en `~/Library/Application Support/Vitral/Prefixes/`,
+porque macOS solo abre apps cuya firma cubre todo lo que llevan dentro:
 
 - **Qt 5:** nítido en Retina, Qt Quick sin OpenGL y sin el candado de instancia única trabado.
 - **Electron:** dibuja dentro del programa (`--in-process-gpu`) para que DXMT lo muestre; en los

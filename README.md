@@ -55,9 +55,11 @@ swift run vitral engines install                     # download and verify the r
 swift build && .build/debug/vitral install "path/to/Setup.exe"   # install it as a Mac app
 ```
 
-`vitral install` creates Windows (a Wine prefix) inside a new app, opens the installer so you
+`vitral install` creates Windows (a Wine prefix) for the program, opens the installer so you
 can follow its steps, finds the installed program, applies the settings its framework needs and
-leaves `~/Applications/<Program>.app` with the program's icon:
+leaves `~/Applications/<Program>.app` with the program's icon. The app is small and signed on
+your Mac; its Windows lives in `~/Library/Application Support/Vitral/Prefixes/`, because macOS
+only opens apps whose signature covers everything inside them:
 
 - **Qt 5:** sharp on Retina, Qt Quick without OpenGL, no stale single-instance lock.
 - **Electron:** drawn inside the program (`--in-process-gpu`), so DXMT can show it; for

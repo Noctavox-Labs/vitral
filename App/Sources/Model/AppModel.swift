@@ -242,12 +242,25 @@ final class AppModel {
         library = names.filter { $0.hasSuffix(".app") }.sorted().compactMap { name in
             let wrapper = Wrapper(url: folder.appendingPathComponent(name))
             guard let manifest = try? wrapper.readManifest() else { return nil }
-            // Apps made with an older Vitral get the current launcher (with its fixes) once.
+            // Apps made with an older Vitral are brought up to date once per session: the current
+            // launcher, their Windows moved out of the app, and a signature that covers the app.
             if let launcher, launcherChecked.insert(wrapper.url).inserted {
-                _ = try? wrapper.updateLauncher(from: launcher)
+                Self.bringUpToDate(wrapper, launcher: launcher)
             }
             return LibraryApp(url: wrapper.url, name: name.replacingOccurrences(of: ".app", with: ""),
                               icon: NSWorkspace.shared.icon(forFile: wrapper.url.path), manifest: manifest)
+        }
+    }
+
+    /// Not while the app is open: its program is using the Windows that would move.
+    private static func bringUpToDate(_ wrapper: Wrapper, launcher: URL) {
+        let info = NSDictionary(contentsOf: wrapper.contents.appendingPathComponent("Info.plist"))
+        if let id = info?["CFBundleIdentifier"] as? String,
+           !NSRunningApplication.runningApplications(withBundleIdentifier: id).isEmpty { return }
+        _ = try? wrapper.moveEmbeddedPrefix(to: .default)
+        _ = try? wrapper.updateLauncher(from: launcher)
+        if !FileManager.default.fileExists(atPath: wrapper.embeddedPrefix.path), !wrapper.hasValidSignature {
+            try? wrapper.sign()
         }
     }
 

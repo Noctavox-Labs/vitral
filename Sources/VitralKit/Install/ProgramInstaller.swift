@@ -155,17 +155,19 @@ public struct ProgramInstaller: Sendable {
         }
         let installed = InstalledEngine(engine: engine, home: home)
 
-        // Everything happens in a staging folder; the app is moved into place at the end.
+        // Everything happens in a staging folder; the app is moved into place at the end, and its
+        // Windows into Vitral's Prefixes folder.
         let work = staging.appendingPathComponent(UUID().uuidString + ".app")
         let wrapper = Wrapper(url: work)
-        try fm.createDirectory(at: wrapper.contents.appendingPathComponent("SharedSupport"), withIntermediateDirectories: true)
+        let prefix = staging.appendingPathComponent(UUID().uuidString + ".prefix")
+        try fm.createDirectory(at: staging, withIntermediateDirectories: true)
         try fm.createDirectory(at: Self.logs, withIntermediateDirectories: true)
         let log = Self.logs.appendingPathComponent("Instalación - \(Wrapper.safeName(installer.deletingPathExtension().lastPathComponent)).log")
         fm.createFile(atPath: log.path, contents: nil)
         let logHandle = try FileHandle(forWritingTo: log)
         defer { try? logHandle.close() }
 
-        let session = WineSession(engine: installed, prefix: wrapper.prefix)
+        let session = WineSession(engine: installed, prefix: prefix)
         do {
             progress(.preparingWindows)
             try await session.createPrefix()
@@ -231,7 +233,7 @@ public struct ProgramInstaller: Sendable {
 
             let program = found.folder + "/" + main
             let missing = EngineCheck.missingImports(program: session.driveC.appendingPathComponent(program),
-                                                     engine: installed, prefix: wrapper.prefix)
+                                                     engine: installed, prefix: prefix)
             for item in missing { logHandle.write(Data("[Vitral] \(item.logLine)\n".utf8)) }
 
             try Task.checkCancellation()
@@ -239,19 +241,29 @@ public struct ProgramInstaller: Sendable {
             let product = found.report.executable?.version
             let name = Wrapper.safeName(options.name ?? product?.productName ?? product?.fileDescription
                 ?? found.folder.split(separator: "/").last.map(String.init) ?? installer.deletingPathExtension().lastPathComponent)
+            let identifier = Wrapper.bundleIdentifier(for: name)
             let manifest = WrapperManifest(name: name, program: program, engine: engine.id, settings: settings,
-                                           recipes: applied, product: product, installer: installer.lastPathComponent)
+                                           recipes: applied, product: product, installer: installer.lastPathComponent,
+                                           prefix: identifier)
             let exe = session.driveC.appendingPathComponent(program)
             let icns = (try? Data(contentsOf: exe, options: .alwaysMapped))
                 .flatMap(PortableExecutable.icon).flatMap { AppIcon.icns(fromICO: $0) }
-            try wrapper.write(manifest: manifest, icns: icns, launcher: options.launcher,
-                              bundleIdentifier: Wrapper.bundleIdentifier(for: name))
+            try wrapper.write(manifest: manifest, icns: icns, launcher: options.launcher, bundleIdentifier: identifier)
 
-            let final = try place(work, named: name, in: options.destination, replace: options.replace)
+            try fm.createDirectory(at: home.prefixes, withIntermediateDirectories: true)
+            try fm.moveItem(at: prefix, to: home.prefixes.appendingPathComponent(identifier))
+            let final: URL
+            do {
+                final = try place(work, named: name, in: options.destination, replace: options.replace)
+            } catch {
+                try? fm.removeItem(at: home.prefixes.appendingPathComponent(identifier))
+                throw error
+            }
             return InstallResult(app: final, manifest: manifest, report: found.report, log: log, missingImports: missing)
         } catch {
             await session.killServer()
             try? fm.removeItem(at: work)
+            try? fm.removeItem(at: prefix)   // its links to the person's folders go, not the folders
             throw error
         }
     }
@@ -384,7 +396,11 @@ public struct ProgramInstaller: Sendable {
         var target = destination.appendingPathComponent(name + ".app")
         if fm.fileExists(atPath: target.path) {
             if replace {
+                // The replaced app's Windows goes to the Trash with it.
+                let old = Wrapper(url: target)
+                let oldPrefix = (try? old.readManifest())?.prefix != nil ? old.prefix(in: home) : nil
                 try fm.trashItem(at: target, resultingItemURL: nil)
+                if let oldPrefix, fm.fileExists(atPath: oldPrefix.path) { try? fm.trashItem(at: oldPrefix, resultingItemURL: nil) }
             } else {
                 var number = 2
                 while fm.fileExists(atPath: target.path) {

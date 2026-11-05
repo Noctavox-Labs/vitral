@@ -26,7 +26,10 @@ public struct Uninstaller: Sendable {
         let others = Self.otherManifests(besides: app)
 
         let base = Wrapper.safeName(app.deletingPathExtension().lastPathComponent)
-        var items = [app] + [base + ".log", base + " (anterior).log"].map { logs.appendingPathComponent($0) }
+        var items = [app]
+        // Its Windows, when it lives outside the app (apps made since Vitral 0.1.1).
+        if manifest.prefix != nil { items.append(Wrapper(url: app).prefix(in: home)) }
+        items += [base + ".log", base + " (anterior).log"].map { logs.appendingPathComponent($0) }
         if let installer = manifest.installer.map(Self.installLogName),
            !others.contains(where: { $0.installer.map(Self.installLogName) == installer }) {
             items.append(logs.appendingPathComponent(installer))
@@ -43,7 +46,7 @@ public struct Uninstaller: Sendable {
         if let engine = EngineCatalog.engine(id: manifest.engine),
            ComponentInstaller(home: home).isInstalled(engine.wine) {
             // Ends every Windows process of this app's prefix (and only that prefix).
-            await WineSession(engine: InstalledEngine(engine: engine, home: home), prefix: Wrapper(url: app).prefix).killServer()
+            await WineSession(engine: InstalledEngine(engine: engine, home: home), prefix: Wrapper(url: app).prefix(in: home)).killServer()
         }
         for item in items { try trash(item) }
         return items

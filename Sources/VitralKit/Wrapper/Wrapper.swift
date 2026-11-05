@@ -14,11 +14,15 @@ public struct WrapperManifest: Codable, Sendable, Equatable {
     public var product: VersionInfo?
     /// Name of the installer it came from.
     public var installer: String?
+    /// Folder of the app's Windows (Wine prefix) in Vitral's `Prefixes` folder. Nil in apps made
+    /// before Vitral 0.1.1, which keep it inside the app until Vitral moves it out.
+    public var prefix: String?
     public var createdWith: String
     public var created: Date
 
     public init(name: String, program: String, engine: String, settings: LaunchSettings,
                 recipes: [AppliedRecipe] = [], product: VersionInfo? = nil, installer: String? = nil,
+                prefix: String? = nil,
                 createdWith: String = "Vitral \(Vitral.version)", created: Date = Date()) {
         self.format = Self.currentFormat
         self.name = name
@@ -28,6 +32,7 @@ public struct WrapperManifest: Codable, Sendable, Equatable {
         self.recipes = recipes
         self.product = product
         self.installer = installer
+        self.prefix = prefix
         self.createdWith = createdWith
         self.created = created
     }
@@ -49,6 +54,8 @@ public struct WrapperManifest: Codable, Sendable, Equatable {
 public enum WrapperError: Error, CustomStringConvertible {
     case notAWrapper(URL)
     case unsafeProgramPath(String)
+    case signingFailed(String)
+    case prefixInTheWay(URL)
 
     public var description: String {
         switch self {
@@ -57,6 +64,10 @@ public enum WrapperError: Error, CustomStringConvertible {
                       "\(url.lastPathComponent) is not an app made by Vitral.")
         case .unsafeProgramPath(let path):
             return tr("La ruta del programa no es válida: \(path)", "The program path is not valid: \(path)")
+        case .signingFailed(let detail):
+            return tr("No se pudo firmar la app: \(detail)", "Could not sign the app: \(detail)")
+        case .prefixInTheWay(let url):
+            return tr("Ya hay una carpeta en \(url.path).", "There is already a folder at \(url.path).")
         }
     }
 }
@@ -68,9 +79,12 @@ public enum WrapperError: Error, CustomStringConvertible {
 ///       MacOS/launcher                 Vitral's launcher
 ///       Resources/AppIcon.icns
 ///       Resources/vitral.json          the manifest
-///       SharedSupport/prefix/          Windows (the Wine prefix) with the program installed
 ///
-/// The Wine engine is shared, in Vitral's folder (`Components`).
+/// Windows (the Wine prefix) with the program installed lives in Vitral's folder
+/// (`Prefixes/<manifest.prefix>`), like the shared Wine engine (`Components`). It used to live
+/// inside the app (`SharedSupport/prefix`, before 0.1.1), but macOS only opens apps whose
+/// signature seals everything inside, and a prefix links to the person's folders and changes each
+/// time the program runs. The app itself is small and signed ad hoc when Vitral writes it.
 public struct Wrapper: Sendable {
     public static let launcherName = "launcher"
     /// Key in Info.plist that marks apps made by Vitral.
@@ -81,7 +95,23 @@ public struct Wrapper: Sendable {
     public init(url: URL) { self.url = url }
 
     public var contents: URL { url.appendingPathComponent("Contents") }
-    public var prefix: URL { contents.appendingPathComponent("SharedSupport/prefix") }
+    /// Where apps made before Vitral 0.1.1 keep their prefix.
+    public var embeddedPrefix: URL { contents.appendingPathComponent("SharedSupport/prefix") }
+
+    /// The app's Windows (Wine prefix).
+    public func prefix(in home: VitralHome) -> URL {
+        if let name = (try? readManifest())?.prefix, Self.isFolderName(name) {
+            return home.prefixes.appendingPathComponent(name)
+        }
+        return embeddedPrefix
+    }
+
+    public var prefix: URL { prefix(in: .default) }
+
+    /// A plain folder name: no separators, not "." or "..".
+    static func isFolderName(_ name: String) -> Bool {
+        !name.isEmpty && !name.contains("/") && name != "." && name != ".."
+    }
     public var manifestURL: URL { contents.appendingPathComponent("Resources/vitral.json") }
     public var launcherURL: URL { contents.appendingPathComponent("MacOS/\(Self.launcherName)") }
     public var iconURL: URL { contents.appendingPathComponent("Resources/AppIcon.icns") }
@@ -94,13 +124,13 @@ public struct Wrapper: Sendable {
     }
 
     /// The program's file inside the prefix. Refuses paths that would leave `drive_c`.
-    public func programURL(_ manifest: WrapperManifest) throws -> URL {
+    public func programURL(_ manifest: WrapperManifest, prefix: URL? = nil) throws -> URL {
         let parts = manifest.program.split(separator: "/").map(String.init)
         guard !parts.isEmpty, !manifest.program.hasPrefix("/"),
               parts.allSatisfy({ $0 != ".." && $0 != "." }) else {
             throw WrapperError.unsafeProgramPath(manifest.program)
         }
-        return parts.reduce(prefix.appendingPathComponent("drive_c")) { $0.appendingPathComponent($1) }
+        return parts.reduce((prefix ?? self.prefix).appendingPathComponent("drive_c")) { $0.appendingPathComponent($1) }
     }
 
     /// Puts `launcher` in place of the app's launcher if they differ, so apps made with an older
@@ -120,6 +150,8 @@ public struct Wrapper: Sendable {
             try? fm.removeItem(at: staged)
             throw error
         }
+        // A prefix still inside the app cannot be sealed: the app is signed once it moves out.
+        if !fm.fileExists(atPath: embeddedPrefix.path) { try sign() }
         return true
     }
 
@@ -136,7 +168,7 @@ public struct Wrapper: Sendable {
     /// Writes everything except the prefix: launcher, icon, manifest and Info.plist.
     public func write(manifest: WrapperManifest, icns: Data?, launcher: URL, bundleIdentifier: String) throws {
         let fm = FileManager.default
-        for folder in ["MacOS", "Resources", "SharedSupport"] {
+        for folder in ["MacOS", "Resources"] {
             try fm.createDirectory(at: contents.appendingPathComponent(folder), withIntermediateDirectories: true)
         }
         if fm.fileExists(atPath: launcherURL.path) { try fm.removeItem(at: launcherURL) }
@@ -166,6 +198,60 @@ public struct Wrapper: Sendable {
         if let company = manifest.product?.companyName { info["NSHumanReadableCopyright"] = company }
         let data = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
         try data.write(to: contents.appendingPathComponent("Info.plist"))
+        try sign()
+    }
+
+    // MARK: Signature
+
+    /// Signs the app ad hoc, sealing everything inside it. A Vitral downloaded from the internet
+    /// passes its "downloaded" history (provenance) on to the apps it writes, and macOS then
+    /// checks their signature: an app whose signature does not cover its contents is "damaged".
+    public func sign() throws {
+        let (status, output) = Self.codesign(["--force", "--sign", "-", url.path])
+        guard status == 0 else { throw WrapperError.signingFailed(output) }
+    }
+
+    /// Whether the signature covers the app as it is now.
+    public var hasValidSignature: Bool {
+        Self.codesign(["--verify", "--strict", url.path]).status == 0
+    }
+
+    private static func codesign(_ arguments: [String]) -> (status: Int32, output: String) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        do { try process.run() } catch { return (-1, String(describing: error)) }
+        let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        process.waitUntilExit()
+        return (process.terminationStatus, output.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    /// Moves a prefix kept inside the app (apps made before Vitral 0.1.1) to Vitral's folder and
+    /// signs the app. Only while the program is closed. Returns whether it moved one.
+    @discardableResult
+    public func moveEmbeddedPrefix(to home: VitralHome) throws -> Bool {
+        let fm = FileManager.default
+        var manifest = try readManifest()
+        guard manifest.prefix == nil, fm.fileExists(atPath: embeddedPrefix.path),
+              !WineSession.serverIsRunning(prefix: embeddedPrefix) else { return false }
+        let info = NSDictionary(contentsOf: contents.appendingPathComponent("Info.plist"))
+        let name = (info?["CFBundleIdentifier"] as? String).flatMap { Self.isFolderName($0) ? $0 : nil }
+            ?? Self.bundleIdentifier(for: manifest.name)
+        let target = home.prefixes.appendingPathComponent(name)
+        guard !fm.fileExists(atPath: target.path) else { throw WrapperError.prefixInTheWay(target) }
+        try fm.createDirectory(at: home.prefixes, withIntermediateDirectories: true)
+        try fm.moveItem(at: embeddedPrefix, to: target)
+        manifest.prefix = name
+        try manifest.encoded().write(to: manifestURL)
+        let shared = contents.appendingPathComponent("SharedSupport")
+        if (try? fm.contentsOfDirectory(atPath: shared.path))?.filter({ $0 != ".DS_Store" }).isEmpty == true {
+            try? fm.removeItem(at: shared)
+        }
+        try sign()
+        return true
     }
 
     /// A bundle identifier that is unique for each wrapper, so two copies of a program do not

@@ -168,7 +168,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
         // A function the engine lacks is the cause Vitral can name (aTube Catcher on CrossOver 24).
         if let launch {
             let missing = EngineCheck.missingImports(program: launch.program, engine: launch.session.engine,
-                                                     prefix: launch.wrapper.prefix)
+                                                     prefix: launch.session.prefix)
             missing.forEach { write($0.logLine) }
             if let explanation = EngineCheck.explanation(missing, engine: launch.session.engine.engine) {
                 let newer = missing.contains { $0.function != nil } ? tr(" Hace falta un motor más nuevo.", " It needs a newer engine.") : ""

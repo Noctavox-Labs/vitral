@@ -105,7 +105,10 @@ public struct WineSession: Sendable {
 
     /// Whether this prefix's Wine is running: while it runs, its server keeps a socket in
     /// `/tmp/.wine-<user>/server-<device>-<inode>/`, named after the prefix folder.
-    public var serverIsRunning: Bool {
+    public var serverIsRunning: Bool { Self.serverIsRunning(prefix: prefix) }
+
+    /// Whether a Wine server runs for `prefix` (some Windows process of it is open).
+    public static func serverIsRunning(prefix: URL) -> Bool {
         var info = stat()
         guard stat(prefix.path, &info) == 0 else { return false }
         let folder = String(format: "/tmp/.wine-%u/server-%llx-%llx", getuid(),

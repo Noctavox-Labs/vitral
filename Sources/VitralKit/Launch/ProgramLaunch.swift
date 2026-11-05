@@ -33,20 +33,21 @@ public struct ProgramLaunch: Sendable {
         let engine = EngineCatalog.engine(id: manifest.engine) ?? EngineCatalog.default
         let components = ComponentInstaller(home: home)
         guard engine.components.allSatisfy(components.isInstalled) else { throw LaunchProblem.engineMissing(engine) }
-        let program = try wrapper.programURL(manifest)
+        let prefix = wrapper.prefix(in: home)
+        let program = try wrapper.programURL(manifest, prefix: prefix)
         guard FileManager.default.fileExists(atPath: program.path) else { throw LaunchProblem.programMissing(manifest.program) }
 
         self.wrapper = wrapper
         self.manifest = manifest
         self.program = program
-        self.session = WineSession(engine: InstalledEngine(engine: engine, home: home), prefix: wrapper.prefix,
+        self.session = WineSession(engine: InstalledEngine(engine: engine, home: home), prefix: prefix,
                                    extraEnvironment: manifest.settings.environment)
     }
 
     /// Deletes what the recipes say must go before opening (stale locks…).
     @discardableResult
     public func clean() -> Int {
-        PrefixFiles.clean(manifest.settings.cleanup, in: wrapper.prefix)
+        PrefixFiles.clean(manifest.settings.cleanup, in: session.prefix)
     }
 
     /// The `wine` process for the program, started from the program's folder. It lives as long

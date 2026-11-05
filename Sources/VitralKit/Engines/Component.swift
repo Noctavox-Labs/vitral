@@ -50,6 +50,8 @@ public struct VitralHome: Sendable {
     }
 
     public var components: URL { url.appendingPathComponent("Components") }
+    /// The Windows (Wine prefix) of each app, by the name in its manifest.
+    public var prefixes: URL { url.appendingPathComponent("Prefixes") }
 
     public func folder(of component: Component) -> URL { components.appendingPathComponent(component.id) }
 }
