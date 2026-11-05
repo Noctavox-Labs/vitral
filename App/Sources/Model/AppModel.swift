@@ -158,6 +158,20 @@ final class AppModel {
         return false
     }
 
+    private var installTask: Task<Void, Never>?
+
+    /// Starts installing; `cancelInstall()` stops it.
+    func startInstall(_ file: DroppedFile) {
+        installTask?.cancel()
+        installTask = Task { await install(file) }
+    }
+
+    /// Stops the installation: closes the installer and whatever it opened, and removes the
+    /// half-built app. Back to the analysis, ready to try again.
+    func cancelInstall() {
+        installTask?.cancel()
+    }
+
     /// Installs the dropped program and turns it into an app in ~/Applications.
     func install(_ file: DroppedFile) async {
         guard let launcher = InstallOptions.findLauncher() else {
@@ -183,9 +197,12 @@ final class AppModel {
                 })
             let engine = EngineCatalog.engine(id: result.manifest.engine) ?? EngineCatalog.default
             installState = .done(result.app, warning: EngineCheck.warning(result.missingImports, engine: engine))
+        } catch is CancellationError {
+            installState = .idle
         } catch {
-            installState = .failed(String(describing: error))
+            installState = Task.isCancelled ? .idle : .failed(String(describing: error))
         }
+        installTask = nil
         refresh()
         refreshLibrary()
     }

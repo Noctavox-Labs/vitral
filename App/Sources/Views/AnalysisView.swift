@@ -72,7 +72,7 @@ struct AnalysisView: View {
                 Button("Cerrar") { dismiss() }
                     .glassButton()
                     .keyboardShortcut(.cancelAction)
-                Button("Instalar") { Task { await model.install(file) } }
+                Button("Instalar") { model.startInstall(file) }
                     .prominentGlassButton()
                     .keyboardShortcut(.defaultAction)
                     .disabled(refusal != nil || !model.mac.hasRosetta)
@@ -92,16 +92,23 @@ struct AnalysisView: View {
                 Text(stageText(stage))
                     .font(.callout.weight(.medium))
                 if stage == .runningInstaller {
-                    HStack(alignment: .center, spacing: 12) {
-                        Text("Si no ves su ventana, puede estar detrás de Vitral. Si al terminar abre el programa, Vitral lo cierra y sigue.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 0)
+                    Text("Si no ves su ventana, puede estar detrás de Vitral. Si al terminar abre el programa, Vitral lo cierra y sigue.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                HStack {
+                    Spacer()
+                    Button("Cancelar") { model.cancelInstall() }
+                        .glassButton()
+                        .keyboardShortcut(.cancelAction)
+                        .disabled(stage == .buildingApp)
+                    if stage == .runningInstaller {
                         Button("Mostrar el instalador") { model.showInstaller() }
                             .glassButton()
                     }
                 }
+                .controlSize(.large)
             }
             .padding(16)
             .vitralGlass(cornerRadius: 16)
@@ -120,6 +127,9 @@ struct AnalysisView: View {
                         .foregroundStyle(.green)
                         .font(.callout.weight(.medium))
                     Spacer()
+                    Button("Cerrar") { dismiss() }
+                        .glassButton()
+                        .keyboardShortcut(.cancelAction)
                     Button("Mostrar en Finder") { model.showInFinder(app) }
                         .glassButton()
                     Button("Abrir") {
@@ -143,7 +153,7 @@ struct AnalysisView: View {
                     Button("Cerrar") { dismiss() }
                         .glassButton()
                         .keyboardShortcut(.cancelAction)
-                    Button("Intentar otra vez") { Task { await model.install(file) } }
+                    Button("Intentar otra vez") { model.startInstall(file) }
                         .prominentGlassButton()
                 }
                 .controlSize(.large)

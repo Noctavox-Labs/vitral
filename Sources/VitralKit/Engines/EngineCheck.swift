@@ -126,8 +126,15 @@ public enum EngineCheck {
     static let knownToStop: Set<String> = ["user32.IsWindowArranged"]
 
     /// What to tell the person after installing, or `nil` if nothing is missing.
+    /// Shown after installing only for what does stop programs: a DLL missing at start-up, or a
+    /// function already seen stopping one. Other missing functions are a risk the program may
+    /// never meet (aTube Catcher lacks three and opens fine): they go to the log, and the launcher
+    /// names them if the program does not open.
     public static func warning(_ missing: [MissingImport], engine: WineEngine) -> String? {
-        explanation(missing, engine: engine).map { tr("Puede que no abra: ", "It may not open: ") + $0 + "." }
+        let serious = missing.filter { item in
+            (item.function == nil && !item.delayLoaded) || knownToStop.contains(item.label)
+        }
+        return explanation(serious, engine: engine).map { tr("Puede que no abra: ", "It may not open: ") + $0 + "." }
     }
 
     /// What is missing, in words: the functions the engine lacks and the DLLs that are nowhere

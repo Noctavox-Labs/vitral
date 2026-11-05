@@ -227,6 +227,16 @@
         }
       }
     },
+    "Cancelar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
     "Cerrar" : {
       "localizations" : {
         "en" : {

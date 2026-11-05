@@ -95,6 +95,18 @@ private func makeElectronLikeProgram(_ folder: TemporaryFolder) throws -> URL {
     #expect(EngineCheck.warning(items, engine: EngineCatalog.default)?.contains("user32.IsWindowArranged") == true)
 }
 
+@Test func warnsOnlyAboutWhatStopsPrograms() {
+    // aTube Catcher on CrossOver 26: three delay-loaded functions missing, and it opens fine.
+    let harmless = [("userenv.dll", "DeriveAppContainerSidFromAppContainerName"),
+                    ("uiautomationcore.dll", "UiaDisconnectAllProviders"), ("user32.dll", "GetPointerDevice")].map {
+        MissingImport(dll: $0.0, function: $0.1, delayLoaded: true, usedBy: "aTube Catcher.exe")
+    }
+    #expect(EngineCheck.warning(harmless, engine: EngineCatalog.default) == nil)
+    let missingAtStart = MissingImport(dll: "d3d12core.dll", function: nil, delayLoaded: false, usedBy: "a.exe")
+    #expect(EngineCheck.warning(harmless + [missingAtStart], engine: EngineCatalog.default)?.contains("d3d12core.dll") == true)
+    #expect(EngineCheck.warning(harmless + [missingAtStart], engine: EngineCatalog.default)?.contains("GetPointerDevice") == false)
+}
+
 @Test func tellsMissingFunctionsFromMissingDLLs() {
     let function = MissingImport(dll: "user32.dll", function: "IsWindowArranged", delayLoaded: true, usedBy: "a.exe")
     let dll = MissingImport(dll: "ffmpeg.dll", function: nil, delayLoaded: true, usedBy: "a.exe")

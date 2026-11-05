@@ -100,5 +100,6 @@
   "Si no ves su ventana, puede estar detrás de Vitral. Si al terminar abre el programa, Vitral lo cierra y sigue.": "If you do not see its window, it may be behind Vitral. If it opens the program when it finishes, Vitral closes it and goes on.",
   "Mostrar el instalador": "Show the installer",
   "El instalador terminó. Terminando de instalar…": "The installer finished. Finishing the installation…",
-  "El instalador abrió el programa: lo cierro para terminar la app…": "The installer opened the program: closing it to finish the app…"
+  "El instalador abrió el programa: lo cierro para terminar la app…": "The installer opened the program: closing it to finish the app…",
+  "Cancelar": "Cancel"
 }

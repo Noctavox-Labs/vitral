@@ -169,6 +169,7 @@ public struct ProgramInstaller: Sendable {
         do {
             progress(.preparingWindows)
             try await session.createPrefix()
+            try Task.checkCancellation()
             let setup = Recipes.installerSettings(for: report)
             try await session.importRegistry(setup.registry)
             for recipe in setup.applied {
@@ -178,15 +179,25 @@ public struct ProgramInstaller: Sendable {
 
             progress(Self.needsInstaller(installer, report) ? .runningInstaller : .copyingProgram)
             let watcher = Task { await Self.reportNewWindows(to: windowShown) }
-            do {
-                try await runInstaller(installer, report: report, session: session, log: logHandle, logURL: log)
-            } catch {
+            // Cancelling closes every Windows process of the prefix: the installer and anything
+            // it opened. The waits below then end, and the staging folder is removed.
+            let closedProgram = try await withTaskCancellationHandler {
+                do {
+                    try await runInstaller(installer, report: report, session: session, log: logHandle, logURL: log)
+                } catch {
+                    watcher.cancel()
+                    throw error
+                }
                 watcher.cancel()
-                throw error
+                try Task.checkCancellation()
+                if Self.needsInstaller(installer, report) { progress(.finishingInstaller) }
+                let closed = await waitForLeftovers(session, before: before, closing: { progress(.closingProgram) })
+                try Task.checkCancellation()
+                return closed
+            } onCancel: {
+                Task { await session.killServer() }
             }
-            watcher.cancel()
-            if Self.needsInstaller(installer, report) { progress(.finishingInstaller) }
-            if await waitForLeftovers(session, before: before, closing: { progress(.closingProgram) }) {
+            if closedProgram {
                 logHandle.write(Data(tr("[Vitral] El instalador abrió el programa: lo cerré para terminar la app.\n",
                                         "[Vitral] The installer opened the program: closed it to finish the app.\n").utf8))
             }
@@ -210,6 +221,7 @@ public struct ProgramInstaller: Sendable {
                                                      engine: installed, prefix: wrapper.prefix)
             for item in missing { logHandle.write(Data("[Vitral] \(item.logLine)\n".utf8)) }
 
+            try Task.checkCancellation()
             progress(.buildingApp)
             let product = found.report.executable?.version
             let name = Wrapper.safeName(options.name ?? product?.productName ?? product?.fileDescription
