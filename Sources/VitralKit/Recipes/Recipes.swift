@@ -38,6 +38,24 @@ public enum Recipes {
     /// Variables every Windows program of the prefix gets. Needed for the ones Wine does not
     /// pass from the Mac (see `WineSession.reachesWindows`).
     static let windowsEnvironment = #"HKEY_CURRENT_USER\Environment"#
+    /// Wine's own DLL and program overrides; an empty value turns that one off.
+    static let dllOverrides = #"HKEY_CURRENT_USER\Software\Wine\DllOverrides"#
+
+    /// Settings the prefix needs before the installer runs, and the rules that produced them.
+    /// They stay in the prefix: the program, its uninstaller and its updates get them too.
+    public static func installerSettings(for report: InstallerReport) -> (registry: [RegistryValue], applied: [AppliedRecipe]) {
+        var registry: [RegistryValue] = []
+        var applied: [AppliedRecipe] = []
+        if report.builder == .electronBuilder, report.runsPowerShell {
+            // electron-builder asks PowerShell whether the program is open. Wine's PowerShell is a
+            // stand-in that does nothing and exits with 0, which the installer reads as "it is
+            // open": it asks to close it, cannot, and quits without installing. With PowerShell
+            // turned off it checks with tasklist instead, which works (see `Caso aTube Catcher.md`).
+            registry.append(.string(dllOverrides, "powershell.exe", ""))
+            applied.append(AppliedRecipe(id: "electron-builder-no-powershell", because: "electron-builder"))
+        }
+        return (registry, applied)
+    }
 
     /// Every prefix: no crash dialog from Wine's debugger (Vitral reads the log instead).
     public static let base: [RegistryValue] = [
@@ -96,6 +114,9 @@ public enum Recipes {
         case "qt-single-instance":
             return tr("Borra el candado de instancia única antes de abrir",
                       "Removes the single-instance lock before opening", language)
+        case "electron-builder-no-powershell":
+            return tr("PowerShell desactivado: el de Wine no hace nada y el instalador creía que el programa seguía abierto",
+                      "PowerShell turned off: Wine's does nothing, and the installer thought the program was still open", language)
         default:
             return id
         }

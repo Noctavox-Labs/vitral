@@ -28,6 +28,11 @@ public struct InstallerReport: Codable, Sendable, Equatable {
     /// Extra files next to it that belong to the same installer (for example Inno Setup's
     /// `-1a.bin` data files). They must stay in the same folder.
     public let companionFiles: [String]
+    /// Tool that made the installer, when its script shows it (NSIS only, for now).
+    public var builder: InstallerBuilder? = nil
+    /// The installer's script runs PowerShell. Wine only has a stand-in for it, which does
+    /// nothing and always answers "done".
+    public var runsPowerShell = false
 }
 
 public enum InstallerAnalyzerError: Error, Equatable {
@@ -57,6 +62,7 @@ public enum InstallerAnalyzer {
         let executable = data.prefix(2) == Data([0x4D, 0x5A])
             ? PortableExecutable.parse(data)
             : nil
+        let script = kind == .nsis ? NSISScript.facts(in: data, scanLimit: scanLimit) : nil
 
         return InstallerReport(
             fileName: url.lastPathComponent,
@@ -64,7 +70,9 @@ public enum InstallerAnalyzer {
             kind: kind,
             kindVersion: version,
             executable: executable,
-            companionFiles: companionFiles(of: url, kind: kind)
+            companionFiles: companionFiles(of: url, kind: kind),
+            builder: script?.builder,
+            runsPowerShell: script?.runsPowerShell ?? false
         )
     }
 

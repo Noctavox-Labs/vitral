@@ -61,7 +61,9 @@ func describeKind(_ report: InstallerReport) -> String {
     let version = report.kindVersion.map { " " + $0 } ?? ""
     switch report.kind {
     case .innoSetup: return tr("Instalador Inno Setup\(version)", "Inno Setup installer\(version)")
-    case .nsis: return tr("Instalador NSIS\(version)", "NSIS installer\(version)")
+    case .nsis:
+        let builder = report.builder == .electronBuilder ? tr(", hecho con electron-builder", ", made with electron-builder") : ""
+        return tr("Instalador NSIS\(version)", "NSIS installer\(version)") + builder
     case .msi: return tr("Paquete de Windows Installer (.msi)", "Windows Installer package (.msi)")
     case .wixBurn: return tr("Instalador WiX Burn (paquete de varios instaladores)", "WiX Burn bundle (installs several packages)")
     case .installShield: return tr("Instalador InstallShield", "InstallShield installer")
@@ -322,6 +324,9 @@ func analyze(_ options: [String]) {
         }
         print("  " + tr("Necesita: ", "Needs:    ") + list.joined(separator: ", "))
         print("            " + tr("(tienen que estar en la misma carpeta)", "(they must stay in the same folder)"))
+    }
+    for recipe in Recipes.installerSettings(for: report).applied {
+        print("  " + tr("Ajuste:   ", "Setting:  ") + Recipes.describe(recipe.id))
     }
 }
 

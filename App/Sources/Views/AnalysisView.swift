@@ -191,7 +191,9 @@ struct AnalysisView: View {
         let number = report.kindVersion.map { " " + $0 } ?? ""
         switch report.kind {
         case .innoSetup: return String(localized: "Instalador Inno Setup\(number)")
-        case .nsis: return String(localized: "Instalador NSIS\(number)")
+        case .nsis:
+            // The tool's name is not translated.
+            return String(localized: "Instalador NSIS\(number)") + (report.builder == .electronBuilder ? " (electron-builder)" : "")
         case .msi: return String(localized: "Paquete de Windows Installer")
         case .wixBurn: return String(localized: "Instalador WiX (varios paquetes)")
         case .installShield: return String(localized: "Instalador InstallShield")

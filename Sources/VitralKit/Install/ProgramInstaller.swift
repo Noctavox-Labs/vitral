@@ -163,6 +163,11 @@ public struct ProgramInstaller: Sendable {
         do {
             progress(.preparingWindows)
             try await session.createPrefix()
+            let setup = Recipes.installerSettings(for: report)
+            try await session.importRegistry(setup.registry)
+            for recipe in setup.applied {
+                logHandle.write(Data("[Vitral] \(Recipes.describe(recipe.id)) (\(recipe.because))\n".utf8))
+            }
             let before = ProgramFinder.snapshot(driveC: session.driveC)
 
             progress(Self.needsInstaller(installer, report) ? .runningInstaller : .copyingProgram)
@@ -187,7 +192,10 @@ public struct ProgramInstaller: Sendable {
             }
 
             progress(.applyingSettings)
-            let (settings, applied) = Recipes.settings(for: found.report)
+            var (settings, applied) = Recipes.settings(for: found.report)
+            // The installer's settings stay in the prefix; the manifest lists them too.
+            settings.registry = setup.registry + settings.registry
+            applied = setup.applied + applied
             try await session.importRegistry(settings.registry)
 
             progress(.buildingApp)
