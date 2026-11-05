@@ -35,7 +35,7 @@ redistribuyan la incluyen.
 
 | Component | License | Source |
 |-----------|---------|--------|
-| **Vitral's engine** ([`engine-cx26.3.0-1`](https://github.com/noctavoxfilms/vitral/releases/tag/engine-cx26.3.0-1)): Wine from CrossOver 26.3.0, built unmodified by `scripts/build-engine.sh` | LGPL-2.1-or-later (Wine) | [CodeWeavers: crossover-sources-26.3.0](https://media.codeweavers.com/pub/crossover/source/crossover-sources-26.3.0.tar.gz) |
+| **Vitral's engine** ([`engine-cx26.3.0-1`](https://github.com/noctavox-labs/vitral/releases/tag/engine-cx26.3.0-1)): Wine from CrossOver 26.3.0, built unmodified by `scripts/build-engine.sh` | LGPL-2.1-or-later (Wine) | [CodeWeavers: crossover-sources-26.3.0](https://media.codeweavers.com/pub/crossover/source/crossover-sources-26.3.0.tar.gz) |
 | DXMT 0.80, official build, inside Vitral's engine (license in its `share/licenses/`) | MIT | [3Shain/dxmt v0.80](https://github.com/3Shain/dxmt/releases/tag/v0.80) |
 | Wine from CrossOver 24.0.7, built by the Sikarugir project ([`WS12WineCX24.0.7_7`](https://github.com/Sikarugir-App/Engines/releases/tag/v1.0)), only for apps installed with it before | LGPL-2.1-or-later (Wine) | [CodeWeavers: crossover-sources-24.0.7](https://media.codeweavers.com/pub/crossover/source/crossover-sources-24.0.7.tar.gz) |
 | macOS libraries from Gcenx's official Wine build ([`wine-stable-11.0_1`](https://github.com/Gcenx/macOS_Wine_builds/releases/tag/11.0_1)): FreeType, GnuTLS and its dependencies, MoltenVK, SDL2, libinotify, gettext | Each project's own (FreeType License or GPL-2.0, LGPL, Apache-2.0, zlib, MIT) | [Gcenx/macOS_Wine_builds](https://github.com/Gcenx/macOS_Wine_builds) |

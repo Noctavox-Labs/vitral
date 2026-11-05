@@ -19,7 +19,7 @@ cd "$(dirname "$0")/.."
 TEAM=8922S5NL5T
 ID="Developer ID Application: Javier Vargas ($TEAM)"
 PROFILE=${NOTARY_PROFILE:-vitral}
-REPO=noctavoxfilms/vitral
+REPO=noctavox-labs/vitral
 
 say() { print -r -- "[$(date +%H:%M:%S)] $*" >&2 }
 fail() { say "ERROR: $*"; exit 1 }

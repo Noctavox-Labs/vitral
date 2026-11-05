@@ -25,7 +25,7 @@ public enum EngineCatalog {
         wine: Component(
             id: "wine-cx26.3.0-1",
             name: "Wine (CrossOver 26.3.0, Vitral build, with DXMT 0.80)",
-            url: URL(string: "https://github.com/noctavoxfilms/vitral/releases/download/engine-cx26.3.0-1/wine-cx26.3.0.tar.xz")!,
+            url: URL(string: "https://github.com/noctavox-labs/vitral/releases/download/engine-cx26.3.0-1/wine-cx26.3.0.tar.xz")!,
             sha256: "a530935ad8f147171cb8faba68e2ed74fcdedf05bb1621ce8c19980702df633e",
             bytes: 91_972_016,
             archiveRoot: "wine-cx26.3.0",

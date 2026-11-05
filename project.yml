@@ -50,9 +50,9 @@ targets:
         CFBundleLocalizations: [es, en]
         LSApplicationCategoryType: public.app-category.utilities
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
-        NSHumanReadableCopyright: "© 2026 Noctavox Films · GPL-3.0"
+        NSHumanReadableCopyright: "© 2026 Javier Vargas · Noctavox Labs · GPL-3.0"
         # Sparkle: checks, downloads and installs updates inside the app.
-        SUFeedURL: https://github.com/noctavoxfilms/vitral/releases/latest/download/appcast.xml
+        SUFeedURL: https://github.com/noctavox-labs/vitral/releases/latest/download/appcast.xml
         SUEnableAutomaticChecks: true
         SUAutomaticallyUpdate: true
         SUScheduledCheckInterval: 86400

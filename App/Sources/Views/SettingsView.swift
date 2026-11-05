@@ -47,7 +47,7 @@ struct GeneralSettings: View {
             Section("Acerca de") {
                 LabeledContent("Versión", value: updater.version)
                 LabeledContent("Licencia", value: "GPL-3.0")
-                Link("Código fuente en GitHub", destination: URL(string: "https://github.com/noctavoxfilms/vitral")!)
+                Link("Código fuente en GitHub", destination: URL(string: "https://github.com/noctavox-labs/vitral")!)
             }
         }
         .formStyle(.grouped)

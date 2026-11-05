@@ -43,7 +43,7 @@ up for that program.
 You need a Mac with Apple silicon, macOS 14 or later, and Xcode (or the Command Line Tools).
 
 ```sh
-git clone https://github.com/noctavoxfilms/vitral.git
+git clone https://github.com/noctavox-labs/vitral.git
 cd vitral
 swift run vitral analyze "path/to/Setup.exe"          # an installer
 swift run vitral analyze "path/to/My Program"         # the folder of an installed program
@@ -132,7 +132,7 @@ patches fix that, and CrossOver 26 has what Electron apps need.
   plus `brew install mingw-w64 bison flex freetype gnutls sdl2`; no Intel Homebrew needed).
 - The [Engine workflow](.github/workflows/engine.yml) builds it in GitHub Actions and leaves it
   in a draft release; once checked, it is published as `engine-cx<version>-<n>` in this
-  repository's [releases](https://github.com/noctavoxfilms/vitral/releases).
+  repository's [releases](https://github.com/noctavox-labs/vitral/releases).
 - Vitral downloads it the first time it is needed and checks it against the SHA-256 pinned in
   `Sources/VitralKit/Engines/WineEngine.swift`. Inside, `share/licenses/` lists each source.
 ## Roadmap
@@ -178,4 +178,4 @@ Vitral is free software under the [GNU General Public License v3.0](LICENSE).
 Windows is a trademark of Microsoft. Vitral is not affiliated with Microsoft, Apple, CodeWeavers
 or the Wine project.
 
-A [Noctavox Films](https://github.com/noctavoxfilms) project.
+A [Noctavox Labs](https://github.com/noctavox-labs) project.

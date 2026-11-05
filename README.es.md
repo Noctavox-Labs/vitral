@@ -46,7 +46,7 @@ Necesitas una Mac con chip Apple, macOS 14 o más nuevo, y Xcode (o sus herramie
 comandos).
 
 ```sh
-git clone https://github.com/noctavoxfilms/vitral.git
+git clone https://github.com/noctavox-labs/vitral.git
 cd vitral
 swift run vitral analizar "ruta/al/Setup.exe"          # un instalador
 swift run vitral analizar "ruta/a/Mi Programa"         # la carpeta de un programa instalado
@@ -138,7 +138,7 @@ necesitan las apps de Electron.
   `brew install mingw-w64 bison flex freetype gnutls sdl2`; no hace falta un Homebrew de Intel).
 - El [flujo Engine](.github/workflows/engine.yml) lo compila en GitHub Actions y lo deja en una
   versión borrador; una vez revisado, se publica como `engine-cx<versión>-<n>` en las
-  [versiones](https://github.com/noctavoxfilms/vitral/releases) de este repositorio.
+  [versiones](https://github.com/noctavox-labs/vitral/releases) de este repositorio.
 - Vitral lo baja la primera vez que hace falta y lo comprueba contra el SHA-256 fijado en
   `Sources/VitralKit/Engines/WineEngine.swift`. Adentro, `share/licenses/` dice de dónde sale
   cada parte.
@@ -185,4 +185,4 @@ Vitral es software libre bajo la [Licencia Pública General de GNU, versión 3](
 Windows es una marca de Microsoft. Vitral no está afiliado a Microsoft, Apple, CodeWeavers ni al
 proyecto Wine.
 
-Un proyecto de [Noctavox Films](https://github.com/noctavoxfilms).
+Un proyecto de [Noctavox Labs](https://github.com/noctavox-labs).

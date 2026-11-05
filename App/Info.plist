@@ -47,13 +47,15 @@
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>© 2026 Noctavox Films · GPL-3.0</string>
+	<string>© 2026 Javier Vargas · Noctavox Labs · GPL-3.0</string>
 	<key>SUAutomaticallyUpdate</key>
 	<true/>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://github.com/noctavoxfilms/vitral/releases/latest/download/appcast.xml</string>
+	<string>https://github.com/noctavox-labs/vitral/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>3C1oUZNlIjNaUX3On334bkeR0gXpyS3Raz4VRRZOdD0=</string>
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
 </dict>

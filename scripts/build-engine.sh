@@ -168,7 +168,7 @@ Wine (LGPL-2.1-or-later), with CodeWeavers' changes, built unmodified from:
 DXMT $DXMT_VERSION (MIT), official build:
   $DXMT_URL
   SHA-256 $DXMT_SHA256
-Built with scripts/build-engine.sh of https://github.com/noctavoxfilms/vitral (commit $commit).
+Built with scripts/build-engine.sh of https://github.com/noctavox-labs/vitral (commit $commit).
 SOURCES
 echo "CrossOver $CX_VERSION (Wine $(sed 's/Wine version //' "$src/VERSION")) + DXMT $DXMT_VERSION" >"$root/version"
 
