@@ -164,6 +164,7 @@ struct LibraryCard: View {
     @State private var confirmingUninstall = false
 
     var body: some View {
+        let opening = model.opening.contains(app.url)
         Button { model.openApp(app.url) } label: {
             VStack(spacing: 10) {
                 Image(nsImage: app.icon)
@@ -171,12 +172,23 @@ struct LibraryCard: View {
                     .interpolation(.high)
                     .frame(width: 72, height: 72)
                     .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
+                    // Breathes while the program starts.
+                    .phaseAnimator(opening ? [false, true] : [false]) { icon, dim in
+                        icon.opacity(dim ? 0.45 : 1).scaleEffect(dim ? 0.94 : 1)
+                    } animation: { _ in .easeInOut(duration: 0.8) }
                 Text(app.name)
                     .font(.callout.weight(.medium))
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity)
-                if let company = app.manifest.product?.companyName {
+                if opening {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.mini).tint(Palette.progress)
+                        Text("Abriendo…")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                } else if let company = app.manifest.product?.companyName {
                     Text(company)
                         .font(.caption)
                         .foregroundStyle(.secondary)

@@ -113,5 +113,6 @@
   "Todos los motores instalados están en uso.": "Every installed engine is in use.",
   "Borrar": "Delete",
   "Instalador": "Installer",
-  "Windows de %lld bits": "%lld-bit Windows"
+  "Windows de %lld bits": "%lld-bit Windows",
+  "Abriendo…": "Opening…"
 }

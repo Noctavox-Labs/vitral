@@ -268,8 +268,38 @@ final class AppModel {
         return freed
     }
 
+    /// Library apps that were just opened and have no window yet. Windows programs take a few
+    /// seconds to show one; the card says so meanwhile.
+    private(set) var opening: Set<URL> = []
+
     func openApp(_ url: URL) {
-        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        // Just installed: the library may not list it yet.
+        if !library.contains(where: { $0.url == url }) { refreshLibrary() }
+        // The program's file name, to recognize its window ("Shape it Level 1 PPlus.exe").
+        let program = library.first(where: { $0.url == url })
+            .map { ($0.manifest.program as NSString).lastPathComponent.lowercased() }
+        let open = WineWindows.owners().filter { $0.name.lowercased() == program }
+        // Already open (or another copy of the same program): no way to tell its new window.
+        let watch = program != nil && open.isEmpty && !opening.contains(url)
+        if watch { opening.insert(url) }
+
+        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { launcher, _ in
+            guard watch else { return }
+            Task { @MainActor in
+                await self.waitForWindow(of: program ?? "", launcher: launcher)
+                self.opening.remove(url)
+            }
+        }
+    }
+
+    /// Waits until the program has a window, its launcher ends (it closed, or could not start;
+    /// the launcher shows why) or a minute and a half passes.
+    private func waitForWindow(of program: String, launcher: NSRunningApplication?) async {
+        let deadline = Date().addingTimeInterval(90)
+        while Date() < deadline, launcher?.isTerminated != true {
+            if WineWindows.owners().contains(where: { $0.name.lowercased() == program }) { return }
+            try? await Task.sleep(for: .milliseconds(500))
+        }
     }
 
     func showInFinder(_ url: URL) {

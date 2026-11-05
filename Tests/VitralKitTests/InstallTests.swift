@@ -218,6 +218,9 @@ private func writeQtProgram(_ folder: TemporaryFolder, at path: String, name: St
     #expect(WineWindows.windowsFileName(fromArgument: #"\\?\Z:\Users\me\Downloads\Setup.tmp"#) == "Setup.tmp")
     #expect(WineWindows.windowsFileName(fromArgument: "/Applications/Vitral.app/Contents/MacOS/Vitral") == nil)
     #expect(WineWindows.windowsFileName(fromArgument: "wine") == nil)
+    // Electron's main process keeps only the file name.
+    #expect(WineWindows.windowsFileName(fromArgument: "aTube Catcher.exe") == "aTube Catcher.exe")
+    #expect(WineWindows.windowsFileName(fromArgument: "./run.exe") == nil)
     // A real process that is not a Windows program keeps its own name.
     #expect(WineWindows.windowsFileName(of: getpid()) == nil)
 }

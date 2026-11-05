@@ -35,6 +35,12 @@ public enum WineWindows {
     }
 
     static func windowsFileName(fromArgument argument: String) -> String? {
+        // Chromium (Electron apps) rewrites its main process's arguments and leaves only the
+        // file name: "aTube Catcher.exe".
+        if !argument.contains("/"), !argument.contains("\\"),
+           argument.range(of: #"^[^\s][^\u{0}]*\.(exe|tmp|com)$"#, options: [.regularExpression, .caseInsensitive]) != nil {
+            return argument
+        }
         // A Windows path: a drive letter or a UNC/device prefix, with backslashes.
         guard argument.contains("\\"),
               argument.range(of: #"^([A-Za-z]:\\|\\\\)"#, options: .regularExpression) != nil,
