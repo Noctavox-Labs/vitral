@@ -4,8 +4,9 @@
 
 [Leer en español](README.es.md)
 
-> **Status: early development.** Nothing to download yet; you can build it from source. The
-> repository has `vitral`, a command-line tool that inspects Windows installers and turns
+> **Status: early development.** [**Download Vitral**](https://github.com/noctavox-labs/vitral/releases/latest)
+> (a Mac with Apple silicon and macOS 14 or later; it installs Rosetta if your Mac lacks it).
+> It is signed and notarized, and updates itself. Expect rough edges. The repository has `vitral`, a command-line tool that inspects Windows installers and turns
 > programs into Mac apps, and the first version of the app: a setup assistant that checks your
 > Mac and installs what is missing, a window where you drop an installer to install it, and
 > your library of Windows apps. It already installs and opens, from their own installers, a
@@ -109,8 +110,9 @@ open .build/xcode/Build/Products/Debug/Vitral.app
 ```
 
 `scripts/make-dmg.sh` builds the Release app and packs it in `.build/dmg/Vitral-<version>.dmg`,
-ready to drag into Applications. It is signed ad hoc, so it opens on the Mac that built it; copies
-for other people must be signed with Developer ID and notarized.
+ready to drag into Applications. It is signed ad hoc, so it opens on the Mac that built it.
+`scripts/release.sh` builds the published version: signed with Developer ID, notarized by Apple,
+and with the signed `appcast.xml` the updater reads from the latest release.
 
 On macOS 26 and later the app uses Liquid Glass; on macOS 14 and 15 it uses translucent
 materials. Copies built from source do not update themselves; published releases update inside
@@ -142,7 +144,7 @@ patches fix that, and CrossOver 26 has what Electron apps need.
 | **0. Foundations** *(done)* | Repository, CI, installer and program analyzer, Wine engine download |
 | **1. One command** *(now)* | `vitral install Setup.exe` creates a sharp, portable Mac app with its icon, with no manual steps beyond the program's own installer. Reached for its first targets: a 32-bit Qt 5 + QtWebEngine educational app that needed a dozen manual fixes, and an Electron 37 app, on Vitral's own engine. Next: more test Macs and programs |
 | **2. The app** *(started)* | SwiftUI app with Liquid Glass: setup assistant (Rosetta, engine), drag and drop, library, "Does it look right?", advanced settings |
-| **3. Sharing** | Export and import, signed and notarized releases, automatic updates inside the app |
+| **3. Sharing** *(started)* | Signed and notarized releases and automatic updates inside the app (done); export and import |
 | **4. More programs** | Compatibility list, community recipes |
 | **5. After Rosetta** | Apple is phasing out general Rosetta support after macOS 27; Vitral is built so a Rosetta-free Wine engine can drop in |
 

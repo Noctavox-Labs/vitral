@@ -4,8 +4,9 @@
 
 [Read in English](README.md)
 
-> **Estado: en desarrollo temprano.** Todavía no hay nada para descargar; se puede compilar
-> desde el código. El repositorio tiene `vitral`, una herramienta de línea de comandos que
+> **Estado: en desarrollo temprano.** [**Descarga Vitral**](https://github.com/noctavox-labs/vitral/releases/latest)
+> (Mac con chip de Apple y macOS 14 o más nuevo; instala Rosetta si tu Mac no la tiene). Va
+> firmada y notarizada, y se actualiza sola. Puede tener detalles por pulir. El repositorio tiene `vitral`, una herramienta de línea de comandos que
 > revisa instaladores de Windows y convierte programas en apps de Mac, y la primera versión de
 > la app: un asistente que revisa tu Mac e instala lo que falta, una ventana donde sueltas un
 > instalador para instalarlo, y tu biblioteca de apps de Windows. Ya instala y abre, desde sus
@@ -113,8 +114,9 @@ open .build/xcode/Build/Products/Debug/Vitral.app
 
 `scripts/make-dmg.sh` compila la versión Release y la empaqueta en
 `.build/dmg/Vitral-<versión>.dmg`, lista para arrastrar a Aplicaciones. Va firmada ad hoc, así
-que abre en la Mac que la compiló; las copias para otras personas deben ir firmadas con
-Developer ID y notarizadas.
+que abre en la Mac que la compiló. `scripts/release.sh` arma la versión publicada: firmada con
+Developer ID, notarizada por Apple y con el `appcast.xml` firmado que el actualizador lee de la
+última versión.
 
 En macOS 26 o más nuevo la app usa Liquid Glass; en macOS 14 y 15, materiales translúcidos. Las
 copias compiladas desde el código no se actualizan solas; las versiones publicadas se actualizan
@@ -149,7 +151,7 @@ necesitan las apps de Electron.
 | **0. Cimientos** *(hecho)* | Repositorio, pruebas automáticas, analizador de instaladores y programas, descarga del motor de Wine |
 | **1. Un comando** *(ahora)* | `vitral instalar Setup.exe` crea una app de Mac nítida, portable y con ícono, sin pasos a mano aparte del instalador del programa. Logrado con sus primeros objetivos: una app educativa en Qt 5 + QtWebEngine de 32 bits que necesitaba una docena de arreglos manuales, y una app en Electron 37, con el motor propio. Sigue: más Macs y programas de prueba |
 | **2. La app** *(empezada)* | App en SwiftUI con Liquid Glass: asistente de preparación (Rosetta, motor), arrastrar y soltar, biblioteca, «¿Se ve bien?», ajustes avanzados |
-| **3. Compartir** | Exportar e importar, versiones firmadas y notarizadas, actualizaciones automáticas dentro de la app |
+| **3. Compartir** *(empezada)* | Versiones firmadas y notarizadas y actualizaciones automáticas dentro de la app (hecho); exportar e importar |
 | **4. Más programas** | Lista de compatibilidad, recetas de la comunidad |
 | **5. Después de Rosetta** | Apple deja Rosetta para uso general después de macOS 27; Vitral está hecho para cambiar a un motor de Wine que no lo necesite |
 
