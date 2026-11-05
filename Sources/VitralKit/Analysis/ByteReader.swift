@@ -23,6 +23,11 @@ struct ByteReader {
         return UInt32(low) | UInt32(high) << 16
     }
 
+    func u64(_ offset: Int) -> UInt64? {
+        guard let low = u32(offset), let high = u32(offset + 4) else { return nil }
+        return UInt64(low) | UInt64(high) << 32
+    }
+
     func bytes(_ offset: Int, _ length: Int) -> Data? {
         guard offset >= 0, length >= 0, offset + length <= data.count else { return nil }
         let start = data.startIndex + offset

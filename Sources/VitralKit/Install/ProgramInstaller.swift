@@ -84,6 +84,8 @@ public struct InstallResult: Sendable {
     public let manifest: WrapperManifest
     public let report: ProgramReport
     public let log: URL
+    /// Windows functions the program uses that the engine lacks (see `EngineCheck`).
+    public let missingImports: [MissingImport]
 }
 
 /// Installs a Windows program and turns it into a Mac app.
@@ -198,8 +200,12 @@ public struct ProgramInstaller: Sendable {
             applied = setup.applied + applied
             try await session.importRegistry(settings.registry)
 
-            progress(.buildingApp)
             let program = found.folder + "/" + main
+            let missing = EngineCheck.missingImports(program: session.driveC.appendingPathComponent(program),
+                                                     engine: installed, prefix: wrapper.prefix)
+            for item in missing { logHandle.write(Data("[Vitral] \(item.logLine)\n".utf8)) }
+
+            progress(.buildingApp)
             let product = found.report.executable?.version
             let name = Wrapper.safeName(options.name ?? product?.productName ?? product?.fileDescription
                 ?? found.folder.split(separator: "/").last.map(String.init) ?? installer.deletingPathExtension().lastPathComponent)
@@ -212,7 +218,7 @@ public struct ProgramInstaller: Sendable {
                               bundleIdentifier: Wrapper.bundleIdentifier(for: name))
 
             let final = try place(work, named: name, in: options.destination, replace: options.replace)
-            return InstallResult(app: final, manifest: manifest, report: found.report, log: log)
+            return InstallResult(app: final, manifest: manifest, report: found.report, log: log, missingImports: missing)
         } catch {
             await session.killServer()
             try? fm.removeItem(at: work)

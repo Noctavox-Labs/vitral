@@ -16,7 +16,8 @@ final class AppModel {
     enum InstallState: Equatable {
         case idle
         case working(InstallStage)
-        case done(URL)
+        /// The app, and a warning if the engine lacks something the program uses.
+        case done(URL, warning: String?)
         case failed(String)
     }
 
@@ -176,7 +177,8 @@ final class AppModel {
                         if case .working = self.installState { self.installState = .working(stage) }
                     }
                 })
-            installState = .done(result.app)
+            let engine = EngineCatalog.engine(id: result.manifest.engine) ?? EngineCatalog.default
+            installState = .done(result.app, warning: EngineCheck.warning(result.missingImports, engine: engine))
         } catch {
             installState = .failed(String(describing: error))
         }

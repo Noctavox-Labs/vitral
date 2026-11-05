@@ -98,22 +98,31 @@ struct AnalysisView: View {
             .padding(16)
             .vitralGlass(cornerRadius: 16, tint: Palette.accent)
 
-        case .done(let app):
-            HStack {
-                Label("\(app.deletingPathExtension().lastPathComponent) está lista", systemImage: "checkmark.seal.fill")
-                    .foregroundStyle(.green)
-                    .font(.callout.weight(.medium))
-                Spacer()
-                Button("Mostrar en Finder") { model.showInFinder(app) }
-                    .glassButton()
-                Button("Abrir") {
-                    model.openApp(app)
-                    dismiss()
+        case .done(let app, let warning):
+            VStack(alignment: .leading, spacing: 12) {
+                if let warning {
+                    // Comes from VitralKit, already in the person's language.
+                    Label(warning, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .prominentGlassButton()
-                .keyboardShortcut(.defaultAction)
+                HStack {
+                    Label("\(app.deletingPathExtension().lastPathComponent) está lista", systemImage: "checkmark.seal.fill")
+                        .foregroundStyle(.green)
+                        .font(.callout.weight(.medium))
+                    Spacer()
+                    Button("Mostrar en Finder") { model.showInFinder(app) }
+                        .glassButton()
+                    Button("Abrir") {
+                        model.openApp(app)
+                        dismiss()
+                    }
+                    .prominentGlassButton()
+                    .keyboardShortcut(.defaultAction)
+                }
+                .controlSize(.large)
             }
-            .controlSize(.large)
 
         case .failed(let message):
             VStack(alignment: .leading, spacing: 12) {

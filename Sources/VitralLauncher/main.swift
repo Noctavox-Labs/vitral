@@ -65,8 +65,8 @@ final class Launcher: NSObject, NSApplicationDelegate {
                 attempt += 1
                 continue
             }
-            if !sawWindow, seconds < StartupWatch.startupWindow, StartupWatch.looksLikeCrash(log: attemptLog) {
-                showFailure()
+            if StartupWatch.failedToStart(ranFor: seconds, sawWindow: sawWindow, status: status, log: attemptLog) {
+                showFailure(attempts: attempt)
             }
             break
         }
@@ -153,14 +153,28 @@ final class Launcher: NSObject, NSApplicationDelegate {
 
     // MARK: Messages
 
-    private func showFailure() {
+    private func showFailure(attempts: Int) {
         let name = launch?.manifest.name ?? wrapper.url.deletingPathExtension().lastPathComponent
+        var details: [String] = []
+        // A function the engine lacks is the cause Vitral can name (aTube Catcher on CrossOver 24).
+        if let launch {
+            let missing = EngineCheck.missingImports(program: launch.program, engine: launch.session.engine,
+                                                     prefix: launch.wrapper.prefix)
+            missing.forEach { write($0.logLine) }
+            if let explanation = EngineCheck.explanation(missing, engine: launch.session.engine.engine) {
+                let newer = missing.contains { $0.function != nil } ? tr(" Hace falta un motor más nuevo.", " It needs a newer engine.") : ""
+                details.append(tr("Puede ser por esto: ", "This may be why: ") + explanation + "." + newer)
+            }
+        }
+        details.append(attempts > 1
+            ? tr("Lo intenté \(attempts) veces. El registro puede ayudar a encontrar la causa.",
+                 "I tried \(attempts) times. The log can help find the cause.")
+            : tr("El registro puede ayudar a encontrar la causa.", "The log can help find the cause."))
         NSApp.activate()
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = tr("\(name) se cerró al abrir", "\(name) closed while opening")
-        alert.informativeText = tr("Lo intenté \(StartupWatch.maxAttempts) veces. El registro puede ayudar a encontrar la causa.",
-                                   "I tried \(StartupWatch.maxAttempts) times. The log can help find the cause.")
+        alert.informativeText = details.joined(separator: "\n\n")
         alert.addButton(withTitle: tr("Mostrar el registro", "Show the Log"))
         alert.addButton(withTitle: tr("Cerrar", "Close"))
         if alert.runModal() == .alertFirstButtonReturn, let logURL {

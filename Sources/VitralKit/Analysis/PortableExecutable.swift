@@ -106,10 +106,18 @@ public enum PortableExecutable {
 
     /// The program's icon as a Windows `.ico` file, or `nil` if it has none.
     public static func icon(_ data: Data) -> Data? {
+        image(data)?.iconFile()
+    }
+
+    /// The PE image inside `data`, or `nil` if it is not a 32- or 64-bit Windows executable.
+    static func image(_ data: Data) -> PEImage? {
         let r = ByteReader(data: data)
-        guard r.u16(0) == mz, let rawOffset = r.u32(0x3C), r.u32(Int(rawOffset)) == pe,
-              let image = PEImage(reader: r, header: Int(rawOffset)) else { return nil }
-        return image.iconFile()
+        guard r.u16(0) == mz, let rawOffset = r.u32(0x3C), r.u32(Int(rawOffset)) == pe else { return nil }
+        return PEImage(reader: r, header: Int(rawOffset))
+    }
+
+    static func image(fileAt url: URL) -> PEImage? {
+        (try? Data(contentsOf: url, options: .alwaysMapped)).flatMap(image)
     }
 
     /// Reads an executable from disk (memory-mapped, so large files are cheap).

@@ -206,6 +206,35 @@ func analyzeFolder(_ url: URL, json: Bool) {
     if !report.alternatives.isEmpty {
         print("  " + tr("Otros:       ", "Others:      ") + report.alternatives.joined(separator: ", "))
     }
+    // A folder inside a prefix also counts the DLLs installed in its Windows folder.
+    var prefix: URL?
+    var folder = url.standardizedFileURL
+    while folder.pathComponents.count > 1 {
+        if folder.lastPathComponent == "drive_c" { prefix = folder.deletingLastPathComponent(); break }
+        folder = folder.deletingLastPathComponent()
+    }
+    printEngineCheck(program: url.appendingPathComponent(main), prefix: prefix, label: tr("Motor:       ", "Engine:      "))
+}
+
+/// What the default engine lacks of what the program uses. Only if the engine is downloaded.
+func printEngineCheck(program: URL, prefix: URL?, label: String) {
+    let engine = EngineCatalog.default
+    let pad = String(repeating: " ", count: label.count + 2)
+    guard engine.components.allSatisfy(ComponentInstaller().isInstalled) else {
+        print("  " + label + tr("(descarga el motor para revisar si tiene todo lo que usa el programa)",
+                                "(download the engine to check whether it has everything the program uses)"))
+        return
+    }
+    let missing = EngineCheck.missingImports(program: program, engine: InstalledEngine(engine: engine), prefix: prefix)
+    guard !missing.isEmpty else {
+        return print("  " + label + tr("\(engine.name) tiene todas las funciones de Windows que usa",
+                                       "\(engine.name) has every Windows function it uses"))
+    }
+    print("  " + label + tr("\(engine.name) no tiene todo lo que usa (\(missing.count)):",
+                            "\(engine.name) lacks some of what it uses (\(missing.count)):"))
+    let shown = 15
+    for item in missing.prefix(shown) { print(pad + item.logLine) }
+    if missing.count > shown { print(pad + tr("y \(missing.count - shown) más", "and \(missing.count - shown) more")) }
 }
 
 func extractIcon(_ options: [String]) {
@@ -328,6 +357,10 @@ func analyze(_ options: [String]) {
     for recipe in Recipes.installerSettings(for: report).applied {
         print("  " + tr("Ajuste:   ", "Setting:  ") + Recipes.describe(recipe.id))
     }
+    // An installer carries the program packed inside: it can only be checked once installed.
+    if report.kind == .executable, report.executable?.bits ?? 0 >= 32 {
+        printEngineCheck(program: url, prefix: nil, label: tr("Motor:    ", "Engine:   "))
+    }
 }
 
 func install(_ options: [String]) async {
@@ -411,6 +444,9 @@ func install(_ options: [String]) async {
         if !technologies.isEmpty { print("  " + tr("Hecho con: ", "Built with: ") + technologies.joined(separator: " · ")) }
         for recipe in result.manifest.recipes {
             print("  " + tr("Ajuste: ", "Setting: ") + Recipes.describe(recipe.id) + " (\(recipe.because))")
+        }
+        if let warning = EngineCheck.warning(result.missingImports, engine: EngineCatalog.engine(id: result.manifest.engine) ?? EngineCatalog.default) {
+            print("  " + warning)
         }
         if !result.report.antiCheat.isEmpty {
             print(tr("  Ojo: tiene antitrampas (\(result.report.antiCheat.map(describeAntiCheat).joined(separator: ", "))). Lo más probable es que no funcione con Wine; Vitral no lo elude.",

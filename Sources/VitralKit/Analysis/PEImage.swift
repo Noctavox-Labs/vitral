@@ -52,6 +52,7 @@ struct PEImage {
 
     /// Indexes into the optional header's data directory table.
     enum DirectoryIndex: Int {
+        case exports = 0
         case imports = 1
         case resources = 2
         case delayImports = 13
@@ -158,37 +159,100 @@ struct PEImage {
 
     // MARK: Imports
 
+    /// A DLL the image imports and the functions it takes from it.
+    struct ImportedDLL: Equatable {
+        /// Lower-cased, such as "user32.dll".
+        let name: String
+        /// Functions imported by name (the few imported by number are left out).
+        let functions: [String]
+        /// Loaded the first time one of its functions is called, not when the program starts.
+        let delayLoaded: Bool
+    }
+
     /// Lower-cased names of the DLLs this image loads (normal and delay-loaded imports).
     func importedDLLs() -> [String] {
-        var names = Set<String>()
+        Set(importTable().map(\.name)).sorted()
+    }
+
+    /// The import tables: the DLLs loaded at start, then the delay-loaded ones.
+    func importTable() -> [ImportedDLL] {
+        var found: [ImportedDLL] = []
 
         if let imports = directory(.imports), var entry = offset(ofRVA: imports.rva) {
             for _ in 0 ..< 1024 {
                 guard let lookup = reader.u32(entry),
+                      let bound = reader.u32(entry + 4),
                       let nameRVA = reader.u32(entry + 12),
                       let thunks = reader.u32(entry + 16) else { break }
                 if lookup == 0, nameRVA == 0, thunks == 0 { break }
-                if let name = dllName(atRVA: nameRVA) { names.insert(name) }
+                if let name = dllName(atRVA: nameRVA) {
+                    // Without a lookup table the names are in the address table, unless the
+                    // linker already replaced them with addresses ("bound" imports).
+                    let table = lookup != 0 ? lookup : (bound == 0 ? thunks : 0)
+                    found.append(ImportedDLL(name: name, functions: functionNames(atRVA: table), delayLoaded: false))
+                }
                 entry += 20
             }
         }
 
         if let delayed = directory(.delayImports), var entry = offset(ofRVA: delayed.rva) {
             for _ in 0 ..< 1024 {
-                guard let nameRVA = reader.u32(entry + 4), nameRVA != 0 else { break }
-                if let name = dllName(atRVA: nameRVA) { names.insert(name) }
+                guard let attributes = reader.u32(entry),
+                      let nameRVA = reader.u32(entry + 4), nameRVA != 0 else { break }
+                if let name = dllName(atRVA: nameRVA) {
+                    // Bit 0 says the table holds relative addresses; Visual C++ 6 wrote absolute ones.
+                    let names = attributes & 1 != 0 ? reader.u32(entry + 16).map(functionNames(atRVA:)) ?? [] : []
+                    found.append(ImportedDLL(name: name, functions: names, delayLoaded: true))
+                }
                 entry += 32
             }
         }
-        return names.sorted()
+        return found
+    }
+
+    /// Names in an import lookup table: entries of 4 bytes (PE32) or 8 (PE32+) up to a zero one.
+    private func functionNames(atRVA rva: UInt32) -> [String] {
+        guard rva != 0, var entry = offset(ofRVA: rva) else { return [] }
+        let wide = format == .pe32Plus
+        var names: [String] = []
+        for _ in 0 ..< 65536 {
+            guard let value = wide ? reader.u64(entry) : reader.u32(entry).map(UInt64.init), value != 0 else { break }
+            entry += wide ? 8 : 4
+            let byNumber = wide ? value >> 63 == 1 : value & 0x8000_0000 != 0
+            // A name entry is a 2-byte hint followed by the name.
+            guard !byNumber, let at = offset(ofRVA: UInt32(truncatingIfNeeded: value & 0x7FFF_FFFF)),
+                  let name = symbolName(at + 2) else { continue }
+            names.append(name)
+        }
+        return names
+    }
+
+    /// Names this image exports, forwarded ones included (functions and data).
+    func exportedNames() -> Set<String> {
+        guard let exports = directory(.exports), let table = offset(ofRVA: exports.rva),
+              let count = reader.u32(table + 24), let namesRVA = reader.u32(table + 32),
+              let names = offset(ofRVA: namesRVA) else { return [] }
+        var found = Set<String>()
+        for index in 0 ..< min(Int(count), 65536) {
+            guard let rva = reader.u32(names + 4 * index), let at = offset(ofRVA: rva),
+                  let name = symbolName(at) else { continue }
+            found.insert(name)
+        }
+        return found
     }
 
     private func dllName(atRVA rva: UInt32) -> String? {
-        guard let offset = offset(ofRVA: rva),
-              let name = reader.cString(offset, limit: 128),
-              !name.isEmpty,
-              name.utf8.allSatisfy({ (0x20 ..< 0x7F).contains($0) }) else { return nil }
+        guard let offset = offset(ofRVA: rva), let name = printable(offset, limit: 128) else { return nil }
         return name.lowercased()
+    }
+
+    /// Function names can be long (decorated C++ names).
+    private func symbolName(_ offset: Int) -> String? { printable(offset, limit: 1024) }
+
+    private func printable(_ offset: Int, limit: Int) -> String? {
+        guard let text = reader.cString(offset, limit: limit), !text.isEmpty,
+              text.utf8.allSatisfy({ (0x20 ..< 0x7F).contains($0) }) else { return nil }
+        return text
     }
 
     // MARK: .NET

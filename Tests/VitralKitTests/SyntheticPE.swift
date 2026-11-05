@@ -9,6 +9,10 @@ struct SyntheticPE {
     var isDLL = false
     var imports: [String] = []
     var delayImports: [String] = []
+    /// Functions taken from each DLL of `imports` and `delayImports`, by DLL name.
+    var functions: [String: [String]] = [:]
+    /// Function names it exports (as a DLL).
+    var exports: [String] = []
     /// `VERSIONINFO` strings ("ProductName", "CompanyName", …).
     var versionStrings: [String: String] = [:]
     /// Binary file version in `VS_FIXEDFILEINFO`, such as (5, 12, 4, 0).
@@ -31,23 +35,45 @@ struct SyntheticPE {
             return rva
         }
 
-        if !imports.isEmpty {
-            let zeroThunk = place(le32(0))
-            let names = imports.map { place(Array($0.utf8) + [0]) }
+        // Lookup table of a DLL: one entry per function (4 bytes, or 8 in 64 bits) pointing to a
+        // 2-byte hint and the name, then a zero entry.
+        func lookupTable(_ dll: String) -> UInt32 {
+            let names = (functions[dll] ?? []).map { place(le16(0) + Array($0.utf8) + [0]) }
             var table: [UInt8] = []
-            for name in names {
-                table += le32(zeroThunk) + le32(0) + le32(0) + le32(name) + le32(zeroThunk)
+            for name in names { table += le32(name) + (is64Bit ? le32(0) : []) }
+            return place(table + [UInt8](repeating: 0, count: is64Bit ? 8 : 4))
+        }
+
+        if !imports.isEmpty {
+            var table: [UInt8] = []
+            for dll in imports {
+                let name = place(Array(dll.utf8) + [0]), lookup = lookupTable(dll)
+                table += le32(lookup) + le32(0) + le32(0) + le32(name) + le32(lookup)
             }
             table += [UInt8](repeating: 0, count: 20)
             directories[1] = (place(table), UInt32(table.count))
         }
 
         if !delayImports.isEmpty {
-            let names = delayImports.map { place(Array($0.utf8) + [0]) }
             var table: [UInt8] = []
-            for name in names { table += le32(1) + le32(name) + [UInt8](repeating: 0, count: 24) }
+            for dll in delayImports {
+                let name = place(Array(dll.utf8) + [0]), lookup = lookupTable(dll)
+                // Attributes 1 (relative addresses), name, module handle, address table, name table…
+                table += le32(1) + le32(name) + le32(0) + le32(lookup) + le32(lookup) + [UInt8](repeating: 0, count: 12)
+            }
             table += [UInt8](repeating: 0, count: 32)
             directories[13] = (place(table), UInt32(table.count))
+        }
+
+        if !exports.isEmpty {
+            let names = exports.map { place(Array($0.utf8) + [0]) }
+            let addresses = place(exports.flatMap { _ in le32(Self.sectionRVA) })
+            let nameTable = place(names.flatMap(le32))
+            let numbers = place(exports.indices.flatMap { le16(UInt16($0)) })
+            let count = UInt32(exports.count)
+            let directory = le32(0) + le32(0) + le32(0) + le32(0) + le32(1) + le32(count) + le32(count)
+                + le32(addresses) + le32(nameTable) + le32(numbers)
+            directories[0] = (place(directory), 40)
         }
 
         if let runtime = dotNetRuntime {

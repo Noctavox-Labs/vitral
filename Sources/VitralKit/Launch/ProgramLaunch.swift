@@ -87,4 +87,11 @@ public enum StartupWatch {
     public static func shouldRetry(ranFor seconds: TimeInterval, sawWindow: Bool, log: String, attempt: Int) -> Bool {
         attempt < maxAttempts && !sawWindow && seconds < startupWindow && looksLikeCrash(log: log)
     }
+
+    /// Whether the program failed to open: no window, it ended early, and it crashed or ended
+    /// with an error. (Electron ends with status 3 when Chromium stops on purpose, and then
+    /// Wine prints no "Unhandled" line.)
+    public static func failedToStart(ranFor seconds: TimeInterval, sawWindow: Bool, status: Int32, log: String) -> Bool {
+        !sawWindow && seconds < startupWindow && (status != 0 || looksLikeCrash(log: log))
+    }
 }
