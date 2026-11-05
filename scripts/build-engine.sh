@@ -1,6 +1,7 @@
 #!/bin/bash
 # Builds Vitral's Wine engine from the source code CodeWeavers publishes for CrossOver (LGPL).
 #   scripts/build-engine.sh          → .build/engine/wine-cx<version>.tar.xz (+ its SHA-256)
+# The engine includes DXMT (Direct3D 11 on Metal) and its licenses in share/licenses.
 # Runs on a Mac with Apple silicon, here and in GitHub Actions. Needs:
 #   - Rosetta (Wine's macOS side is x86_64 and is built under it);
 #   - from the arm64 Homebrew: mingw-w64 bison flex (native tools) and freetype gnutls sdl2
@@ -16,6 +17,12 @@ cd "$(dirname "$0")/.."
 CX_VERSION=26.3.0
 CX_SHA256=ac99c8ca4b3848f3e81784135f023df266b61c2345726ea55a50b3e030dd6872
 CX_URL="https://media.codeweavers.com/pub/crossover/source/crossover-sources-$CX_VERSION.tar.gz"
+
+# DXMT (Direct3D 10/11 → Metal), MIT up to 0.80: Electron apps need it. Official release build.
+DXMT_VERSION=0.80
+DXMT_URL="https://github.com/3Shain/dxmt/releases/download/v$DXMT_VERSION/dxmt-v$DXMT_VERSION-builtin.tar.gz"
+DXMT_SHA256=8f260e36b5739e68f3bad613381441385c4dc7b85b78ba8de653d5a6a264529d
+DXMT_LICENSE_URL="https://raw.githubusercontent.com/3Shain/dxmt/v$DXMT_VERSION/LICENSE"
 
 # Must match WineEngine.gcenxLibraries in VitralKit.
 GCENX_URL=https://github.com/Gcenx/macOS_Wine_builds/releases/download/11.0_1/wine-stable-11.0_1-osx64.tar.xz
@@ -34,7 +41,7 @@ fail() { say "ERROR: $*"; exit 1; }
 fetch() {  # fetch <url> <sha256> <file>
     if [[ ! -f $3 ]]; then
         say "downloading $(basename "$3")"
-        curl -fL --retry 3 -o "$3.part" "$1"
+        curl -fsSL --retry 3 -o "$3.part" "$1"
         mv "$3.part" "$3"
     fi
     local sum; sum=$(shasum -a 256 "$3" | cut -d' ' -f1)
@@ -87,6 +94,8 @@ export SDL2_CFLAGS="-I$ARM/opt/sdl2/include/SDL2" SDL2_LIBS="-L$libs -lSDL2"
 export LDFLAGS="-L$libs"   # for MoltenVK
 # Xcode's clang builds for arm64 even under Rosetta: ask for x86_64 explicitly.
 export CC="clang -arch x86_64" OBJC="clang -arch x86_64"
+# No debug information: it would triple the engine's size.
+export CFLAGS="-O2" OBJCFLAGS="-O2" CROSSCFLAGS="-O2"
 export MACOSX_DEPLOYMENT_TARGET=14.0
 
 mkdir -p "$build"
@@ -132,11 +141,41 @@ say "installing into $root"
 rm -rf "$root"
 arch -x86_64 make -C "$build" install DESTDIR="$root" >"$build/install.log" 2>&1 || { tail -20 "$build/install.log"; fail "make install failed"; }
 rm -rf "$root/share/man" "$root/include" "$root/share/applications"
-echo "CrossOver $CX_VERSION (Wine $(cat "$src/VERSION" | sed 's/Wine version //'))" >"$root/version"
+
+say "adding DXMT $DXMT_VERSION"
+dxmt="$work/dxmt-$DXMT_VERSION"
+fetch "$DXMT_URL" "$DXMT_SHA256" "$work/dxmt-v$DXMT_VERSION-builtin.tar.gz"
+rm -rf "$dxmt" && mkdir -p "$dxmt"
+tar -xzf "$work/dxmt-v$DXMT_VERSION-builtin.tar.gz" -C "$dxmt" --strip-components=1
+for dir in i386-windows x86_64-windows x86_64-unix; do
+    cp "$dxmt/$dir/"* "$root/lib/wine/$dir/"
+done
+
+# Licenses and where the source code is (LGPL: whoever receives the engine can get its source).
+licenses="$root/share/licenses"
+mkdir -p "$licenses"
+cp "$src/COPYING.LIB" "$licenses/Wine-COPYING.LIB"
+cp "$src/LICENSE" "$licenses/Wine-LICENSE"
+curl -fsSL --retry 3 -o "$licenses/DXMT-LICENSE" "$DXMT_LICENSE_URL"
+grep -q "MIT License" "$licenses/DXMT-LICENSE" || fail "DXMT $DXMT_VERSION is not under the MIT license"
+commit=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
+cat >"$licenses/SOURCES.txt" <<SOURCES
+Vitral Wine engine: CrossOver $CX_VERSION (Wine $(sed 's/Wine version //' "$src/VERSION")) + DXMT $DXMT_VERSION
+
+Wine (LGPL-2.1-or-later), with CodeWeavers' changes, built unmodified from:
+  $CX_URL
+  SHA-256 $CX_SHA256
+DXMT $DXMT_VERSION (MIT), official build:
+  $DXMT_URL
+  SHA-256 $DXMT_SHA256
+Built with scripts/build-engine.sh of https://github.com/noctavoxfilms/vitral (commit $commit).
+SOURCES
+echo "CrossOver $CX_VERSION (Wine $(sed 's/Wine version //' "$src/VERSION")) + DXMT $DXMT_VERSION" >"$root/version"
 
 # --- Check what Vitral and its programs need ----------------------------------------------------
 "$root/bin/wine" --version >/dev/null 2>&1 || say "warning: bin/wine does not run here (it may need the Gcenx libraries)"
-for need in lib/wine/i386-windows/user32.dll lib/wine/x86_64-windows/user32.dll lib/wine/x86_64-unix/winemac.so; do
+for need in lib/wine/i386-windows/user32.dll lib/wine/x86_64-windows/user32.dll lib/wine/x86_64-unix/winemac.so \
+            lib/wine/x86_64-windows/d3d11.dll lib/wine/i386-windows/winemetal.dll lib/wine/x86_64-unix/winemetal.so; do
     [[ -f $root/$need ]] || fail "missing $need"
 done
 nm -gU "$root/lib/wine/x86_64-unix/winemac.so" | grep -q "_macdrv_functions$" || fail "winemac.so does not export macdrv_functions"

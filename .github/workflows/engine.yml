@@ -1,0 +1,68 @@
+name: Engine
+
+# Builds Vitral's Wine engine (scripts/build-engine.sh) on demand. With "draft" on, the result
+# goes to a draft release for a person to review and publish; Vitral downloads it from there.
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: "Engine revision (the -N in engine-cx<version>-N)"
+        required: true
+        default: "1"
+      draft:
+        description: "Create a draft release with the engine"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rosetta
+        run: arch -x86_64 /usr/bin/true || sudo softwareupdate --install-rosetta --agree-to-license
+
+      - name: Tools and headers
+        run: brew install mingw-w64 bison flex freetype gnutls sdl2
+
+      - name: Build
+        run: scripts/build-engine.sh
+
+      - name: Logs on failure
+        if: failure()
+        run: |
+          tail -60 .build/engine/build-*/configure.log || true
+          tail -80 .build/engine/build-*/make.log || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wine-engine
+          path: |
+            .build/engine/wine-cx*.tar.xz
+            .build/engine/wine-cx*.tar.xz.sha256
+          retention-days: 14
+
+      - name: Draft release
+        if: inputs.draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          archive=$(ls .build/engine/wine-cx*.tar.xz)
+          version=$(basename "$archive" .tar.xz | sed 's/^wine-cx//')
+          tag="engine-cx$version-${{ inputs.revision }}"
+          {
+            echo "Wine engine for Vitral: $(cat .build/engine/wine-cx$version/version)."
+            echo
+            echo "Built by this workflow from commit ${GITHUB_SHA::7}. Sources and licenses are listed in \`share/licenses/\` inside the archive."
+            echo
+            echo '```'
+            cat "$archive.sha256" | sed 's|  .*/|  |'
+            echo '```'
+          } > notes.md
+          gh release create "$tag" "$archive" "$archive.sha256" --draft --target "$GITHUB_SHA" \
+              --title "Wine engine CX $version-${{ inputs.revision }}" --notes-file notes.md
