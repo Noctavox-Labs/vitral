@@ -298,3 +298,16 @@ final class TemporaryFolder {
         #expect(!ProgramAnalyzer.isHelper(name), "\(name)")
     }
 }
+
+@Test func prefersTheProgramWhoseProductIsNamedLikeTheFolder() throws {
+    let folder = try TemporaryFolder()
+    var editor = SyntheticPE()
+    editor.versionStrings = ["ProductName": "MetaQuotes Language 5 Editor"]
+    var terminal = SyntheticPE()
+    terminal.versionStrings = ["ProductName": "MetaTrader 5 Client Terminal"]
+    try folder.write("MetaTrader 5/MetaEditor64.exe", editor)
+    try folder.write("MetaTrader 5/terminal64.exe", terminal)
+
+    let report = try ProgramAnalyzer.analyze(folderAt: folder.url.appendingPathComponent("MetaTrader 5"))
+    #expect(report.mainExecutable == "terminal64.exe")
+}

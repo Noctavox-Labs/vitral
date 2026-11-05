@@ -218,8 +218,10 @@ public enum ProgramAnalyzer {
             if !folder.isEmpty, !name.isEmpty {
                 if name == folder { score += 40 } else if folder.contains(name) || name.contains(folder) { score += 20 }
             }
+            // The product named like the folder: "MetaTrader 5 Client Terminal" in "MetaTrader 5"
+            // (its editor, "MetaQuotes Language 5 Editor", sits next to it).
             if let product = info.version?.productName.map(simplified), !product.isEmpty,
-               product == folder || product == name {
+               product == folder || product == name || (folder.count >= 4 && product.contains(folder)) {
                 score += 10
             }
             // Bigger programs win ties: up to 10 points, one per 2 MB.
