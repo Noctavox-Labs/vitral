@@ -27,8 +27,11 @@ public struct Uninstaller: Sendable {
 
         let base = Wrapper.safeName(app.deletingPathExtension().lastPathComponent)
         var items = [app]
-        // Its Windows, when it lives outside the app (apps made since Vitral 0.1.1).
-        if manifest.prefix != nil { items.append(Wrapper(url: app).prefix(in: home)) }
+        // Its Windows, when it lives outside the app (apps made since Vitral 0.1.1) and no other
+        // app opens a program of it (suites: MetaTrader 5 and MetaEditor share one).
+        if manifest.prefix != nil, !Self.sharesWindows(app, manifest: manifest, others: others) {
+            items.append(Wrapper(url: app).prefix(in: home))
+        }
         items += [base + ".log", base + " (anterior).log"].map { logs.appendingPathComponent($0) }
         if let installer = manifest.installer.map(Self.installLogName),
            !others.contains(where: { $0.installer.map(Self.installLogName) == installer }) {
@@ -44,12 +47,19 @@ public struct Uninstaller: Sendable {
         let items = try items(for: app)
         let manifest = try Wrapper(url: app).readManifest()
         if let engine = EngineCatalog.engine(id: manifest.engine),
-           ComponentInstaller(home: home).isInstalled(engine.wine) {
+           ComponentInstaller(home: home).isInstalled(engine.wine),
+           !Self.sharesWindows(app, manifest: manifest, others: Self.otherManifests(besides: app)) {
             // Ends every Windows process of this app's prefix (and only that prefix).
             await WineSession(engine: InstalledEngine(engine: engine, home: home), prefix: Wrapper(url: app).prefix(in: home)).killServer()
         }
         for item in items { try trash(item) }
         return items
+    }
+
+    /// Whether another app opens a program of the same Windows.
+    static func sharesWindows(_ app: URL, manifest: WrapperManifest, others: [WrapperManifest]) -> Bool {
+        guard let prefix = manifest.prefix else { return false }
+        return others.contains { $0.prefix == prefix }
     }
 
     /// Name of the installation log Vitral writes for an installer file.

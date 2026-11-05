@@ -79,7 +79,9 @@ public enum ProgramAnalyzer {
     static let maxFiles = 50_000
     static let maxExecutableDepth = 3
 
-    public static func analyze(folderAt url: URL) throws -> ProgramReport {
+    /// `preferring` names the program to open (a path relative to the folder), when it is
+    /// already known, for example from the installer's shortcut.
+    public static func analyze(folderAt url: URL, preferring: String? = nil) throws -> ProgramReport {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
             throw ProgramAnalyzerError.notFound
@@ -95,7 +97,10 @@ public enum ProgramAnalyzer {
         }
 
         // Main program.
-        let ranked = rankExecutables(files, folderName: url.lastPathComponent, parse: parse)
+        var ranked = rankExecutables(files, folderName: url.lastPathComponent, parse: parse)
+        if let preferring, let index = ranked.firstIndex(where: { $0.path.lowercased() == preferring.lowercased() }) {
+            ranked.insert(ranked.remove(at: index), at: 0)
+        }
         let main = ranked.first
         let mainInfo = main?.info
 

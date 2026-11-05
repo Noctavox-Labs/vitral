@@ -6,6 +6,7 @@ struct AnalysisView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let file: AppModel.DroppedFile
+    @State private var chosenPrograms: Set<ProgramChoice> = []
 
     private var report: InstallerReport { file.report }
     private var version: VersionInfo? { report.executable?.version }
@@ -123,8 +124,11 @@ struct AnalysisView: View {
             .padding(16)
             .vitralGlass(cornerRadius: 16)
 
-        case .done(let app, let warning):
+        case .done(let app, let warning, let others):
             VStack(alignment: .leading, spacing: 12) {
+                if !others.isEmpty {
+                    otherPrograms(others, app: app)
+                }
                 if let warning {
                     // Comes from VitralKit, already in the person's language.
                     Label(warning, systemImage: "exclamationmark.triangle.fill")
@@ -169,6 +173,48 @@ struct AnalysisView: View {
                 .controlSize(.large)
             }
         }
+    }
+
+    /// The other programs a suite's installer brought, to make into apps on the same Windows.
+    @ViewBuilder
+    private func otherPrograms(_ others: [ProgramChoice], app: URL) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("El instalador también trae otros programas. ¿Los quieres como apps? Usarán el mismo Windows que \(app.deletingPathExtension().lastPathComponent).")
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach(others, id: \.self) { choice in
+                if model.addedPrograms.contains(choice.name) {
+                    Label("\(choice.name) está lista", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                } else {
+                    Toggle(choice.name, isOn: Binding(
+                        get: { chosenPrograms.contains(choice) },
+                        set: { if $0 { chosenPrograms.insert(choice) } else { chosenPrograms.remove(choice) } }))
+                    .toggleStyle(.checkbox)
+                    .disabled(model.isAddingPrograms)
+                }
+            }
+            if let error = model.addProgramsError {
+                Label(error, systemImage: "xmark.octagon.fill")
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            let pending = others.filter { chosenPrograms.contains($0) && !model.addedPrograms.contains($0.name) }
+            if !pending.isEmpty || model.isAddingPrograms {
+                HStack {
+                    Spacer()
+                    if model.isAddingPrograms { ProgressView().controlSize(.small) }
+                    Button(pending.count == 1 ? "Crear la app" : "Crear las apps") {
+                        Task { await model.addPrograms(pending, sharingWindowsOf: app) }
+                    }
+                    .glassButton()
+                    .disabled(model.isAddingPrograms)
+                }
+            }
+        }
+        .padding(12)
+        .vitralGlass(cornerRadius: 12)
     }
 
     private func stageText(_ stage: InstallStage) -> String {

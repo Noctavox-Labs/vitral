@@ -1,0 +1,103 @@
+import Foundation
+import Testing
+@testable import VitralKit
+
+/// A `.lnk` like the ones Wine's shell writes: LinkInfo with an ANSI path, then Unicode strings
+/// that count their closing NUL.
+func makeShortcut(target: String?, relative: String? = nil, arguments: String = "") -> Data {
+    var flags: UInt32 = 0x80 | 0x10   // IsUnicode, HasWorkingDir
+    if target != nil { flags |= 0x02 }
+    if relative != nil { flags |= 0x08 }
+    if !arguments.isEmpty { flags |= 0x20 }
+    var bytes = le32(0x4C) + [0x01, 0x14, 0x02, 0, 0, 0, 0, 0, 0xC0, 0, 0, 0, 0, 0, 0, 0x46] + le32(flags)
+    bytes += [UInt8](repeating: 0, count: 0x4C - bytes.count)
+    if let target {
+        let base = Array(target.utf8) + [0]
+        let size = 0x1C + base.count + 1
+        bytes += le32(UInt32(size)) + le32(0x1C) + le32(1) + le32(0) + le32(0x1C) + le32(0) + le32(UInt32(0x1C + base.count))
+        bytes += base + [0]
+    }
+    func string(_ text: String) -> [UInt8] {
+        let units = Array((text + "\0").utf16)
+        return le16(UInt16(units.count)) + units.flatMap { le16($0) }
+    }
+    if let relative { bytes += string(relative) }
+    bytes += string(#"C:\Program Files\Suite"#)
+    if !arguments.isEmpty { bytes += string(arguments) }
+    return Data(bytes)
+}
+
+@Test func readsWhereAShortcutPoints() {
+    let link = ShellLink.parse(makeShortcut(target: #"C:\Program Files\MetaTrader 5\metaeditor64.exe"#, arguments: #"/portable "a b""#))
+    #expect(link?.target == #"C:\Program Files\MetaTrader 5\metaeditor64.exe"#)
+    #expect(link?.workingDirectory == #"C:\Program Files\Suite"#)
+    #expect(ShellLink.splitArguments(link?.arguments ?? "") == ["/portable", "a b"])
+    #expect(ShellLink.parse(Data("not a shortcut".utf8)) == nil)
+}
+
+@Test func listsTheProgramsAnInstallerMadeShortcutsFor() throws {
+    let folder = try TemporaryFolder()
+    let driveC = folder.url.appendingPathComponent("drive_c")
+    var terminal = SyntheticPE()
+    terminal.versionStrings = ["ProductName": "MetaTrader 5 Client Terminal"]
+    try folder.write("drive_c/Program Files/MetaTrader 5/terminal64.exe", terminal)
+    try folder.write("drive_c/Program Files/MetaTrader 5/MetaEditor64.exe", SyntheticPE())
+    try folder.write("drive_c/Program Files/MetaTrader 5/uninstall.exe", SyntheticPE())
+    try folder.write("drive_c/Program Files/MetaTrader 5/manual.chm", Data())
+    let menu = "drive_c/users/crossover/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/MetaTrader 5"
+    let before = ProgramShortcuts.snapshot(driveC: driveC)
+    try folder.write("\(menu)/MetaTrader 5.lnk", makeShortcut(target: #"C:\Program Files\MetaTrader 5\terminal64.exe"#))
+    // Lower case on purpose: Windows paths ignore case; the result uses the names on disk.
+    try folder.write("\(menu)/MetaEditor.lnk", makeShortcut(target: #"c:\program files\metatrader 5\metaeditor64.exe"#))
+    try folder.write("\(menu)/Uninstall.lnk", makeShortcut(target: #"C:\Program Files\MetaTrader 5\uninstall.exe"#))
+    try folder.write("\(menu)/Help.lnk", makeShortcut(target: #"C:\Program Files\MetaTrader 5\manual.chm"#))
+    try folder.write("drive_c/users/Public/Desktop/MetaEditor 5.lnk", makeShortcut(target: #"C:\Program Files\MetaTrader 5\MetaEditor64.exe"#))
+    try folder.write("drive_c/users/Public/Desktop/Elsewhere.lnk", makeShortcut(target: #"D:\Other\other.exe"#))
+    try folder.write("drive_c/users/Public/Desktop/Relative.lnk", makeShortcut(target: nil, relative: #"..\..\..\Program Files\MetaTrader 5\terminal64.exe"#, arguments: "/config:demo"))
+
+    let added = ProgramShortcuts.snapshot(driveC: driveC).subtracting(before)
+    #expect(added.count == 7)
+    let programs = ProgramShortcuts.programs(shortcuts: added, driveC: driveC)
+    #expect(programs == [
+        ProgramChoice(name: "MetaEditor", program: "Program Files/MetaTrader 5/MetaEditor64.exe"),
+        ProgramChoice(name: "MetaTrader 5", program: "Program Files/MetaTrader 5/terminal64.exe"),
+        ProgramChoice(name: "Relative", program: "Program Files/MetaTrader 5/terminal64.exe", arguments: ["/config:demo"]),
+    ])
+}
+
+/// An app whose Windows lives in `home`'s Prefixes folder under `prefix`.
+private func makeSharedApp(_ folder: TemporaryFolder, name: String, program: String, prefix: String) throws -> URL {
+    let app = folder.url.appendingPathComponent("apps/\(name).app")
+    let launcher = folder.url.appendingPathComponent("launcher-binary")
+    if !FileManager.default.fileExists(atPath: launcher.path) { try Data("#!/bin/sh\n".utf8).write(to: launcher) }
+    let manifest = WrapperManifest(name: name, program: program, engine: "cx-test", settings: LaunchSettings(),
+                                   installer: "mt5setup.exe", prefix: prefix)
+    try Wrapper(url: app).write(manifest: manifest, icns: nil, launcher: launcher, bundleIdentifier: "test.\(prefix).\(name.count)")
+    return app
+}
+
+@Test func appsOfOneWindowsShareItUntilTheLastIsUninstalled() async throws {
+    let folder = try TemporaryFolder()
+    let home = VitralHome(url: folder.url.appendingPathComponent("home"))
+    let prefix = home.prefixes.appendingPathComponent("mt5")
+    try folder.write("home/Prefixes/mt5/drive_c/Program Files/MetaTrader 5/terminal64.exe", SyntheticPE())
+    try folder.write("home/Prefixes/mt5/drive_c/Program Files/MetaTrader 5/MetaEditor64.exe", SyntheticPE())
+    let menu = "home/Prefixes/mt5/drive_c/ProgramData/Microsoft/Windows/Start Menu/Programs/MetaTrader 5"
+    try folder.write("\(menu)/MetaTrader 5.lnk", makeShortcut(target: #"C:\Program Files\MetaTrader 5\terminal64.exe"#))
+    try folder.write("\(menu)/MetaEditor.lnk", makeShortcut(target: #"C:\Program Files\MetaTrader 5\MetaEditor64.exe"#))
+
+    let terminal = try makeSharedApp(folder, name: "MetaTrader 5", program: "Program Files/MetaTrader 5/terminal64.exe", prefix: "mt5")
+    #expect(try ProgramShortcuts.available(besides: terminal, home: home).map(\.name) == ["MetaEditor"])
+    let editor = try makeSharedApp(folder, name: "MetaEditor", program: "Program Files/MetaTrader 5/MetaEditor64.exe", prefix: "mt5")
+    #expect(try ProgramShortcuts.available(besides: terminal, home: home).isEmpty)
+
+    let uninstaller = Uninstaller(home: home, logs: folder.url.appendingPathComponent("logs")) { url in
+        try FileManager.default.removeItem(at: url)
+    }
+    // The first one leaves the Windows: MetaEditor still opens a program of it.
+    #expect(try uninstaller.items(for: terminal).map(\.lastPathComponent) == ["MetaTrader 5.app"])
+    try await uninstaller.uninstall(terminal)
+    #expect(FileManager.default.fileExists(atPath: prefix.path))
+    // The last one takes it.
+    #expect(try uninstaller.items(for: editor).map(\.lastPathComponent) == ["MetaEditor.app", "mt5"])
+}

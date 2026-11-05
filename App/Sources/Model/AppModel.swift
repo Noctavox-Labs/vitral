@@ -16,8 +16,9 @@ final class AppModel {
     enum InstallState: Equatable {
         case idle
         case working(InstallStage)
-        /// The app, and a warning if the engine lacks something the program uses.
-        case done(URL, warning: String?)
+        /// The app, a warning if the engine lacks something the program uses, and the other
+        /// programs the installer brought (a suite), which can become apps too.
+        case done(URL, warning: String?, others: [ProgramChoice])
         case failed(String)
     }
 
@@ -180,6 +181,8 @@ final class AppModel {
         }
         installState = .working(.checking)
         installerWindows = []
+        addedPrograms = []
+        addProgramsError = nil
         do {
             let result = try await ProgramInstaller().install(
                 file.url, options: InstallOptions(launcher: launcher),
@@ -197,7 +200,8 @@ final class AppModel {
                     }
                 })
             let engine = EngineCatalog.engine(id: result.manifest.engine) ?? EngineCatalog.default
-            installState = .done(result.app, warning: EngineCheck.warning(result.missingImports, engine: engine))
+            installState = .done(result.app, warning: EngineCheck.warning(result.missingImports, engine: engine),
+                                 others: result.otherPrograms)
         } catch is CancellationError {
             installState = .idle
         } catch {
@@ -205,6 +209,32 @@ final class AppModel {
         }
         installTask = nil
         refresh()
+        refreshLibrary()
+    }
+
+    /// Other programs of a just installed app made into apps, by name.
+    var addedPrograms: [String] = []
+    var isAddingPrograms = false
+    var addProgramsError: String?
+
+    /// Makes an app for each chosen program, on the same Windows as `app`.
+    func addPrograms(_ choices: [ProgramChoice], sharingWindowsOf app: URL) async {
+        guard let launcher = InstallOptions.findLauncher() else {
+            addProgramsError = InstallError.launcherMissing.description
+            return
+        }
+        isAddingPrograms = true
+        addProgramsError = nil
+        for choice in choices where !addedPrograms.contains(choice.name) {
+            do {
+                _ = try await ProgramInstaller().addProgram(choice, sharingWindowsOf: app, launcher: launcher)
+                addedPrograms.append(choice.name)
+            } catch {
+                addProgramsError = String(describing: error)
+                break
+            }
+        }
+        isAddingPrograms = false
         refreshLibrary()
     }
 

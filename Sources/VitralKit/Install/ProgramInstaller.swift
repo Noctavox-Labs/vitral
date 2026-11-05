@@ -25,6 +25,8 @@ public enum InstallError: Error, CustomStringConvertible {
     case programNotFound(log: URL)
     case installerDidNotStart(Int32, log: URL)
     case prerequisiteLoop(String, log: URL)
+    case windowsInUse(String)
+    case sharedWindowsMissing
 
     public var description: String {
         switch self {
@@ -42,6 +44,12 @@ public enum InstallError: Error, CustomStringConvertible {
         case .installerDidNotStart(let status, let log):
             return tr("El instalador no pudo abrirse (código \(status)). Registro: \(log.path)",
                       "The installer could not start (status \(status)). Log: \(log.path)")
+        case .windowsInUse(let name):
+            return tr("Cierra \(name) (y los demás programas de su Windows) y vuelve a intentarlo: hay que cambiar ajustes de ese Windows.",
+                      "Close \(name) (and the other programs of its Windows) and try again: settings of that Windows have to change.")
+        case .sharedWindowsMissing:
+            return tr("Esta app es de una versión anterior de Vitral y lleva su Windows adentro. Desinstálala e instálala de nuevo para agregarle programas.",
+                      "This app comes from an earlier Vitral and carries its Windows inside. Uninstall it and install it again to add programs to it.")
         case .prerequisiteLoop(let package, let log):
             let name = BurnLog.friendlyName(package)
             return tr("El instalador repetía sin parar la instalación de \(name): termina sin instalar nada en Wine y el instalador vuelve a pedirlo. Lo detuve. Este programa todavía no se puede instalar con Vitral. Registro: \(log.path)",
@@ -95,6 +103,9 @@ public struct InstallResult: Sendable {
     public let log: URL
     /// Windows functions the program uses that the engine lacks (see `EngineCheck`).
     public let missingImports: [MissingImport]
+    /// Other programs the installer made shortcuts for (a suite, or a program with its editor):
+    /// each can become its own app on the same Windows (`ProgramInstaller.addProgram`).
+    public var otherPrograms: [ProgramChoice] = []
 }
 
 /// Installs a Windows program and turns it into a Mac app.
@@ -190,6 +201,7 @@ public struct ProgramInstaller: Sendable {
                 logHandle.write(Data("[Vitral] \(Recipes.describe(recipe.id)) (\(recipe.because))\n".utf8))
             }
             let before = ProgramFinder.snapshot(driveC: session.driveC)
+            let shortcutsBefore = ProgramShortcuts.snapshot(driveC: session.driveC)
 
             progress(Self.needsInstaller(installer, report) ? .runningInstaller : .copyingProgram)
             let watcher = Task { await Self.reportNewWindows(to: windowShown) }
@@ -244,13 +256,32 @@ public struct ProgramInstaller: Sendable {
 
             progress(.findingProgram)
             let after = ProgramFinder.snapshot(driveC: session.driveC)
-            guard let found = ProgramFinder.choose(newFolders: after.subtracting(before), driveC: session.driveC),
-                  let main = found.report.mainExecutable else {
+            guard var found = ProgramFinder.choose(newFolders: after.subtracting(before), driveC: session.driveC),
+                  var main = found.report.mainExecutable else {
                 throw InstallError.programNotFound(log: log)
             }
+            // The installer's shortcuts list its programs: the one Vitral would pick if it is
+            // among them, otherwise the first in that folder, otherwise the first.
+            let choices = ProgramShortcuts.programs(
+                shortcuts: ProgramShortcuts.snapshot(driveC: session.driveC).subtracting(shortcutsBefore), driveC: session.driveC)
+            let picked = choices.first { $0.program.lowercased() == (found.folder + "/" + main).lowercased() }
+                ?? choices.first { ($0.program.lowercased() + "/").hasPrefix(found.folder.lowercased() + "/") }
+                ?? choices.first
+            if let picked {
+                logHandle.write(Data("[Vitral] Shortcuts: \(choices.map { "\($0.name) → \($0.program)" }.joined(separator: "; "))\n".utf8))
+                if picked.program.lowercased() != (found.folder + "/" + main).lowercased(),
+                   let report = try? ProgramAnalyzer.analyze(folderAt: session.driveC.appendingPathComponent(picked.folder),
+                                                             preferring: picked.fileName),
+                   report.mainExecutable?.lowercased() == picked.fileName.lowercased() {
+                    found = (folder: picked.folder, report: report)
+                    main = picked.fileName
+                }
+            }
+            let others = choices.filter { $0 != picked }
 
             progress(.applyingSettings)
             var (settings, applied) = Recipes.settings(for: found.report)
+            if let picked { settings.arguments = picked.arguments + settings.arguments }
             // The installer's settings stay in the prefix; the manifest lists them too.
             settings.registry = setup.registry + settings.registry
             applied = setup.applied + applied
@@ -264,7 +295,8 @@ public struct ProgramInstaller: Sendable {
             try Task.checkCancellation()
             progress(.buildingApp)
             let product = found.report.executable?.version
-            let name = Wrapper.safeName(options.name ?? product?.productName ?? product?.fileDescription
+            // With several programs, the shortcuts' names tell them apart ("MetaTrader 5", "MetaEditor 5").
+            let name = Wrapper.safeName(options.name ?? (others.isEmpty ? nil : picked?.name) ?? product?.productName ?? product?.fileDescription
                 ?? found.folder.split(separator: "/").last.map(String.init) ?? installer.deletingPathExtension().lastPathComponent)
             let identifier = Wrapper.bundleIdentifier(for: name)
             let manifest = WrapperManifest(name: name, program: program, engine: engine.id, settings: settings,
@@ -284,11 +316,55 @@ public struct ProgramInstaller: Sendable {
                 try? fm.removeItem(at: home.prefixes.appendingPathComponent(identifier))
                 throw error
             }
-            return InstallResult(app: final, manifest: manifest, report: found.report, log: log, missingImports: missing)
+            return InstallResult(app: final, manifest: manifest, report: found.report, log: log, missingImports: missing,
+                                 otherPrograms: others)
         } catch {
             await session.killServer()
             try? fm.removeItem(at: work)
             try? fm.removeItem(at: prefix)   // its links to the person's folders go, not the folders
+            throw error
+        }
+    }
+
+    /// Makes another app for a program of `app`'s Windows (one of `InstallResult.otherPrograms`,
+    /// or of `ProgramShortcuts.available`). Both apps share that Windows: what one program
+    /// saves there, the other sees, and uninstalling one keeps it for the other.
+    public func addProgram(_ choice: ProgramChoice, sharingWindowsOf app: URL, launcher: URL) async throws -> URL {
+        let fm = FileManager.default
+        let source = Wrapper(url: app)
+        let manifest = try source.readManifest()
+        guard let shared = manifest.prefix else { throw InstallError.sharedWindowsMissing }
+        let engine = EngineCatalog.engine(id: manifest.engine) ?? EngineCatalog.default
+        let installed = InstalledEngine(engine: engine, home: home)
+        let session = WineSession(engine: installed, prefix: source.prefix(in: home))
+        let report = try ProgramAnalyzer.analyze(folderAt: session.driveC.appendingPathComponent(choice.folder),
+                                                 preferring: choice.fileName)
+        guard report.mainExecutable?.lowercased() == choice.fileName.lowercased() else {
+            throw InstallError.programNotFound(log: ProgramInstaller.logs)
+        }
+        var (settings, applied) = Recipes.settings(for: report)
+        settings.arguments = choice.arguments + settings.arguments
+        if !settings.registry.isEmpty {
+            // Registry changes are saved when the Windows stops; the other program keeps it running.
+            guard !session.serverIsRunning else { throw InstallError.windowsInUse(manifest.name) }
+            try await session.importRegistry(settings.registry)
+        }
+
+        let name = Wrapper.safeName(choice.name)
+        let identifier = Wrapper.bundleIdentifier(for: name)
+        let newManifest = WrapperManifest(name: name, program: choice.program, engine: manifest.engine, settings: settings,
+                                          recipes: applied, product: report.executable?.version,
+                                          installer: manifest.installer, prefix: shared)
+        try fm.createDirectory(at: staging, withIntermediateDirectories: true)
+        let work = staging.appendingPathComponent(UUID().uuidString + ".app")
+        do {
+            let exe = session.driveC.appendingPathComponent(choice.program)
+            let icns = (try? Data(contentsOf: exe, options: .alwaysMapped))
+                .flatMap(PortableExecutable.icon).flatMap { AppIcon.icns(fromICO: $0) }
+            try Wrapper(url: work).write(manifest: newManifest, icns: icns, launcher: launcher, bundleIdentifier: identifier)
+            return try place(work, named: name, in: app.deletingLastPathComponent(), replace: false)
+        } catch {
+            try? fm.removeItem(at: work)
             throw error
         }
     }
@@ -461,7 +537,9 @@ public struct ProgramInstaller: Sendable {
             if replace {
                 // The replaced app's Windows goes to the Trash with it.
                 let old = Wrapper(url: target)
-                let oldPrefix = (try? old.readManifest())?.prefix != nil ? old.prefix(in: home) : nil
+                let oldManifest = try? old.readManifest()
+                let shared = Uninstaller.otherManifests(besides: target).contains { $0.prefix != nil && $0.prefix == oldManifest?.prefix }
+                let oldPrefix = oldManifest?.prefix != nil && !shared ? old.prefix(in: home) : nil
                 try fm.trashItem(at: target, resultingItemURL: nil)
                 if let oldPrefix, fm.fileExists(atPath: oldPrefix.path) { try? fm.trashItem(at: oldPrefix, resultingItemURL: nil) }
             } else {

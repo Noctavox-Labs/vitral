@@ -27,9 +27,12 @@ func printUsage() {
                                                (en ~/Applications si no se indica otra carpeta).
           vitral desinstalar <app>             Cierra el programa si está abierto y manda la app y sus registros a la
                                                Papelera. Tus archivos de Documentos, Descargas… no se tocan.
+                                               Si otra app usa su mismo Windows, el Windows se queda.
+          vitral programas <app>               Los otros programas del Windows de una app (los de una suite).
+          vitral agregar <app> <programa>      Crea otra app para uno de esos programas, sobre el mismo Windows.
           vitral version                       Muestra la versión.
 
-        Los comandos también funcionan en inglés (analyze, icon, engines install, engines clean, install, uninstall). Idioma: VITRAL_LANG=es o en.
+        Los comandos también funcionan en inglés (analyze, icon, engines install, engines clean, install, uninstall, programs, add). Idioma: VITRAL_LANG=es o en.
         """,
         """
         Vitral \(Vitral.version): Windows programs on your Mac.
@@ -47,9 +50,12 @@ func printUsage() {
                                              (in ~/Applications unless another folder is given).
           vitral uninstall <app>             Close the program if it is open and move the app and its logs to the
                                              Trash. Your files in Documents, Downloads… are not touched.
+                                             If another app uses the same Windows, the Windows stays.
+          vitral programs <app>              The other programs in an app's Windows (those of a suite).
+          vitral add <app> <program>         Make another app for one of them, on the same Windows.
           vitral version                     Show the version.
 
-        Commands also work in Spanish (analizar, icono, motores instalar, motores limpiar, instalar, desinstalar). Language: VITRAL_LANG=en or es.
+        Commands also work in Spanish (analizar, icono, motores instalar, motores limpiar, instalar, desinstalar, programas, agregar). Language: VITRAL_LANG=en or es.
         """
     ))
 }
@@ -480,6 +486,56 @@ func install(_ options: [String]) async {
                      "  Note: it has anti-cheat (\(result.report.antiCheat.map(describeAntiCheat).joined(separator: ", "))). It will most likely not work with Wine; Vitral does not bypass it."))
         }
         print(tr("Ábrela con doble clic o con: open \"\(result.app.path)\"", "Open it with a double click or with: open \"\(result.app.path)\""))
+        if !result.otherPrograms.isEmpty {
+            print(tr("El instalador también trae:", "The installer also brought:"))
+            for other in result.otherPrograms { print("  \(other.name)  (\(other.program))") }
+            print(tr("Para tenerlo como app: vitral agregar \"\(result.app.path)\" \"<programa>\"",
+                     "To have it as an app: vitral add \"\(result.app.path)\" \"<program>\""))
+        }
+    } catch {
+        fail("✗ " + String(describing: error))
+    }
+}
+
+/// An app given on the command line: a path, or a bare name for the app in ~/Applications.
+func appURL(_ argument: String) -> URL {
+    var path = (argument as NSString).expandingTildeInPath
+    if !path.contains("/") {
+        path = InstallOptions.defaultDestination.appendingPathComponent(path.hasSuffix(".app") ? path : path + ".app").path
+    }
+    return URL(fileURLWithPath: path)
+}
+
+func listPrograms(_ options: [String]) {
+    guard options.count == 1 else { printUsage(); exit(2) }
+    let app = appURL(options[0])
+    do {
+        let choices = try ProgramShortcuts.available(besides: app)
+        if choices.isEmpty {
+            print(tr("Su Windows no tiene otros programas con acceso directo.", "Its Windows has no other programs with a shortcut."))
+        }
+        for choice in choices { print("\(choice.name)  (\(choice.program))") }
+    } catch {
+        fail("✗ " + String(describing: error))
+    }
+}
+
+func addProgram(_ options: [String]) async {
+    guard options.count == 2 else { printUsage(); exit(2) }
+    let app = appURL(options[0])
+    guard let launcher = InstallOptions.findLauncher() else { fail(InstallError.launcherMissing.description) }
+    do {
+        let choices = try ProgramShortcuts.available(besides: app)
+        let wanted = options[1].lowercased()
+        guard let choice = choices.first(where: { $0.name.lowercased() == wanted })
+                ?? choices.first(where: { $0.name.lowercased().contains(wanted) }) else {
+            fail(tr("✗ No encuentro «\(options[1])». Los programas que se pueden agregar: ",
+                    "✗ I cannot find \"\(options[1])\". Programs that can be added: ")
+                 + (choices.isEmpty ? "—" : choices.map(\.name).joined(separator: ", ")))
+        }
+        let added = try await ProgramInstaller().addProgram(choice, sharingWindowsOf: app, launcher: launcher)
+        print(tr("✓ \(choice.name): \(added.path) (comparte el Windows de \(app.deletingPathExtension().lastPathComponent))",
+                 "✓ \(choice.name): \(added.path) (shares the Windows of \(app.deletingPathExtension().lastPathComponent))"))
     } catch {
         fail("✗ " + String(describing: error))
     }
@@ -490,12 +546,7 @@ func uninstall(_ options: [String]) async {
         printUsage()
         exit(2)
     }
-    var path = (options[0] as NSString).expandingTildeInPath
-    // A bare name ("aTube Catcher") means the app in ~/Applications.
-    if !path.contains("/") {
-        path = InstallOptions.defaultDestination.appendingPathComponent(path.hasSuffix(".app") ? path : path + ".app").path
-    }
-    let app = URL(fileURLWithPath: path)
+    let app = appURL(options[0])
     do {
         let trashed = try await Uninstaller().uninstall(app)
         print(tr("✓ A la Papelera (se puede recuperar desde ahí):", "✓ Moved to the Trash (you can put it back from there):"))
@@ -532,6 +583,10 @@ case "instalar", "install":
     await install(Array(arguments.dropFirst()))
 case "desinstalar", "uninstall":
     await uninstall(Array(arguments.dropFirst()))
+case "programas", "programs":
+    listPrograms(Array(arguments.dropFirst()))
+case "agregar", "add":
+    await addProgram(Array(arguments.dropFirst()))
 case "version", "versión", "--version", "-v":
     print("Vitral \(Vitral.version)")
 case "ayuda", "help", "--help", "-h":

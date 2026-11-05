@@ -42,13 +42,17 @@ final class Launcher: NSObject, NSApplicationDelegate {
             return quit(0)
         }
 
+        // Another program of the same Windows is open (MetaEditor next to MetaTrader 5): its
+        // files and processes must be left alone.
+        let sharedRunning = launch.session.serverIsRunning
+
         let loading = LoadingPanel(name: launch.manifest.name, icon: NSWorkspace.shared.icon(forFile: wrapper.url.path))
         self.loading = loading
         loading.show()
 
         var attempt = 1
         while true {
-            let removed = launch.clean()
+            let removed = sharedRunning ? 0 : launch.clean()
             if removed > 0 { write(tr("Limpieza: \(removed) archivo(s)", "Cleanup: \(removed) file(s)")) }
             let offset = (try? log?.offset()) ?? 0
             let started = Date()
@@ -68,7 +72,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
                 write(tr("Se cayó al arrancar: vuelvo a intentar.", "It crashed while starting: trying again."))
                 loading.update(tr("Se cerró al arrancar. Vuelvo a intentar…", "It closed while starting. Trying again…"))
                 loading.show(after: .zero)
-                await launch.session.killServer()
+                if !sharedRunning { await launch.session.killServer() }
                 attempt += 1
                 continue
             }

@@ -327,6 +327,26 @@
         }
       }
     },
+    "Crear la app" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Make the app"
+          }
+        }
+      }
+    },
+    "Crear las apps" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Make the apps"
+          }
+        }
+      }
+    },
     "Código fuente en GitHub" : {
       "localizations" : {
         "en" : {
@@ -393,6 +413,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The installer opened the program: closing it to finish the app…"
+          }
+        }
+      }
+    },
+    "El instalador también trae otros programas. ¿Los quieres como apps? Usarán el mismo Windows que %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The installer also brought other programs. Do you want them as apps? They will use the same Windows as %@."
           }
         }
       }
