@@ -9,10 +9,10 @@
 > firmada y notarizada, y se actualiza sola. Puede tener detalles por pulir. El repositorio tiene `vitral`, una herramienta de línea de comandos que
 > revisa instaladores de Windows y convierte programas en apps de Mac, y la primera versión de
 > la app: un asistente que revisa tu Mac e instala lo que falta, una ventana donde sueltas un
-> instalador para instalarlo, y tu biblioteca de apps de Windows. Ya instala y abre, desde sus
-> propios instaladores, una app educativa en Qt 5 + QtWebEngine de 32 bits y una app en
-> Electron 37, con el motor de Wine propio de Vitral. En la [hoja de ruta](#hoja-de-ruta) está
-> lo que viene.
+> instalador para instalarlo, y tu biblioteca de apps de Windows. Instala, desde sus propios
+> instaladores, programas en Qt, Electron, Delphi, MFC y .NET Framework, con el motor de Wine
+> propio de Vitral: mira los [programas probados](#programas-probados). En la
+> [hoja de ruta](#hoja-de-ruta) está lo que viene.
 
 ## La idea
 
@@ -68,6 +68,10 @@ porque macOS solo abre apps cuya firma cubre todo lo que llevan dentro:
 - **Electron:** dibuja dentro del programa (`--in-process-gpu`) para que DXMT lo muestre; en los
   instaladores de electron-builder se desactiva el PowerShell sustituto de Wine (le hacía creer
   al instalador que el programa seguía abierto).
+- **.NET Framework:** en Wine sus instaladores terminan sin instalar nada. Cuando un instalador o
+  un programa lo necesita, Vitral instala .NET Framework 4.8 de Microsoft como lo hace
+  [winetricks](https://github.com/Winetricks/winetricks) (unos cinco minutos, bajado de Microsoft
+  con sumas fijadas) y vuelve a abrir el instalador si se había detenido.
 
 Los accesos directos del propio instalador le dicen a Vitral qué programas trae. Si son varios
 (una suite, o un programa con su editor, como MetaTrader 5 y MetaEditor), Vitral crea la app del
@@ -79,7 +83,9 @@ Si el instalador abre el programa al terminar, Vitral cierra esa copia (corre si
 y sigue. Antes de terminar compara las funciones de Windows que usa el programa con las que tiene
 el motor, y avisa si falta algo que le impediría abrir. Cada app lleva un lanzador pequeño que
 revisa Rosetta y el motor, abre el programa, vuelve a intentar si se cae al arrancar y guarda un
-registro en `~/Library/Logs/Vitral/`.
+registro en `~/Library/Logs/Vitral/`. Los programas que viven en la barra de menú, sin ventana
+(como Greenshot), cuentan como abiertos. `vitral instalar --argumentos "/VERYSILENT"` le pasa
+opciones al instalador, para instalaciones sin intervención.
 
 Ejemplos:
 
@@ -106,6 +112,23 @@ CEF, .NET, Java, Unity, Unreal, el runtime de Visual C++, la interfaz gráfica (
 Vulkan) y los antitrampas. `vitral icono` convierte el ícono del programa en uno de Mac, con
 todos los tamaños Retina. Habla español e inglés (sigue el idioma de macOS; `VITRAL_LANG=es`
 fuerza español).
+
+## Programas probados
+
+Instalados con Vitral desde sus instaladores oficiales, en una MacBook Pro M1 Pro con macOS 27.
+Los juegos vienen después.
+
+| Programa | Hecho con | Resultado |
+|---|---|---|
+| Notepad++ 8.9 | Win32 | Funciona |
+| HeidiSQL 12.22 | Delphi | Funciona |
+| WinMerge 2.16 | MFC | Funciona (comparación de carpetas y archivos) |
+| MetaTrader 5 | Win32 | Funciona, junto con MetaEditor sobre el mismo Windows |
+| Greenshot 1.3 | .NET Framework 4 | Abre con el .NET Framework 4.8 de Vitral; vive en la barra de menú |
+| Una app educativa de 32 bits | Qt 5 + QtWebEngine | Funciona con los ajustes de Qt de Vitral |
+| Una app en Electron 37 | Electron | Funciona con `--in-process-gpu` y DXMT |
+| Power BI Desktop | .NET Framework + WebView2 | Con .NET Framework 4.8 se instala, pero se cae al abrir dentro de su propio código |
+| Paint.NET 5.1 | .NET 9 + Direct2D | No abre: el Direct2D de Wine está incompleto. Paint.NET 5.2 debería, con un motor más nuevo |
 
 ## Compilar la app
 
@@ -160,7 +183,7 @@ necesitan las apps de Electron.
 | **1. Un comando** *(ahora)* | `vitral instalar Setup.exe` crea una app de Mac nítida, portable y con ícono, sin pasos a mano aparte del instalador del programa. Logrado con sus primeros objetivos: una app educativa en Qt 5 + QtWebEngine de 32 bits que necesitaba una docena de arreglos manuales, y una app en Electron 37, con el motor propio. Sigue: más Macs y programas de prueba |
 | **2. La app** *(empezada)* | App en SwiftUI con Liquid Glass: asistente de preparación (Rosetta, motor), arrastrar y soltar, biblioteca, «¿Se ve bien?», ajustes avanzados |
 | **3. Compartir** *(empezada)* | Versiones firmadas y notarizadas y actualizaciones automáticas dentro de la app (hecho); exportar e importar |
-| **4. Más programas** | Lista de compatibilidad, recetas de la comunidad |
+| **4. Más programas** *(empezada)* | [Lista de compatibilidad](#programas-probados), .NET Framework, instaladores con varios programas; sigue: recetas de la comunidad |
 | **5. Después de Rosetta** | Apple deja Rosetta para uso general después de macOS 27; Vitral está hecho para cambiar a un motor de Wine que no lo necesite |
 
 ## Principios
