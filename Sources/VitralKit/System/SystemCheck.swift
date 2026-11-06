@@ -25,6 +25,9 @@ public struct MacInfo: Sendable {
         )
     }
 
+    /// Model identifier, such as "MacBookPro18,3" (not the Mac's name, which is personal).
+    public static var model: String? { sysctlString("hw.model") }
+
     public var macOSVersionText: String {
         let v = macOSVersion
         return v.patchVersion == 0 ? "\(v.majorVersion).\(v.minorVersion)" : "\(v.majorVersion).\(v.minorVersion).\(v.patchVersion)"

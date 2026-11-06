@@ -37,6 +37,22 @@
         }
       }
     },
+    "%@ · Vitral %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · Vitral %2$@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · Vitral %2$@"
+          }
+        }
+      }
+    },
     ".exe · .msi · .zip" : {
       "localizations" : {
         "en" : {
@@ -73,6 +89,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open %@"
+          }
+        }
+      }
+    },
+    "Abrir en GitHub" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in GitHub"
           }
         }
       }
@@ -277,6 +303,16 @@
         }
       }
     },
+    "Buscar en GitHub informes de este programa" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search GitHub for reports about this program"
+          }
+        }
+      }
+    },
     "Cada programa queda como una app de Mac, con su ícono, lista para abrir con doble clic." : {
       "localizations" : {
         "en" : {
@@ -387,6 +423,16 @@
         }
       }
     },
+    "Cuenta qué esperabas y qué viste." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Say what you expected and what you saw."
+          }
+        }
+      }
+    },
     "Código fuente en GitHub" : {
       "localizations" : {
         "en" : {
@@ -483,6 +529,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The installer finished. Finishing the installation…"
+          }
+        }
+      }
+    },
+    "El registro completo, por si quieres adjuntarlo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The full log, in case you want to attach it"
           }
         }
       }
@@ -593,6 +649,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "There's room for the engine and your programs."
+          }
+        }
+      }
+    },
+    "Informar el problema…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Report the Problem…"
+          }
+        }
+      }
+    },
+    "Informar un problema" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Report a Problem"
+          }
+        }
+      }
+    },
+    "Informar un problema…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Report a Problem…"
+          }
+        }
+      }
+    },
+    "Informe de Vitral" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vitral's report"
           }
         }
       }
@@ -767,6 +863,16 @@
         }
       }
     },
+    "Mostrar el registro" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the Log"
+          }
+        }
+      }
+    },
     "Mostrar en Finder" : {
       "localizations" : {
         "en" : {
@@ -823,6 +929,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Needs"
+          }
+        }
+      }
+    },
+    "No lleva tu nombre ni tus carpetas; igual revísalo y borra o cambia lo que quieras. Se abrirá el formulario de GitHub ya lleno en tu navegador: nada se publica hasta que lo envíes, y necesitas una cuenta de GitHub. Una captura de la ventana del programa ayuda: arrástrala al formulario." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It has neither your name nor your folders; still, check it and delete or change anything you like. GitHub's form will open filled in, in your browser: nothing is posted until you send it, and you need a GitHub account. A screenshot of the program's window helps: drag it into the form."
           }
         }
       }
@@ -897,12 +1013,32 @@
         }
       }
     },
+    "Pedir ayuda en GitHub, con un informe sin datos personales que revisas antes de enviar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask for help on GitHub, with a report without personal data that you check before sending"
+          }
+        }
+      }
+    },
     "Preparando el espacio del programa…" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Preparing the program's space…"
+          }
+        }
+      }
+    },
+    "Preparando el informe…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing the report…"
           }
         }
       }
@@ -1323,6 +1459,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Force quit %@?"
+          }
+        }
+      }
+    },
+    "¿Qué pasó?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What happened?"
+          }
+        }
+      }
+    },
+    "¿Ya está reportado?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Already Reported?"
           }
         }
       }

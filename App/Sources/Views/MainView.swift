@@ -217,6 +217,7 @@ struct LibraryCard: View {
     @State private var hovering = false
     @State private var confirmingUninstall = false
     @State private var confirmingForceQuit = false
+    @State private var reporting = false
 
     var body: some View {
         let opening = model.opening.contains(app.url)
@@ -276,6 +277,7 @@ struct LibraryCard: View {
                     .disabled(quitting)
             }
             Button("Mostrar en Finder") { model.showInFinder(app.url) }
+            Button("Informar un problema…") { reporting = true }
             if !app.others.isEmpty {
                 Divider()
                 Menu("Agregar otro programa del mismo instalador") {
@@ -287,6 +289,9 @@ struct LibraryCard: View {
             }
             Divider()
             Button("Desinstalar…", role: .destructive) { confirmingUninstall = true }
+        }
+        .sheet(isPresented: $reporting) {
+            ReportView { await model.report(for: app) }
         }
         .confirmationDialog("¿Forzar el cierre de \(app.name)?", isPresented: $confirmingForceQuit) {
             Button("Forzar cierre", role: .destructive) {

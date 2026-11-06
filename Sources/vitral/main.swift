@@ -33,9 +33,14 @@ func printUsage() {
                                                comparten se quedan; con --todas se van esas apps y todo.
           vitral programas <app>               Los otros programas que trajo el instalador de una app (una suite).
           vitral agregar <app> <programa>      Crea otra app para uno de esos programas (comparten archivos y ajustes).
+          vitral informe [--abrir|--enlace] <app>
+                                               Muestra el informe para pedir ayuda en GitHub si un programa no anda
+                                               bien (sin datos personales). Con --abrir, abre el formulario ya llenado
+                                               en el navegador (nada se publica hasta que lo envíes); con --enlace,
+                                               solo escribe su dirección.
           vitral version                       Muestra la versión.
 
-        Los comandos también funcionan en inglés (analyze, icon, engines install, engines clean, install, uninstall, programs, add). Idioma: VITRAL_LANG=es o en.
+        Los comandos también funcionan en inglés (analyze, icon, engines install, engines clean, install, uninstall, programs, add, report). Idioma: VITRAL_LANG=es o en.
         """,
         """
         Vitral \(Vitral.version): Windows programs on your Mac.
@@ -59,9 +64,14 @@ func printUsage() {
                                              they share stay; with --all those apps and everything go too.
           vitral programs <app>              The other programs an app's installer brought (a suite).
           vitral add <app> <program>         Make another app for one of them (they share files and settings).
+          vitral report [--open|--link] <app>
+                                             Show the report to ask for help on GitHub when a program does not work
+                                             well (without personal data). With --open, open the form filled in
+                                             in the browser (nothing is posted until you send it); with --link,
+                                             only print its address.
           vitral version                     Show the version.
 
-        Commands also work in Spanish (analizar, icono, motores instalar, motores limpiar, instalar, desinstalar, programas, agregar). Language: VITRAL_LANG=en or es.
+        Commands also work in Spanish (analizar, icono, motores instalar, motores limpiar, instalar, desinstalar, programas, agregar, informe). Language: VITRAL_LANG=en or es.
         """
     ))
 }
@@ -542,6 +552,41 @@ func listPrograms(_ options: [String]) {
     }
 }
 
+func report(_ options: [String]) {
+    let flags = ["--abrir", "--open", "--enlace", "--link"]
+    let open = options.contains { ["--abrir", "--open"].contains($0) }
+    let linkOnly = options.contains { ["--enlace", "--link"].contains($0) }
+    let rest = options.filter { !flags.contains($0) }
+    guard rest.count == 1 else { printUsage(); exit(2) }
+    let app = appURL(rest[0])
+    guard Wrapper(url: app).isWrapper else {
+        fail(tr("✗ \(app.lastPathComponent) no es una app creada por Vitral.", "✗ \(app.lastPathComponent) is not an app made by Vitral."))
+    }
+    let report = ProblemReporter.app(app)
+    if linkOnly { return print(report.issueURL().absoluteString) }
+    print(tr("Título: ", "Title: ") + report.title)
+    print(tr("Programa: ", "Program: ") + report.program)
+    print("Mac: " + report.mac)
+    print("Vitral: " + report.vitralVersion)
+    print("")
+    print(report.text)
+    print("")
+    let url = report.issueURL()
+    if open {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.arguments = [url.absoluteString]
+        try? process.run()
+        process.waitUntilExit()
+        print(tr("Abrí el formulario de GitHub en el navegador. Cuenta qué pasó y envíalo (necesitas una cuenta de GitHub).",
+                 "Opened GitHub's form in the browser. Say what happened and send it (you need a GitHub account)."))
+    } else {
+        print(tr("Revisa que no haya nada privado. Para abrir el formulario de GitHub ya llenado: vitral informe --abrir \"\(app.path)\"",
+                 "Check there is nothing private. To open GitHub's form filled in: vitral report --open \"\(app.path)\""))
+        print(tr("¿Ya está reportado? ", "Already reported? ") + report.searchURL.absoluteString)
+    }
+}
+
 func addProgram(_ options: [String]) async {
     guard options.count == 2 else { printUsage(); exit(2) }
     let app = appURL(options[0])
@@ -617,6 +662,8 @@ case "programas", "programs":
     listPrograms(Array(arguments.dropFirst()))
 case "agregar", "add":
     await addProgram(Array(arguments.dropFirst()))
+case "informe", "report":
+    report(Array(arguments.dropFirst()))
 case "version", "versión", "--version", "-v":
     print("Vitral \(Vitral.version)")
 case "ayuda", "help", "--help", "-h":

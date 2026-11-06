@@ -184,6 +184,7 @@ final class AppModel {
             return
         }
         installState = .working(.checking)
+        installStarted = Date()
         installerWindows = []
         addedPrograms = []
         addProgramsError = nil
@@ -214,6 +215,25 @@ final class AppModel {
         installTask = nil
         refresh()
         refreshLibrary()
+    }
+
+    // MARK: Reports
+
+    /// When the last installation began, to find its log for a report.
+    private var installStarted = Date.distantPast
+
+    /// The report for an installation that stopped with `message`.
+    func installationReport(_ file: DroppedFile, message: String) async -> ProblemReport {
+        let (installer, since) = (file.url, installStarted)
+        return await Task.detached {
+            ProblemReporter.installation(installer, message: message, log: ProgramInstaller.latestInstallLog(since: since))
+        }.value
+    }
+
+    /// The report for an app that does not work well (the person says how).
+    func report(for app: LibraryApp) async -> ProblemReport {
+        let url = app.url
+        return await Task.detached { ProblemReporter.app(url) }.value
     }
 
     /// Other programs of a just installed app made into apps, by name.

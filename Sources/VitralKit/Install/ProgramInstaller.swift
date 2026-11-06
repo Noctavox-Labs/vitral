@@ -138,6 +138,18 @@ public struct ProgramInstaller: Sendable {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Vitral")
     }
 
+    /// The newest installation log written since `date` (a ZIP's log is named after the
+    /// installer inside it), for a report when an installation stops.
+    public static func latestInstallLog(since date: Date, in folder: URL = logs) -> URL? {
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey]
+        let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: Array(keys))) ?? []
+        return files
+            .filter { $0.lastPathComponent.hasPrefix("Instalación - ") && $0.pathExtension == "log" }
+            .compactMap { url in (try? url.resourceValues(forKeys: keys).contentModificationDate).map { (url, $0) } }
+            .filter { $0.1 >= date }
+            .max { $0.1 < $1.1 }?.0
+    }
+
     /// Why Vitral cannot install this file, or `nil` if it can.
     public static func refusal(_ report: InstallerReport) -> String? {
         if let info = report.executable {
@@ -374,7 +386,7 @@ public struct ProgramInstaller: Sendable {
             let identifier = Wrapper.bundleIdentifier(for: name)
             let manifest = WrapperManifest(name: name, program: program, engine: engine.id, settings: settings,
                                            recipes: applied, product: product, installer: installer.lastPathComponent,
-                                           prefix: identifier)
+                                           installerSHA256: try? ComponentInstaller.sha256(of: installer), prefix: identifier)
             let exe = session.driveC.appendingPathComponent(program)
             let icns = (try? Data(contentsOf: exe, options: .alwaysMapped))
                 .flatMap(PortableExecutable.icon).flatMap { AppIcon.icns(fromICO: $0) }
@@ -427,7 +439,7 @@ public struct ProgramInstaller: Sendable {
         let identifier = Wrapper.bundleIdentifier(for: name)
         let newManifest = WrapperManifest(name: name, program: choice.program, engine: manifest.engine, settings: settings,
                                           recipes: applied, product: report.executable?.version,
-                                          installer: manifest.installer, prefix: shared)
+                                          installer: manifest.installer, installerSHA256: manifest.installerSHA256, prefix: shared)
         try fm.createDirectory(at: staging, withIntermediateDirectories: true)
         let work = staging.appendingPathComponent(UUID().uuidString + ".app")
         do {

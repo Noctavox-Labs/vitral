@@ -14,6 +14,8 @@ public struct WrapperManifest: Codable, Sendable, Equatable {
     public var product: VersionInfo?
     /// Name of the installer it came from.
     public var installer: String?
+    /// SHA-256 of that installer, to tell versions apart in reports (since Vitral 0.1.6).
+    public var installerSHA256: String?
     /// Folder of the app's Windows (Wine prefix) in Vitral's `Prefixes` folder. Nil in apps made
     /// before Vitral 0.1.1, which keep it inside the app until Vitral moves it out.
     public var prefix: String?
@@ -22,7 +24,7 @@ public struct WrapperManifest: Codable, Sendable, Equatable {
 
     public init(name: String, program: String, engine: String, settings: LaunchSettings,
                 recipes: [AppliedRecipe] = [], product: VersionInfo? = nil, installer: String? = nil,
-                prefix: String? = nil,
+                installerSHA256: String? = nil, prefix: String? = nil,
                 createdWith: String = "Vitral \(Vitral.version)", created: Date = Date()) {
         self.format = Self.currentFormat
         self.name = name
@@ -32,6 +34,7 @@ public struct WrapperManifest: Codable, Sendable, Equatable {
         self.recipes = recipes
         self.product = product
         self.installer = installer
+        self.installerSHA256 = installerSHA256
         self.prefix = prefix
         self.createdWith = createdWith
         self.created = created

@@ -7,6 +7,7 @@ struct AnalysisView: View {
     @Environment(\.dismiss) private var dismiss
     let file: AppModel.DroppedFile
     @State private var chosenPrograms: Set<ProgramChoice> = []
+    @State private var reporting = false
 
     private var report: InstallerReport { file.report }
     private var version: VersionInfo? { report.executable?.version }
@@ -66,6 +67,11 @@ struct AnalysisView: View {
         .padding(30)
         .frame(width: 560)
         .interactiveDismissDisabled(model.isInstalling)
+        .sheet(isPresented: $reporting) {
+            if case .failed(let message) = model.installState {
+                ReportView { await model.installationReport(file, message: message) }
+            }
+        }
     }
 
     // MARK: Footer: install, progress, result
@@ -165,6 +171,9 @@ struct AnalysisView: View {
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack {
+                    Button("Informar el problema…") { reporting = true }
+                        .glassButton()
+                        .help("Pedir ayuda en GitHub, con un informe sin datos personales que revisas antes de enviar")
                     Spacer()
                     Button("Cerrar") { dismiss() }
                         .glassButton()

@@ -1,11 +1,11 @@
 name: "An app doesn't work / Una app no funciona"
-description: "A Windows program doesn't install or open correctly / Un programa de Windows no instala o no abre bien"
+description: "A Windows program doesn't install, open or work correctly / Un programa de Windows no instala, no abre o no anda bien"
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting! Please **don't attach installers** or other copyrighted files.
-        ¡Gracias por reportar! Por favor **no adjuntes instaladores** ni otros archivos con derechos de autor.
+        Thanks for reporting! The easiest way: in Vitral, right-click the app → **Report a Problem…** (or the button Vitral shows when an installation or a program fails). It fills this form in for you, without personal data. Please **don't attach installers** or other copyrighted files.
+        ¡Gracias por reportar! Lo más fácil: en Vitral, clic derecho en la app → **Informar un problema…** (o el botón que muestra Vitral cuando falla una instalación o un programa). Llena este formulario por ti, sin datos personales. Por favor **no adjuntes instaladores** ni otros archivos con derechos de autor.
   - type: input
     id: program
     attributes:
@@ -14,17 +14,18 @@ body:
     validations:
       required: true
   - type: textarea
-    id: analysis
-    attributes:
-      label: "Output of `vitral analyze --json` / Resultado de `vitral analizar --json`"
-      render: json
-  - type: textarea
     id: what-happened
     attributes:
       label: "What happened? / ¿Qué pasó?"
       description: "What did you expect, and what did you see? Screenshots of the program window help. / ¿Qué esperabas y qué viste? Las capturas de la ventana del programa ayudan."
     validations:
       required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: "Vitral's report / Informe de Vitral"
+      description: "Vitral fills this in. Without Vitral's report, paste the output of `vitral report <app>` or `vitral analyze --json <installer>`. / Lo llena Vitral. Si no, pega el resultado de `vitral informe <app>` o `vitral analizar --json <instalador>`."
+      render: text
   - type: input
     id: mac
     attributes:

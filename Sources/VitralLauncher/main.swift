@@ -78,7 +78,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
             }
             loading.close()
             if StartupWatch.failedToStart(ranFor: seconds, sawWindow: sawWindow, status: status, log: attemptLog) {
-                showFailure(attempts: attempt)
+                await showFailure(attempts: attempt)
             }
             break
         }
@@ -174,7 +174,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
 
     // MARK: Messages
 
-    private func showFailure(attempts: Int) {
+    private func showFailure(attempts: Int) async {
         let name = launch?.manifest.name ?? wrapper.url.deletingPathExtension().lastPathComponent
         var details: [String] = []
         // A function the engine lacks is the cause Vitral can name (aTube Catcher on CrossOver 24).
@@ -196,10 +196,64 @@ final class Launcher: NSObject, NSApplicationDelegate {
         alert.alertStyle = .warning
         alert.messageText = tr("\(name) se cerró al abrir", "\(name) closed while opening")
         alert.informativeText = details.joined(separator: "\n\n")
+        alert.addButton(withTitle: tr("Informar el problema…", "Report the Problem…"))
         alert.addButton(withTitle: tr("Mostrar el registro", "Show the Log"))
         alert.addButton(withTitle: tr("Cerrar", "Close"))
-        if alert.runModal() == .alertFirstButtonReturn, let logURL {
-            NSWorkspace.shared.activateFileViewerSelecting([logURL])
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            try? log?.synchronize()
+            let app = wrapper.url
+            let report = await Task.detached { ProblemReporter.app(app, closedWhileOpening: attempts) }.value
+            review(report)
+        case .alertSecondButtonReturn:
+            if let logURL { NSWorkspace.shared.activateFileViewerSelecting([logURL]) }
+        default:
+            break
+        }
+    }
+
+    /// Shows the report before anything leaves the Mac; the person can change it. Then GitHub's
+    /// form opens filled in, where they decide whether to send it.
+    private func review(_ report: ProblemReport) {
+        let text = NSTextView(frame: NSRect(x: 0, y: 0, width: 620, height: 320))
+        text.string = report.text
+        text.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        text.isEditable = true
+        text.isRichText = false
+        text.isAutomaticQuoteSubstitutionEnabled = false
+        text.isAutomaticDashSubstitutionEnabled = false
+        text.isAutomaticTextReplacementEnabled = false
+        text.isVerticallyResizable = true
+        text.autoresizingMask = [.width]
+        text.textContainer?.widthTracksTextView = true
+        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 620, height: 320))
+        scroll.documentView = text
+        scroll.hasVerticalScroller = true
+        scroll.borderType = .bezelBorder
+
+        while true {
+            NSApp.activate()
+            let alert = NSAlert()
+            alert.messageText = tr("Informar el problema en GitHub", "Report the problem on GitHub")
+            alert.informativeText = [
+                report.title,
+                report.summary,
+                tr("Revisa el informe: no lleva tu nombre ni tus carpetas, pero puedes borrar o cambiar lo que quieras. Se abrirá el formulario de GitHub ya lleno en tu navegador; nada se publica hasta que lo envíes, y necesitas una cuenta de GitHub. Cuenta ahí qué viste; una captura de la ventana ayuda.",
+                   "Check the report: it has neither your name nor your folders, but you can delete or change anything. GitHub's form will open filled in, in your browser; nothing is posted until you send it, and you need a GitHub account. Say there what you saw; a screenshot of the window helps."),
+            ].filter { !$0.isEmpty }.joined(separator: "\n\n")
+            alert.accessoryView = scroll
+            alert.addButton(withTitle: tr("Abrir en GitHub", "Open in GitHub"))
+            alert.addButton(withTitle: tr("Cancelar", "Cancel"))
+            alert.addButton(withTitle: tr("¿Ya está reportado?", "Already Reported?"))
+            switch alert.runModal() {
+            case .alertFirstButtonReturn:
+                NSWorkspace.shared.open(report.issueURL(text: text.string))
+                return
+            case .alertThirdButtonReturn:
+                NSWorkspace.shared.open(report.searchURL)
+            default:
+                return
+            }
         }
     }
 
