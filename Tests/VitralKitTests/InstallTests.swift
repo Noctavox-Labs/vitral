@@ -17,6 +17,41 @@ private func writeQtProgram(_ folder: TemporaryFolder, at path: String, name: St
     try folder.write("\(path)/unins000.exe", SyntheticPE())
 }
 
+@Test func qtCoreAloneDoesNotMakeAWin32ProgramRetina() throws {
+    // Winamp 5.9: a Win32 skin, plus Qt Core and Qt Network for its online parts.
+    let folder = try TemporaryFolder()
+    var main = SyntheticPE()
+    main.imports = ["kernel32.dll", "user32.dll", "gdi32.dll"]
+    main.versionStrings = ["ProductName": "Winamp", "CompanyName": "Winamp SA"]
+    try folder.write("Winamp/winamp.exe", main)
+    var core = SyntheticPE()
+    core.isDLL = true
+    core.fixedVersion = (5, 15, 11, 0)
+    try folder.write("Winamp/Qt5Core.dll", core)
+    try folder.write("Winamp/Qt5Network.dll", SyntheticPE(isDLL: true))
+    let report = try ProgramAnalyzer.analyze(folderAt: folder.url.appendingPathComponent("Winamp"))
+    #expect(report.technology(.qt)?.version == "5.15.11")
+    #expect(report.technology(.qtGui) == nil)
+
+    let (settings, applied) = Recipes.settings(for: report)
+    #expect(!applied.map(\.id).contains("qt5-retina"))
+    #expect(!settings.registry.contains(.string(Recipes.macDriver, "RetinaMode", "y")))
+    #expect(!settings.registry.contains { $0.name == "QT_SCALE_FACTOR" })
+}
+
+@Test func qtWidgetsProgramGetsRetina() throws {
+    let folder = try TemporaryFolder()
+    try folder.write("App/app.exe", SyntheticPE())
+    var core = SyntheticPE()
+    core.isDLL = true
+    core.fixedVersion = (5, 15, 2, 0)
+    try folder.write("App/Qt5Core.dll", core)
+    try folder.write("App/Qt5Gui.dll", SyntheticPE(isDLL: true))
+    try folder.write("App/Qt5Widgets.dll", SyntheticPE(isDLL: true))
+    let report = try ProgramAnalyzer.analyze(folderAt: folder.url.appendingPathComponent("App"))
+    #expect(Recipes.settings(for: report).applied.map(\.id) == ["qt5-retina", "qt-single-instance"])
+}
+
 // MARK: Registry
 
 @Test func writesRegistryFilesWineImports() {

@@ -5,6 +5,9 @@ import Foundation
 public struct Technology: Codable, Sendable, Equatable {
     public enum Kind: String, Codable, Sendable {
         case qt
+        /// Qt with a graphical interface (Qt GUI). Qt Core alone can be a helper library of a
+        /// program whose windows are plain Win32 (Winamp 5.9 uses it for networking).
+        case qtGui
         /// Qt's embedded Chromium browser (QtWebEngine).
         case qtWebEngine
         /// Qt Quick / QML user interface.
@@ -256,6 +259,9 @@ public enum ProgramAnalyzer {
             let version = versionOf(core).map { shortVersion($0, parts: 3) }
                 ?? (core.path.lowercased().hasSuffix("qt6core.dll") ? "6" : core.path.lowercased().hasSuffix("qt5core.dll") ? "5" : "4")
             found.append(Technology(.qt, version: version, evidence: core.path))
+        }
+        if let gui = first(["qt6gui.dll", "qt5gui.dll", "qtgui4.dll"]) {
+            found.append(Technology(.qtGui, evidence: gui.path))
         }
         if let quick = first(["qt6quick.dll", "qt5quick.dll"]) {
             found.append(Technology(.qtQuick, evidence: quick.path))

@@ -81,7 +81,10 @@ public enum Recipes {
 
         if let qt = report.technology(.qt) {
             let label = "Qt" + (qt.version.map { " " + $0 } ?? "")
-            if qt.version?.hasPrefix("5.") == true {
+            // Only for Qt windows: with RetinaMode, Win32 windows that do not scale themselves
+            // (Winamp's skin, which only brings Qt Core and Qt Network) open at half size.
+            let drawsWithQt = report.technology(.qtGui) != nil || report.technology(.qtQuick) != nil
+            if qt.version?.hasPrefix("5.") == true, drawsWithQt {
                 // Qt 5 ignores the 192 dpi on its own; QT_SCALE_FACTOR=2 scales its windows and text
                 // (without it the window opens at half size, unreadable). It goes in the registry:
                 // Wine drops the Mac's QT_* variables. QT_AUTO_SCREEN_SCALE_FACTOR breaks window creation.

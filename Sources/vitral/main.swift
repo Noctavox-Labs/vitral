@@ -128,6 +128,7 @@ func describeTechnology(_ technology: Technology) -> String {
     let version = technology.version.map { " " + $0 } ?? ""
     switch technology.kind {
     case .qt: return "Qt\(version)"
+    case .qtGui: return tr("interfaz Qt (Qt GUI)", "Qt interface (Qt GUI)")
     case .qtQuick: return "Qt Quick (QML)"
     case .qtWebEngine: return tr("navegador QtWebEngine (Chromium)", "QtWebEngine browser (Chromium)")
     case .angle: return "ANGLE (OpenGL ES → Direct3D)"
