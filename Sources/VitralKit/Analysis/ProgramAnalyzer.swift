@@ -247,7 +247,16 @@ public enum ProgramAnalyzer {
             score += Int(min(10, file.size / 2_000_000))
             candidates.append(Candidate(path: file.path, info: info, score: score))
         }
-        return candidates.sorted { $0.score != $1.score ? $0.score > $1.score : $0.path < $1.path }
+        // Same score (the same program in two folders, as Encarta's encyclopedia and its Kids
+        // edition): the one in the folder that holds more, the main product rather than the extra.
+        func top(_ path: String) -> String { path.split(separator: "/").count > 1 ? String(path.split(separator: "/")[0]).lowercased() : "" }
+        var bytes: [String: Int64] = [:]
+        for file in files { bytes[top(file.path), default: 0] += file.size }
+        return candidates.sorted { a, b in
+            if a.score != b.score { return a.score > b.score }
+            let bytesA = bytes[top(a.path)] ?? 0, bytesB = bytes[top(b.path)] ?? 0
+            return bytesA != bytesB ? bytesA > bytesB : a.path < b.path
+        }
     }
 
     // MARK: Technologies

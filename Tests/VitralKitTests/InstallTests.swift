@@ -316,3 +316,13 @@ private func writeQtProgram(_ folder: TemporaryFolder, at path: String, name: St
     #expect(try await ProgramInstaller.installerInside(zip: try zip(["tool.txt": Data("x".utf8)], as: "text"),
                                                       unpackingIn: staging) == nil)
 }
+
+@Test func theSameProgramTwiceIsTheOneWithMoreAroundIt() throws {
+    // Encarta 2009: the encyclopedia and its Kids edition share the same ENCARTA.EXE.
+    let folder = try TemporaryFolder()
+    try folder.write("Microsoft Encarta/Encarta Kids 2009/ENCARTA.EXE", SyntheticPE())
+    try folder.write("Microsoft Encarta/Encarta Premium DVD 2009/ENCARTA.EXE", SyntheticPE())
+    try folder.write("Microsoft Encarta/Encarta Premium DVD 2009/articles.dat", Data(count: 4096))
+    let report = try ProgramAnalyzer.analyze(folderAt: folder.url.appendingPathComponent("Microsoft Encarta"))
+    #expect(report.mainExecutable == "Encarta Premium DVD 2009/ENCARTA.EXE")
+}
