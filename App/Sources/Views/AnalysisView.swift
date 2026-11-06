@@ -8,6 +8,8 @@ struct AnalysisView: View {
     let file: AppModel.DroppedFile
     @State private var chosenPrograms: Set<ProgramChoice> = []
     @State private var reporting = false
+    /// Known failures that may explain a stopped installation.
+    @State private var failureDiagnoses: [Diagnosis] = []
 
     private var report: InstallerReport { file.report }
     private var version: VersionInfo? { report.executable?.version }
@@ -59,6 +61,13 @@ struct AnalysisView: View {
             if let refusal {
                 Label(refusal, systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            // Comes from VitralKit's catalog, already in the person's language.
+            ForEach(file.knownIssues, id: \.id) { issue in
+                Label(issue.title + ". " + issue.explanation, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -170,6 +179,13 @@ struct AnalysisView: View {
                     .foregroundStyle(.red)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
+                if let known = failureDiagnoses.first {
+                    // From VitralKit's catalog, already in the person's language.
+                    Label(String(localized: "Puede ser por esto: ") + known.title + ". " + known.explanation, systemImage: "lightbulb")
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 HStack {
                     Button("Informar el problema…") { reporting = true }
                         .glassButton()
@@ -183,6 +199,7 @@ struct AnalysisView: View {
                 }
                 .controlSize(.large)
             }
+            .task(id: message) { failureDiagnoses = await model.installationDiagnoses(file, message: message) }
         }
     }
 

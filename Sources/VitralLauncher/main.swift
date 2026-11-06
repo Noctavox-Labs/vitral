@@ -176,16 +176,28 @@ final class Launcher: NSObject, NSApplicationDelegate {
 
     private func showFailure(attempts: Int) async {
         let name = launch?.manifest.name ?? wrapper.url.deletingPathExtension().lastPathComponent
+        try? log?.synchronize()
+        // What Vitral can tell: known failures in the logs (Wine's and the program's own), and
+        // functions the engine lacks.
+        let app = wrapper.url
+        let inspection = await Task.detached { AppInspection(app: app, phase: .start) }.value
+        inspection.missing.forEach { write($0.logLine) }
+        let diagnoses = inspection.diagnoses()
+        for diagnosis in diagnoses {
+            write(tr("Diagnóstico: \(diagnosis.title) [\(diagnosis.id)]", "Diagnosis: \(diagnosis.title) [\(diagnosis.id)]"))
+        }
+
         var details: [String] = []
-        // A function the engine lacks is the cause Vitral can name (aTube Catcher on CrossOver 24).
-        if let launch {
-            let missing = EngineCheck.missingImports(program: launch.program, engine: launch.session.engine,
-                                                     prefix: launch.session.prefix)
-            missing.forEach { write($0.logLine) }
-            if let explanation = EngineCheck.explanation(missing, engine: launch.session.engine.engine) {
-                let newer = missing.contains { $0.function != nil } ? tr(" Hace falta un motor más nuevo.", " It needs a newer engine.") : ""
-                details.append(tr("Puede ser por esto: ", "This may be why: ") + explanation + "." + newer)
+        if let known = diagnoses.first {
+            var text = known.title + ". " + known.explanation
+            if known.kind == .fixable {
+                text += tr(" Vitral todavía no aplica este arreglo solo.", " Vitral does not apply this fix by itself yet.")
             }
+            details.append(text)
+        } else if let launch, let explanation = EngineCheck.explanation(inspection.missing, engine: launch.session.engine.engine) {
+            // A function the engine lacks is the cause Vitral can name (aTube Catcher on CrossOver 24).
+            let newer = inspection.missing.contains { $0.function != nil } ? tr(" Hace falta un motor más nuevo.", " It needs a newer engine.") : ""
+            details.append(tr("Puede ser por esto: ", "This may be why: ") + explanation + "." + newer)
         }
         details.append(attempts > 1
             ? tr("Lo intenté \(attempts) veces. El registro puede ayudar a encontrar la causa.",
@@ -202,8 +214,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
         switch alert.runModal() {
         case .alertFirstButtonReturn:
             try? log?.synchronize()
-            let app = wrapper.url
-            let report = await Task.detached { ProblemReporter.app(app, closedWhileOpening: attempts) }.value
+            let report = await Task.detached { ProblemReporter.app(inspection, closedWhileOpening: attempts) }.value
             review(report)
         case .alertSecondButtonReturn:
             if let logURL { NSWorkspace.shared.activateFileViewerSelecting([logURL]) }

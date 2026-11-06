@@ -1103,6 +1103,16 @@
         }
       }
     },
+    "Puede ser por esto: " : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This may be why: "
+          }
+        }
+      }
+    },
     "Puedes terminarlo después en Ajustes." : {
       "localizations" : {
         "en" : {

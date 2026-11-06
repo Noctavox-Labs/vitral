@@ -38,9 +38,10 @@ func printUsage() {
                                                bien (sin datos personales). Con --abrir, abre el formulario ya llenado
                                                en el navegador (nada se publica hasta que lo envíes); con --enlace,
                                                solo escribe su dirección.
+          vitral diagnosticar <app|registro>   Compara lo que pasó con las fallas conocidas y dice qué se sabe de ellas.
           vitral version                       Muestra la versión.
 
-        Los comandos también funcionan en inglés (analyze, icon, engines install, engines clean, install, uninstall, programs, add, report). Idioma: VITRAL_LANG=es o en.
+        Los comandos también funcionan en inglés (analyze, icon, engines install, engines clean, install, uninstall, programs, add, report, diagnose). Idioma: VITRAL_LANG=es o en.
         """,
         """
         Vitral \(Vitral.version): Windows programs on your Mac.
@@ -69,9 +70,10 @@ func printUsage() {
                                              well (without personal data). With --open, open the form filled in
                                              in the browser (nothing is posted until you send it); with --link,
                                              only print its address.
+          vitral diagnose <app|log>          Compare what happened with the known failures and say what is known.
           vitral version                     Show the version.
 
-        Commands also work in Spanish (analizar, icono, motores instalar, motores limpiar, instalar, desinstalar, programas, agregar, informe). Language: VITRAL_LANG=en or es.
+        Commands also work in Spanish (analizar, icono, motores instalar, motores limpiar, instalar, desinstalar, programas, agregar, informe, diagnosticar). Language: VITRAL_LANG=en or es.
         """
     ))
 }
@@ -587,6 +589,41 @@ func report(_ options: [String]) {
     }
 }
 
+func diagnose(_ options: [String]) {
+    guard options.count == 1 else { printUsage(); exit(2) }
+    let path = (options[0] as NSString).expandingTildeInPath
+    let diagnoses: [Diagnosis]
+    if ["log", "txt"].contains((path as NSString).pathExtension.lowercased()) {
+        // A log by itself: any phase it may be.
+        let text = LogExcerpt.read(URL(fileURLWithPath: path))
+        diagnoses = [FailurePhase.install, .start, .running].flatMap { phase in
+            Diagnoser.diagnose(FailureObservation(phase: phase, logs: [text]))
+        }.reduce(into: []) { all, d in if !all.contains(where: { $0.id == d.id }) { all.append(d) } }
+    } else {
+        let app = appURL(options[0])
+        guard Wrapper(url: app).isWrapper else {
+            fail(tr("✗ \(app.lastPathComponent) no es una app creada por Vitral.", "✗ \(app.lastPathComponent) is not an app made by Vitral."))
+        }
+        let inspection = AppInspection(app: app)
+        if let run = inspection.lastRun {
+            print(tr("Última vez: \(run.seconds) s, código \(run.status), ventana: \(run.sawWindow ? "sí" : "no")",
+                     "Last time: \(run.seconds) s, status \(run.status), window: \(run.sawWindow ? "yes" : "no")"))
+        }
+        for log in inspection.programLogs { print(tr("Registro del programa: ", "Program log: ") + log.lastPathComponent) }
+        diagnoses = inspection.diagnoses()
+    }
+    if diagnoses.isEmpty {
+        print(tr("No reconozco ninguna falla conocida.", "No known failure recognized."))
+    }
+    for diagnosis in diagnoses {
+        print("")
+        print("• \(diagnosis.title) [\(diagnosis.id), \(diagnosis.kind.rawValue)]")
+        print("  " + diagnosis.explanation)
+        if let evidence = diagnosis.evidence { print(tr("  Visto: ", "  Seen: ") + evidence) }
+        if !diagnosis.fixesText.isEmpty { print(tr("  Se puede probar: ", "  Can try: ") + diagnosis.fixesText.joined(separator: "; ")) }
+    }
+}
+
 func addProgram(_ options: [String]) async {
     guard options.count == 2 else { printUsage(); exit(2) }
     let app = appURL(options[0])
@@ -664,6 +701,8 @@ case "agregar", "add":
     await addProgram(Array(arguments.dropFirst()))
 case "informe", "report":
     report(Array(arguments.dropFirst()))
+case "diagnosticar", "diagnose":
+    diagnose(Array(arguments.dropFirst()))
 case "version", "versión", "--version", "-v":
     print("Vitral \(Vitral.version)")
 case "ayuda", "help", "--help", "-h":

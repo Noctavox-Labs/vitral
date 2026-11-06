@@ -41,6 +41,8 @@ final class AppModel {
         let url: URL
         let report: InstallerReport
         let icon: NSImage?
+        /// Known not to work yet (Paint.NET 5.1, Power BI…), from the installer's name and version.
+        var knownIssues: [Diagnosis] = []
     }
 
     private(set) var mac = MacInfo.current()
@@ -150,7 +152,8 @@ final class AppModel {
             // Only one sheet at a time: the analysis replaces the setup assistant.
             showSetup = false
             if case .working = installState {} else { installState = .idle }
-            dropped = DroppedFile(url: url, report: report, icon: icon)
+            let known = Diagnoser.diagnose(.analysis(report)).filter { $0.kind == .notYet || $0.kind == .never }
+            dropped = DroppedFile(url: url, report: report, icon: icon, knownIssues: known)
         } catch {
             dropError = String(localized: "No pude leer ese archivo.")
         }
@@ -227,6 +230,15 @@ final class AppModel {
         let (installer, since) = (file.url, installStarted)
         return await Task.detached {
             ProblemReporter.installation(installer, message: message, log: ProgramInstaller.latestInstallLog(since: since))
+        }.value
+    }
+
+    /// Known failures that may explain why an installation stopped.
+    func installationDiagnoses(_ file: DroppedFile, message: String) async -> [Diagnosis] {
+        let (installer, since, report) = (file.url, installStarted, file.report)
+        return await Task.detached {
+            Diagnoser.diagnose(.installation(report, fileName: installer.lastPathComponent, message: message,
+                                             log: ProgramInstaller.latestInstallLog(since: since)))
         }.value
     }
 

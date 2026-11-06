@@ -49,14 +49,11 @@ public struct PrivateData: Sendable {
 /// errors and what the program printed, without Wine's notes (`fixme`, `warn`, `info`), known
 /// harmless lines, or repeats (vMix's log has the same COM error 33,000 times).
 public enum LogExcerpt {
-    /// Lines Wine prints for every program, which never explain a failure.
-    static let harmless = [
-        "winebth",                              // no Bluetooth driver
-        "no Kerberos support",
-        "Failed to set Metal cache path",       // DXMT
-        "WSALookupServiceBegin failed",         // Chromium asks for network changes
-        "Using the Vulkan renderer for d3d10/11",
-    ]
+    /// Lines Wine prints for every program, which never explain a failure: the catalog's harmless
+    /// entries.
+    static func harmlessPatterns(_ catalog: FailureCatalog) -> [NSRegularExpression] {
+        catalog.harmless.compactMap { try? NSRegularExpression(pattern: $0) }
+    }
 
     /// Reads a log; for a large one, its beginning and its end (where the failure usually is).
     public static func read(_ url: URL, head: Int = 256 * 1024, tail: Int = 1024 * 1024) -> String {
@@ -78,13 +75,14 @@ public enum LogExcerpt {
 
     /// The useful lines, oldest first, at most `limit`. A line seen several times appears once,
     /// where it was first seen, with how many times: "(×33102)".
-    public static func lines(of text: String, limit: Int = 60) -> [String] {
+    public static func lines(of text: String, limit: Int = 60, catalog: FailureCatalog = .builtIn) -> [String] {
         struct Entry { var line: String; var count: Int; let priority: Int }
+        let harmless = harmlessPatterns(catalog)
         var entries: [Entry] = []
         var index: [String: Int] = [:]
         for raw in text.split(whereSeparator: \.isNewline) {
             let line = raw.trimmingCharacters(in: .whitespaces)
-            guard !line.isEmpty, let priority = priority(of: line) else { continue }
+            guard !line.isEmpty, line != "…", let priority = priority(of: line, harmless: harmless) else { continue }
             // Vitral's own lines tell the story of each attempt: never merged.
             let key = line.hasPrefix("[Vitral") ? "\(entries.count)" : Self.key(of: line)
             if let existing = index[key] {
@@ -106,13 +104,15 @@ public enum LogExcerpt {
     }
 
     /// 0: says what failed; 1: an error; 2: anything else the program printed; nil: not useful.
-    static func priority(of line: String) -> Int? {
-        if harmless.contains(where: line.contains) { return nil }
+    static func priority(of line: String, harmless: [NSRegularExpression] = []) -> Int? {
+        let range = NSRange(location: 0, length: (line as NSString).length)
+        if harmless.contains(where: { $0.firstMatch(in: line, range: range) != nil }) { return nil }
         let body = withoutThread(line)
         if body.hasPrefix("fixme:") || body.hasPrefix("trace:") || body.hasPrefix("warn:") || body.hasPrefix("info:") { return nil }
         if line.hasPrefix("[Vitral") || line.contains("Unhandled") || body.hasPrefix("err:module") || body.hasPrefix("err:seh")
             || line.hasPrefix("wine:") || line.localizedCaseInsensitiveContains("exception") { return 0 }
-        if body.hasPrefix("err:") || line.contains("ERROR") || line.contains("FATAL") { return 1 }
+        if body.hasPrefix("err:") || line.contains("ERROR") || line.contains("FATAL")
+            || line.localizedCaseInsensitiveContains("[critical]") || line.localizedCaseInsensitiveContains("[error]") { return 1 }
         return 2
     }
 

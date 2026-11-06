@@ -36,6 +36,10 @@ public struct ProblemReport: Sendable, Equatable {
     public var log: [String]
     /// The whole log, for the person to attach if they want.
     public var logFile: URL?
+    /// Logs the program itself wrote (some in each report's excerpt).
+    public var programLogs: [URL] = []
+    /// Known failures Vitral recognized, most specific first.
+    public var diagnoses: [Diagnosis] = []
 
     public init(kind: Kind, productName: String, program: String, mac: String, facts: [Fact], log: [String], logFile: URL?) {
         self.kind = kind
@@ -56,9 +60,11 @@ public struct ProblemReport: Sendable, Equatable {
 
     /// The issue's title: the program and what went wrong, so reports of the same failure look alike.
     public var title: String {
+        // A known failure names itself, so reports of the same one look alike: "[qt-opengl]".
+        let known = diagnoses.first.map { " [\($0.id)]" } ?? ""
         switch kind {
-        case .install: return tr("\(program): no se instala", "\(program): does not install")
-        case .start: return tr("\(program): se cierra al abrir", "\(program): closes while opening")
+        case .install: return tr("\(program): no se instala", "\(program): does not install") + known
+        case .start: return tr("\(program): se cierra al abrir", "\(program): closes while opening") + known
         case .other: return "\(program): "
         }
     }

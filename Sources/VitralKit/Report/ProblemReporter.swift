@@ -26,35 +26,37 @@ public enum ProblemReporter {
         if let publisher = version?.companyName { facts.append(.init(tr("Editor", "Publisher"), publisher)) }
         facts.append(.init(tr("Motor", "Engine"), EngineCatalog.default.id))
 
-        return finish(ProblemReport(kind: .install(message), productName: productName,
+        var problem = ProblemReport(kind: .install(message), productName: productName,
                                     program: productName + (version?.productVersion.map { " " + $0 } ?? ""),
-                                    mac: describe(mac), facts: facts, log: [], logFile: log), privacy: privacy)
+                                    mac: describe(mac), facts: facts, log: [], logFile: log)
+        problem.diagnoses = Diagnoser.diagnose(.installation(report, fileName: installer.lastPathComponent, message: message, log: log))
+        return finish(problem, privacy: privacy)
     }
 
     /// For an app made by Vitral: it closed while opening after `attempts`, or (nil) the person
     /// reports something that does not work.
     public static func app(_ app: URL, closedWhileOpening attempts: Int? = nil, home: VitralHome = .default,
                            mac: MacInfo = .current(), privacy: PrivateData = .current) -> ProblemReport {
-        let wrapper = Wrapper(url: app)
-        let name = app.deletingPathExtension().lastPathComponent
-        let log = ProgramInstaller.logs.appendingPathComponent(Wrapper.safeName(name) + ".log")
+        let inspection = AppInspection(app: app, phase: attempts == nil ? .running : .start, home: home)
+        return Self.app(inspection, closedWhileOpening: attempts, mac: mac, privacy: privacy)
+    }
+
+    public static func app(_ inspection: AppInspection, closedWhileOpening attempts: Int? = nil,
+                           mac: MacInfo = .current(), privacy: PrivateData = .current) -> ProblemReport {
+        let name = inspection.app.deletingPathExtension().lastPathComponent
         let kind: ProblemReport.Kind = attempts.map { .start(attempts: $0) } ?? .other
-        guard let manifest = try? wrapper.readManifest() else {
+        guard let manifest = inspection.manifest, let prefix = inspection.prefix else {
             return finish(ProblemReport(kind: kind, productName: name, program: name, mac: describe(mac),
-                                        facts: [], log: [], logFile: log), privacy: privacy)
+                                        facts: [], log: [], logFile: inspection.launchLog), privacy: privacy)
         }
         let product = manifest.product
         let productName = product?.productName ?? manifest.name
-        let prefix = wrapper.prefix(in: home)
-        let program = prefix.appendingPathComponent("drive_c").appendingPathComponent(manifest.program)
         var facts: [ProblemReport.Fact] = [.init(tr("Programa", "Program"), manifest.program)]
         if let publisher = product?.companyName { facts.append(.init(tr("Editor", "Publisher"), publisher)) }
         if let installer = manifest.installer {
             facts.append(.init(tr("Instalador", "Installer"), installer + (manifest.installerSHA256.map { " · SHA-256 " + $0 } ?? "")))
         }
-
-        if let analysis = try? ProgramAnalyzer.analyze(folderAt: program.deletingLastPathComponent(),
-                                                       preferring: program.lastPathComponent) {
+        if let analysis = inspection.analysis {
             var made: [String] = analysis.executable.map { ["\($0.bits) bits"] } ?? []
             made += analysis.technologies.map { $0.kind.rawValue + ($0.version.map { " " + $0 } ?? "") }
             made += analysis.graphics.map(\.rawValue)
@@ -63,7 +65,6 @@ public enum ProblemReporter {
                 facts.append(.init(tr("Antitrampas", "Anti-cheat"), analysis.antiCheat.map(\.rawValue).joined(separator: ", ")))
             }
         }
-
         facts.append(.init(tr("Motor", "Engine"), manifest.engine))
         if !manifest.recipes.isEmpty {
             facts.append(.init(tr("Recetas", "Recipes"), manifest.recipes.map(\.id).joined(separator: ", ")))
@@ -72,29 +73,41 @@ public enum ProblemReporter {
             + manifest.settings.arguments
         if !settings.isEmpty { facts.append(.init(tr("Ajustes", "Settings"), settings.joined(separator: " "))) }
         if DotNetFramework.isInstalled(prefix: prefix) { facts.append(.init(".NET Framework", "4.8")) }
-        let companions = Uninstaller.companions(of: app).map { $0.deletingPathExtension().lastPathComponent }
+        let companions = Uninstaller.companions(of: inspection.app).map { $0.deletingPathExtension().lastPathComponent }
         if !companions.isEmpty {
             facts.append(.init(tr("Del mismo instalador", "From the same installer"), companions.joined(separator: ", ")))
         }
-        if let engine = EngineCatalog.engine(id: manifest.engine) {
-            let missing = EngineCheck.missingImports(program: program, engine: InstalledEngine(engine: engine, home: home), prefix: prefix)
-            if !missing.isEmpty {
-                facts.append(.init(tr("Le falta al motor", "Missing in the engine"), MissingImport.summary(missing, limit: 6)))
-            }
+        if !inspection.missing.isEmpty {
+            facts.append(.init(tr("Le falta al motor", "Missing in the engine"), MissingImport.summary(inspection.missing, limit: 6)))
         }
         facts.append(.init(tr("App creada con", "App made with"), manifest.createdWith))
 
-        return finish(ProblemReport(kind: kind, productName: productName,
-                                    program: productName + (product?.productVersion.map { " " + $0 } ?? ""),
-                                    mac: describe(mac), facts: facts, log: [], logFile: log), privacy: privacy)
+        var report = ProblemReport(kind: kind, productName: productName,
+                                   program: productName + (product?.productVersion.map { " " + $0 } ?? ""),
+                                   mac: describe(mac), facts: facts, log: [], logFile: inspection.launchLog)
+        report.programLogs = inspection.programLogs
+        report.diagnoses = inspection.diagnoses()
+        return finish(report, privacy: privacy)
     }
 
     /// Adds the log's useful lines and takes personal data out of everything.
     static func finish(_ report: ProblemReport, privacy: PrivateData) -> ProblemReport {
         var report = report
+        var lines: [String] = []
         if let file = report.logFile, FileManager.default.fileExists(atPath: file.path) {
-            report.log = LogExcerpt.lines(of: LogExcerpt.read(file)).map(privacy.redact)
+            lines = LogExcerpt.lines(of: LogExcerpt.read(file))
         }
+        // The program's own logs, each line marked with its file.
+        for file in report.programLogs {
+            let text = LogExcerpt.read(file, head: 64 * 1024, tail: 256 * 1024)
+            lines += LogExcerpt.lines(of: text, limit: 20).map { "[\(file.lastPathComponent)] \($0)" }
+        }
+        report.log = lines.map(privacy.redact)
+        // What Vitral recognized goes first: it is what a reader needs.
+        let known = report.diagnoses.prefix(3).map { diagnosis in
+            ProblemReport.Fact(tr("Diagnóstico", "Diagnosis"), "\(diagnosis.title) [\(diagnosis.id)]")
+        }
+        report.facts = known + report.facts
         report.facts = report.facts.map { .init($0.label, privacy.redact($0.value)) }
         report.program = privacy.redact(report.program)
         report.productName = privacy.redact(report.productName)
