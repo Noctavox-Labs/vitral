@@ -18,6 +18,26 @@ public struct LaunchSettings: Codable, Sendable, Equatable {
     }
 }
 
+extension LaunchSettings {
+    /// These settings plus `other`'s: its variables win, and values already here are not repeated.
+    public func adding(_ other: LaunchSettings) -> LaunchSettings {
+        var result = self
+        result.environment.merge(other.environment) { _, new in new }
+        for value in other.registry {
+            result.registry.removeAll { $0.key == value.key && $0.name == value.name }
+            result.registry.append(value)
+        }
+        result.cleanup += other.cleanup.filter { !cleanup.contains($0) }
+        result.arguments += other.arguments.filter { !arguments.contains($0) }
+        return result
+    }
+
+    /// Registry values of `other` this does not have yet.
+    public func registryMissing(from other: LaunchSettings) -> [RegistryValue] {
+        other.registry.filter { !registry.contains($0) }
+    }
+}
+
 /// A rule Vitral applied, and what in the program triggered it.
 public struct AppliedRecipe: Codable, Sendable, Equatable {
     public let id: String
@@ -74,10 +94,39 @@ public enum Recipes {
         "drive_c/users/*/AppData/Local/Temp/qsingleinstance-*.lock",
     ]
 
+    /// What each rule adds to a program's settings. Nil for rules that are not settings
+    /// (.NET Framework is installed; PowerShell is turned off for the installer).
+    public static func fragment(_ id: String) -> LaunchSettings? {
+        switch id {
+        case "qt5-retina":
+            // Qt 5 ignores the 192 dpi on its own; QT_SCALE_FACTOR=2 scales its windows and text
+            // (without it the window opens at half size, unreadable). It goes in the registry:
+            // Wine drops the Mac's QT_* variables. QT_AUTO_SCREEN_SCALE_FACTOR breaks window creation.
+            return LaunchSettings(registry: retina + [.string(windowsEnvironment, "QT_SCALE_FACTOR", "2")])
+        case "qt5-quick-software":
+            // Qt Quick fails to create its OpenGL context under Wine on macOS.
+            return LaunchSettings(environment: ["QMLSCENE_DEVICE": "softwarecontext"])
+        case "qt-single-instance":
+            // A lock left by a forced quit makes the program exit silently on the next start.
+            return LaunchSettings(cleanup: qtLocks)
+        case "electron-in-process-gpu":
+            // Chromium draws in a separate GPU process, and DXMT (Direct3D 11 on Metal) cannot yet
+            // show what another process draws: the window stays blank. In-process, it works
+            // (see `Caso aTube Catcher.md`).
+            return LaunchSettings(arguments: ["--in-process-gpu"])
+        default:
+            return nil
+        }
+    }
+
     /// The settings for a program, and the rules that produced them.
     public static func settings(for report: ProgramReport) -> (settings: LaunchSettings, applied: [AppliedRecipe]) {
         var settings = LaunchSettings(registry: base)
         var applied: [AppliedRecipe] = []
+        func use(_ id: String, because: String) {
+            if let fragment = fragment(id) { settings = settings.adding(fragment) }
+            applied.append(AppliedRecipe(id: id, because: because))
+        }
 
         if let qt = report.technology(.qt) {
             let label = "Qt" + (qt.version.map { " " + $0 } ?? "")
@@ -85,31 +134,12 @@ public enum Recipes {
             // (Winamp's skin, which only brings Qt Core and Qt Network) open at half size.
             let drawsWithQt = report.technology(.qtGui) != nil || report.technology(.qtQuick) != nil
             if qt.version?.hasPrefix("5.") == true, drawsWithQt {
-                // Qt 5 ignores the 192 dpi on its own; QT_SCALE_FACTOR=2 scales its windows and text
-                // (without it the window opens at half size, unreadable). It goes in the registry:
-                // Wine drops the Mac's QT_* variables. QT_AUTO_SCREEN_SCALE_FACTOR breaks window creation.
-                settings.registry += retina
-                settings.registry.append(.string(windowsEnvironment, "QT_SCALE_FACTOR", "2"))
-                applied.append(AppliedRecipe(id: "qt5-retina", because: label))
-
-                if report.technology(.qtQuick) != nil {
-                    // Qt Quick fails to create its OpenGL context under Wine on macOS.
-                    settings.environment["QMLSCENE_DEVICE"] = "softwarecontext"
-                    applied.append(AppliedRecipe(id: "qt5-quick-software", because: label + " · Qt Quick"))
-                }
+                use("qt5-retina", because: label)
+                if report.technology(.qtQuick) != nil { use("qt5-quick-software", because: label + " · Qt Quick") }
             }
-            // A lock left by a forced quit makes the program exit silently on the next start.
-            settings.cleanup += qtLocks
-            applied.append(AppliedRecipe(id: "qt-single-instance", because: label))
+            use("qt-single-instance", because: label)
         }
-
-        if report.technology(.electron) != nil {
-            // Chromium draws in a separate GPU process, and DXMT (Direct3D 11 on Metal) cannot yet
-            // show what another process draws: the window stays blank. In-process, it works
-            // (see `Caso aTube Catcher.md`).
-            settings.arguments.append("--in-process-gpu")
-            applied.append(AppliedRecipe(id: "electron-in-process-gpu", because: "Electron"))
-        }
+        if report.technology(.electron) != nil { use("electron-in-process-gpu", because: "Electron") }
         return (settings, applied)
     }
 

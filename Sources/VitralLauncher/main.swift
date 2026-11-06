@@ -14,6 +14,18 @@ final class Launcher: NSObject, NSApplicationDelegate {
     private var logURL: URL?
     private var programPID: pid_t?
     private var loading: LoadingPanel?
+    /// Fixes tried in this opening, in order.
+    private var tried: [Repair] = []
+    /// Fixes already saved in the app in this opening.
+    private var kept: Set<String> = []
+
+    /// A fix being tried: what was there before, and the copy to go back to.
+    private struct Trial {
+        let repair: Repair
+        let previous: ProgramLaunch
+        let launch: ProgramLaunch
+        let backup: PrefixBackup?
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { await start() }
@@ -51,7 +63,9 @@ final class Launcher: NSObject, NSApplicationDelegate {
         loading.show()
 
         var attempt = 1
+        var trial: Trial?
         while true {
+            let launch = self.launch ?? launch
             let removed = sharedRunning ? 0 : launch.clean()
             if removed > 0 { write(tr("Limpieza: \(removed) archivo(s)", "Cleanup: \(removed) file(s)")) }
             let offset = (try? log?.offset()) ?? 0
@@ -60,9 +74,15 @@ final class Launcher: NSObject, NSApplicationDelegate {
 
             let process = launch.makeProcess(log: log ?? .nullDevice)
             let watcher = Task { await watchForWindow(started: started) }
+            // A fix that opens the program is saved as soon as the window shows, not when the
+            // program closes hours later.
+            let keeper = Task { [trial] in
+                if let trial, await watcher.value { await keep(trial) }
+            }
             let status = (try? await WineSession.wait(for: process)) ?? -1
             watcher.cancel()
             let sawWindow = await watcher.value
+            await keeper.value
             let seconds = Date().timeIntervalSince(started)
             let attemptLog = readLog(from: offset)
             write(tr("Terminó a los \(Int(seconds)) s (código \(status), ventana: \(sawWindow ? "sí" : "no"))",
@@ -76,13 +96,159 @@ final class Launcher: NSObject, NSApplicationDelegate {
                 attempt += 1
                 continue
             }
-            loading.close()
-            if StartupWatch.failedToStart(ranFor: seconds, sawWindow: sawWindow, status: status, log: attemptLog) {
-                await showFailure(attempts: attempt)
+            guard StartupWatch.failedToStart(ranFor: seconds, sawWindow: sawWindow, status: status, log: attemptLog) else { break }
+
+            // It did not open. A fix being tried did not help: back to how it was.
+            if !sharedRunning { await launch.session.killServer() }
+            if let current = trial {
+                undo(current)
+                trial = nil
             }
+            // A known failure with a fix Vitral can try by itself: try it and open again.
+            if tried.count < RepairPlanner.maxRepairs, let next = await nextRepair(sharedRunning: sharedRunning) {
+                tried.append(next)
+                if let started = await begin(next) {
+                    trial = started
+                    self.launch = started.launch
+                    loading.update(tr("No abrió. Pruebo un arreglo conocido…", "It did not open. Trying a known fix…"))
+                    loading.show(after: .zero)
+                    attempt = 1
+                    continue
+                }
+            }
+            loading.close()
+            await showFailure(attempts: attempt)
             break
         }
         quit(0)
+    }
+
+    // MARK: Fixes
+
+    /// The next fix for what the logs show, if Vitral can try one by itself.
+    private func nextRepair(sharedRunning: Bool) async -> Repair? {
+        guard let launch else { return nil }
+        try? log?.synchronize()
+        let app = wrapper.url
+        let inspection = await Task.detached { AppInspection(app: app, phase: .start) }.value
+        let diagnoses = inspection.diagnoses()
+        let repairs = RepairPlanner.plan(diagnoses, settings: launch.manifest.settings, prefix: launch.session.prefix,
+                                         tried: Set(tried.map(\.key)))
+        // While another program of the same installer is open, its files cannot be changed.
+        return repairs.first { !sharedRunning || !$0.changesPrefix }
+    }
+
+    /// Applies a fix (with a copy to go back to). Nil if it could not, or the person said no.
+    private func begin(_ repair: Repair) async -> Trial? {
+        guard let launch else { return nil }
+        let prefix = launch.session.prefix
+        write(tr("Diagnóstico: \(repair.diagnosis.title) [\(repair.diagnosis.id)]. Pruebo: \(repair.description)",
+                 "Diagnosis: \(repair.diagnosis.title) [\(repair.diagnosis.id)]. Trying: \(repair.description)"))
+        for old in PrefixBackup.leftovers(of: prefix) {
+            write(tr("Borro una copia que quedó de otra vez: \(old.lastPathComponent)", "Removing a copy left from another time: \(old.lastPathComponent)"))
+            try? FileManager.default.removeItem(at: old)
+        }
+        var manifest = launch.manifest
+        manifest.recipes.append(repair.recipe)
+        var backup: PrefixBackup?
+
+        if repair.component == "dotnet48" {
+            loading?.close()
+            guard ask(tr("\(launch.manifest.name) necesita .NET Framework", "\(launch.manifest.name) needs .NET Framework"),
+                      detail: repair.diagnosis.explanation + "\n\n" + tr(
+                        "Vitral baja de Microsoft los instaladores oficiales (unos 120 MB) y lo instala solo para este programa. Si después no abre, deja todo como estaba.",
+                        "Vitral downloads Microsoft's official installers (about 120 MB) and installs it for this program only. If it still does not open, everything goes back as it was."),
+                      action: tr("Instalar .NET Framework", "Install .NET Framework")) else {
+                write(tr("No se instaló .NET Framework (la persona dijo que no).", "Did not install .NET Framework (the person said no)."))
+                return nil
+            }
+            backup = makeBackup(of: prefix, scope: .everything)
+            loading?.update(tr("Instalando .NET Framework 4.8…", "Installing .NET Framework 4.8…"))
+            loading?.show(after: .zero)
+            do {
+                let loading = self.loading
+                try await DotNetFramework.install(in: launch.session, home: .default, log: log ?? .nullDevice) { fraction in
+                    Task { @MainActor in
+                        loading?.update(tr("Instalando .NET Framework 4.8… \(Int(fraction * 100)) %", "Installing .NET Framework 4.8… \(Int(fraction * 100)) %"))
+                    }
+                }
+            } catch {
+                write(tr("No se pudo instalar .NET Framework: \(error)", "Could not install .NET Framework: \(error)"))
+                await launch.session.killServer()
+                restore(backup)
+                return nil
+            }
+        } else if let settings = repair.settings {
+            manifest.settings = settings
+            let registry = launch.manifest.settings.registryMissing(from: settings)
+            if !registry.isEmpty {
+                backup = makeBackup(of: prefix, scope: .registry)
+                do {
+                    try await launch.session.importRegistry(registry)
+                } catch {
+                    write(tr("No se pudo cambiar el registro: \(error)", "Could not change the registry: \(error)"))
+                    await launch.session.killServer()
+                    restore(backup)
+                    return nil
+                }
+            }
+        } else {
+            return nil
+        }
+        do {
+            return Trial(repair: repair, previous: launch, launch: try ProgramLaunch(wrapper: wrapper, manifest: manifest), backup: backup)
+        } catch {
+            write(String(describing: error))
+            restore(backup)
+            return nil
+        }
+    }
+
+    private func makeBackup(of prefix: URL, scope: PrefixBackup.Scope) -> PrefixBackup? {
+        do {
+            return try PrefixBackup.make(of: prefix, scope: scope)
+        } catch {
+            write(tr("No pude copiar los archivos del programa para volver atrás: \(error)",
+                     "Could not copy the program's files to go back: \(error)"))
+            return nil
+        }
+    }
+
+    private func restore(_ backup: PrefixBackup?) {
+        guard let backup else { return }
+        do {
+            try backup.restore()
+        } catch {
+            write(tr("No pude volver a la copia (\(backup.copy.path)): \(error)", "Could not go back to the copy (\(backup.copy.path)): \(error)"))
+        }
+    }
+
+    /// The fix did not help: the settings and files go back to how they were.
+    private func undo(_ trial: Trial) {
+        write(tr("El arreglo no alcanzó: lo deshago.", "The fix was not enough: undoing it."))
+        launch = trial.previous
+        restore(trial.backup)
+    }
+
+    /// The fix opened the program: it stays in the app, with why.
+    private func keep(_ trial: Trial) async {
+        guard kept.insert(trial.repair.key).inserted else { return }
+        let wrapper = self.wrapper, manifest = trial.launch.manifest, backup = trial.backup
+        let saved = await Task.detached { () -> String? in
+            backup?.discard()
+            do {
+                try wrapper.save(manifest)
+                return nil
+            } catch {
+                return String(describing: error)
+            }
+        }.value
+        if let saved {
+            write(tr("El arreglo funcionó, pero no pude guardarlo en la app: \(saved)", "The fix worked, but could not save it in the app: \(saved)"))
+        } else {
+            write(tr("El arreglo funcionó y quedó guardado en la app: \(trial.repair.recipe.id) [\(trial.repair.diagnosis.id)]",
+                     "The fix worked and is saved in the app: \(trial.repair.recipe.id) [\(trial.repair.diagnosis.id)]"))
+        }
     }
 
     /// Checks what the program needs, offering to install Rosetta if it is missing.
@@ -189,15 +355,16 @@ final class Launcher: NSObject, NSApplicationDelegate {
 
         var details: [String] = []
         if let known = diagnoses.first {
-            var text = known.title + ". " + known.explanation
-            if known.kind == .fixable {
-                text += tr(" Vitral todavía no aplica este arreglo solo.", " Vitral does not apply this fix by itself yet.")
-            }
-            details.append(text)
+            details.append(known.title + ". " + known.explanation)
         } else if let launch, let explanation = EngineCheck.explanation(inspection.missing, engine: launch.session.engine.engine) {
             // A function the engine lacks is the cause Vitral can name (aTube Catcher on CrossOver 24).
             let newer = inspection.missing.contains { $0.function != nil } ? tr(" Hace falta un motor más nuevo.", " It needs a newer engine.") : ""
             details.append(tr("Puede ser por esto: ", "This may be why: ") + explanation + "." + newer)
+        }
+        let triedText = tried.map(\.description)
+        if !triedText.isEmpty {
+            details.append(tr("Probé \(triedText.joined(separator: "; ")), y no alcanzó: lo dejé como estaba.",
+                              "I tried: \(triedText.joined(separator: "; ")). It was not enough, so I left it as it was."))
         }
         details.append(attempts > 1
             ? tr("Lo intenté \(attempts) veces. El registro puede ayudar a encontrar la causa.",
@@ -214,7 +381,10 @@ final class Launcher: NSObject, NSApplicationDelegate {
         switch alert.runModal() {
         case .alertFirstButtonReturn:
             try? log?.synchronize()
-            let report = await Task.detached { ProblemReporter.app(inspection, closedWhileOpening: attempts) }.value
+            var report = await Task.detached { ProblemReporter.app(inspection, closedWhileOpening: attempts) }.value
+            if !triedText.isEmpty {
+                report.facts.insert(.init(tr("Arreglos probados", "Fixes tried"), tried.map(\.key).joined(separator: ", ")), at: 0)
+            }
             review(report)
         case .alertSecondButtonReturn:
             if let logURL { NSWorkspace.shared.activateFileViewerSelecting([logURL]) }

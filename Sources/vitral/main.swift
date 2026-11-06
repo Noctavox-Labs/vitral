@@ -611,6 +611,13 @@ func diagnose(_ options: [String]) {
         }
         for log in inspection.programLogs { print(tr("Registro del programa: ", "Program log: ") + log.lastPathComponent) }
         diagnoses = inspection.diagnoses()
+        if let manifest = inspection.manifest, let prefix = inspection.prefix {
+            let repairs = RepairPlanner.plan(diagnoses, settings: manifest.settings, prefix: prefix)
+            if !repairs.isEmpty {
+                print(tr("Si no abre, el lanzador probará: ", "If it does not open, the launcher will try: ")
+                      + repairs.map { "\($0.description) [\($0.key)]" }.joined(separator: "; "))
+            }
+        }
     }
     if diagnoses.isEmpty {
         print(tr("No reconozco ninguna falla conocida.", "No known failure recognized."))

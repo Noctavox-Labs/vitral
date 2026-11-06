@@ -136,6 +136,13 @@ public struct Wrapper: Sendable {
         return parts.reduce((prefix ?? self.prefix).appendingPathComponent("drive_c")) { $0.appendingPathComponent($1) }
     }
 
+    /// Saves a changed manifest (a fix that worked) and signs the app again.
+    public func save(_ manifest: WrapperManifest) throws {
+        guard isWrapper else { throw WrapperError.notAWrapper(url) }
+        try manifest.encoded().write(to: manifestURL, options: .atomic)
+        try sign()
+    }
+
     /// Puts `launcher` in place of the app's launcher if they differ, so apps made with an older
     /// Vitral get its fixes. Safe while the app is open: the new file takes the old one's name and
     /// the running launcher keeps the file it started from. Returns whether it changed.

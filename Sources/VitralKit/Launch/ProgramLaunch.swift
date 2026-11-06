@@ -28,7 +28,11 @@ public struct ProgramLaunch: Sendable {
 
     /// Checks Rosetta, the engine and the program, and prepares the Wine session.
     public init(wrapper: Wrapper, home: VitralHome = .default) throws {
-        let manifest = try wrapper.readManifest()
+        try self.init(wrapper: wrapper, manifest: try wrapper.readManifest(), home: home)
+    }
+
+    /// The same, with other settings than the app's (a fix being tried).
+    public init(wrapper: Wrapper, manifest: WrapperManifest, home: VitralHome = .default) throws {
         guard MacSystem.hasRosetta else { throw LaunchProblem.rosettaMissing }
         let engine = EngineCatalog.engine(id: manifest.engine) ?? EngineCatalog.default
         let components = ComponentInstaller(home: home)
