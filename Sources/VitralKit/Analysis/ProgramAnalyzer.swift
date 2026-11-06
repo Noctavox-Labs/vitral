@@ -25,6 +25,9 @@ public struct Technology: Codable, Sendable, Equatable {
         case unreal
         /// Microsoft Visual C++ runtime ("2015-2022", "2013"…).
         case visualCpp
+        /// Internet Explorer's browser control (WebBrowser, MSHTML), shown inside the program's
+        /// windows. Needs Wine Gecko.
+        case internetExplorer
     }
 
     public let kind: Kind
@@ -111,6 +114,7 @@ public enum ProgramAnalyzer {
         // the Visual C++ runtime, and some of them draw the graphics.
         let mainFolder = main.map { ($0.path as NSString).deletingLastPathComponent } ?? ""
         var importers: [ExecutableInfo] = mainInfo.map { [$0] } ?? []
+        var importerPaths: [String] = main.map { [$0.path] } ?? []
         var graphicsImporters = importers
         for dll in mainInfo?.imports ?? [] {
             let local = mainFolder.isEmpty ? dll : mainFolder + "/" + dll
@@ -118,6 +122,7 @@ public enum ProgramAnalyzer {
                   let file = files.first(where: { $0.path.lowercased() == local.lowercased() }),
                   let info = parse(file.path) else { continue }
             importers.append(info)
+            importerPaths.append(file.path)
             if !choosesGraphicsAtRuntime(dll) { graphicsImporters.append(info) }
         }
 
@@ -130,6 +135,12 @@ public enum ProgramAnalyzer {
         }
         if let visualCpp = visualCppRuntime(importers: importers, evidence: main?.path) {
             technologies.append(visualCpp)
+        }
+        // Pages shown with Internet Explorer's control, by the program or a DLL of its own.
+        if let browser = zip(importers, importerPaths).first(where: { info, path in
+            WineGecko.usesBrowser(imports: info.imports, contents: WineGecko.contents(of: url.appendingPathComponent(path)))
+        }) {
+            technologies.append(Technology(.internetExplorer, evidence: browser.1))
         }
 
         return ProgramReport(

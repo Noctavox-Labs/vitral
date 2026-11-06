@@ -18,6 +18,9 @@ public enum InstallStage: Sendable, Equatable {
     case applyingSettings
     /// Installing Microsoft's .NET Framework 4.8 into the prefix (about five minutes).
     case installingDotNet(Double)
+    /// Putting Wine Gecko into the prefix: the program shows pages with Internet Explorer's
+    /// control (a download of about 43 MB the first time).
+    case installingBrowser(Double)
     case buildingApp
 
     public var isRunningInstaller: Bool {
@@ -412,6 +415,26 @@ public struct ProgramInstaller: Sendable {
                 }
             }
 
+            // Pages shown with Internet Explorer's control need Wine's HTML engine. Without it the
+            // program still opens, with those pages blank; its launcher tries again then.
+            var geckoRecipe: AppliedRecipe?
+            if let browser = found.report.technology(.internetExplorer) {
+                let architecture = WineGecko.architecture(of: found.report.executable)
+                if !WineGecko.isInstalled(architecture, prefix: prefix) {
+                    logHandle.write(Data("[Vitral] Installing Wine Gecko \(WineGecko.version) (\(architecture.rawValue)): \(browser.evidence) shows pages with Internet Explorer's control\n".utf8))
+                    progress(.installingBrowser(0))
+                    do {
+                        try await WineGecko.install(architecture, in: session, home: home, log: logHandle) { progress(.installingBrowser($0)) }
+                        geckoRecipe = WineGecko.recipe(because: "\(browser.evidence) uses Internet Explorer's control")
+                    } catch is CancellationError {
+                        throw CancellationError()
+                    } catch {
+                        logHandle.write(Data("[Vitral] Wine Gecko not installed: \(error)\n".utf8))
+                    }
+                    try Task.checkCancellation()
+                }
+            }
+
             progress(.applyingSettings)
             var (settings, applied) = Recipes.settings(for: found.report)
             // Programs the catalog knows by name get their fixes now, not after failing.
@@ -428,6 +451,7 @@ public struct ProgramInstaller: Sendable {
             settings.registry = setup.registry + settings.registry
             applied = setup.applied + applied
             if let dotNetRecipe { applied.append(dotNetRecipe) }
+            if let geckoRecipe { applied.append(geckoRecipe) }
             try await session.importRegistry(settings.registry)
 
             let program = found.folder + "/" + main

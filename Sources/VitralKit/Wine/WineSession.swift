@@ -52,7 +52,8 @@ public enum RegistryFile {
         return lines.joined(separator: "\r\n")
     }
 
-    private static func escape(_ text: String) -> String {
+    /// As `.reg` files and Wine's `user.reg` and `system.reg` write text: `\` and `"` escaped.
+    static func escape(_ text: String) -> String {
         text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
     }
 }
@@ -203,8 +204,8 @@ public struct WineSession: Sendable {
         return values.allSatisfy { value in
             let expected: String
             switch value.kind {
-            case .string: expected = "\"\(value.name)\"=\"\(value.value)\""
-            case .dword: expected = "\"\(value.name)\"=dword:" + String(format: "%08x", UInt32(value.value) ?? 0)
+            case .string: expected = "\"\(RegistryFile.escape(value.name))\"=\"\(RegistryFile.escape(value.value))\""
+            case .dword: expected = "\"\(RegistryFile.escape(value.name))\"=dword:" + String(format: "%08x", UInt32(value.value) ?? 0)
             }
             return text.contains(expected)
         }

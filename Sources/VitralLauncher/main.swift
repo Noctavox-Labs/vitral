@@ -64,6 +64,11 @@ final class Launcher: NSObject, NSApplicationDelegate {
         self.loading = loading
         loading.show()
 
+        // Its files cannot change while another program of the same Windows is open.
+        if !sharedRunning, let withBrowser = await addBrowserIfNeeded(to: launch, loading: loading) {
+            self.launch = withBrowser
+        }
+
         var attempt = 1
         var trial: Trial?
         while true {
@@ -130,6 +135,50 @@ final class Launcher: NSObject, NSApplicationDelegate {
     }
 
     // MARK: Fixes
+
+    /// Wine Gecko, for a program that shows pages with Internet Explorer's control in an app made
+    /// before Vitral brought it (new apps get it while installing). The new launch, or nil if
+    /// nothing changed. Without it the program still opens, with those pages blank.
+    private func addBrowserIfNeeded(to launch: ProgramLaunch, loading: LoadingPanel) async -> ProgramLaunch? {
+        let prefix = launch.session.prefix, program = launch.program
+        let architecture = await Task.detached { () -> WineGecko.Architecture? in
+            guard !WineGecko.isInstalled(prefix: prefix), WineGecko.usesBrowser(program: program) else { return nil }
+            return WineGecko.architecture(of: PortableExecutable.parse(fileAt: program))
+        }.value
+        guard let architecture else { return nil }
+        write(tr("El programa muestra páginas con el navegador de Internet Explorer: instalo Wine Gecko \(WineGecko.version) (\(architecture.rawValue)).",
+                 "The program shows pages with Internet Explorer's browser: installing Wine Gecko \(WineGecko.version) (\(architecture.rawValue))."))
+        loading.update(tr("Instalando el navegador que usa el programa…", "Installing the browser the program uses…"))
+        loading.show(after: .zero)
+        do {
+            try await WineGecko.install(architecture, in: launch.session, home: .default, log: log ?? .nullDevice) { fraction in
+                Task { @MainActor in
+                    loading.update(tr("Instalando el navegador que usa el programa… \(Int(fraction * 100)) %",
+                                      "Installing the browser the program uses… \(Int(fraction * 100)) %"))
+                }
+            }
+        } catch {
+            write(tr("No se pudo instalar Wine Gecko: \(error)", "Could not install Wine Gecko: \(error)"))
+            return nil
+        }
+        var updated = launch.manifest
+        updated.recipes.append(WineGecko.recipe(because: "\(launch.manifest.program) uses Internet Explorer's control"))
+        let wrapper = self.wrapper, manifest = updated
+        let saved = await Task.detached { () -> String? in
+            do {
+                try wrapper.save(manifest)
+                return nil
+            } catch {
+                return String(describing: error)
+            }
+        }.value
+        if let saved {
+            write(tr("Wine Gecko quedó instalado, pero no pude anotarlo en la app: \(saved)",
+                     "Wine Gecko is installed, but could not note it in the app: \(saved)"))
+        }
+        // A new session: the one before kept Internet Explorer off.
+        return try? ProgramLaunch(wrapper: wrapper, manifest: manifest)
+    }
 
     /// The catalog the fixes come from, once looked up in this opening.
     private var catalog: FailureCatalog?

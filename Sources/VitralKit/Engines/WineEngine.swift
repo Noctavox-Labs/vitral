@@ -91,6 +91,17 @@ public struct InstalledEngine: Sendable {
     /// DLL overrides while the prefix is created: no Wine Mono or Gecko download offers.
     public static let prefixCreationOverrides = "winemenubuilder.exe=d;mscoree=d;mshtml=d"
 
+    /// DLL overrides while programs run: no macOS menu entries or file associations for Windows
+    /// programs; and no Internet Explorer (MSHTML) unless Wine Gecko is in the prefix, because
+    /// Wine would offer to download Gecko and stop there until someone answers. Wine's .NET
+    /// loader (mscoree) stays on: .NET 5 and later programs (Paint.NET) need it to load their own
+    /// libraries; only creating the prefix turns it off, so wineboot does not offer to download
+    /// Wine Mono (`prefixCreationOverrides`). `internetExplorer` turns MSHTML on or off whatever
+    /// the prefix has (to register it before Gecko is there).
+    public static func dllOverrides(prefix: URL, internetExplorer: Bool? = nil) -> String {
+        (internetExplorer ?? WineGecko.isInstalled(prefix: prefix)) ? "winemenubuilder.exe=d" : "winemenubuilder.exe=d;mshtml=d"
+    }
+
     /// Variables every Wine process of this engine needs.
     public func environment(prefix: URL) -> [String: String] {
         [
@@ -100,12 +111,7 @@ public struct InstalledEngine: Sendable {
             "WINEDEBUG": "err+all,fixme-all",
             // MoltenVK prints every Vulkan extension otherwise.
             "MVK_CONFIG_LOG_LEVEL": "0",
-            // Do not create macOS menu entries or file associations for Windows programs; and no
-            // Gecko (Internet Explorer), which Wine would offer to download, stopping there until
-            // someone answers. Wine's .NET loader (mscoree) stays on: .NET 5 and later programs
-            // (Paint.NET) need it to load their own libraries; only creating the prefix turns it
-            // off, so wineboot does not offer to download Wine Mono (`prefixCreationOverrides`).
-            "WINEDLLOVERRIDES": "winemenubuilder.exe=d;mshtml=d",
+            "WINEDLLOVERRIDES": Self.dllOverrides(prefix: prefix),
         ]
     }
 }

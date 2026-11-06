@@ -164,6 +164,7 @@ func describeTechnology(_ technology: Technology) -> String {
     case .unity: return "Unity\(version)"
     case .unreal: return "Unreal Engine"
     case .visualCpp: return "Visual C++\(version)"
+    case .internetExplorer: return tr("navegador de Internet Explorer (WebBrowser)", "Internet Explorer's browser (WebBrowser)")
     }
 }
 
@@ -502,6 +503,13 @@ func install(_ options: [String]) async {
             }
             return
         }
+        if case .installingBrowser = stage {
+            if case .installingBrowser = lastStage.value { return }
+            lastStage.value = stage
+            print(tr("    El programa muestra páginas con el navegador de Internet Explorer: instalo Wine Gecko…",
+                     "    The program shows pages with Internet Explorer's browser: installing Wine Gecko…"))
+            return
+        }
         // A step that ends: the installer is still open, nothing new to say.
         if case .runningInstaller(nil) = stage, case .runningInstaller = lastStage.value {
             lastStage.value = stage
@@ -510,7 +518,7 @@ func install(_ options: [String]) async {
         lastStage.value = stage
         switch stage {
         case .checking: print(tr("1/6 Revisando el instalador…", "1/6 Checking the installer…"))
-        case .downloadingEngine, .installingDotNet: break
+        case .downloadingEngine, .installingDotNet, .installingBrowser: break
         case .preparingWindows: print(tr("2/6 Preparando el espacio del programa (la primera vez tarda un poco)…", "2/6 Preparing the program's space (the first time takes a while)…"))
         case .runningInstaller(let step?):
             print("    " + step)

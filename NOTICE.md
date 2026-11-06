@@ -39,6 +39,7 @@ redistribuyan la incluyen.
 | DXMT 0.80, official build, inside Vitral's engine (license in its `share/licenses/`) | MIT | [3Shain/dxmt v0.80](https://github.com/3Shain/dxmt/releases/tag/v0.80) |
 | Wine from CrossOver 24.0.7, built by the Sikarugir project ([`WS12WineCX24.0.7_7`](https://github.com/Sikarugir-App/Engines/releases/tag/v1.0)), only for apps installed with it before | LGPL-2.1-or-later (Wine) | [CodeWeavers: crossover-sources-24.0.7](https://media.codeweavers.com/pub/crossover/source/crossover-sources-24.0.7.tar.gz) |
 | macOS libraries from Gcenx's official Wine build ([`wine-stable-11.0_1`](https://github.com/Gcenx/macOS_Wine_builds/releases/tag/11.0_1)): FreeType, GnuTLS and its dependencies, MoltenVK, SDL2, libinotify, gettext | Each project's own (FreeType License or GPL-2.0, LGPL, Apache-2.0, zlib, MIT) | [Gcenx/macOS_Wine_builds](https://github.com/Gcenx/macOS_Wine_builds) |
+| Wine Gecko 2.47.4 (32 and 64-bit), WineHQ's official build, only for programs that show pages with Internet Explorer's control (checksums in `Sources/VitralKit/Install/WineGecko.swift`) | MPL-2.0 | [WineHQ: wine-gecko 2.47.4](https://dl.winehq.org/wine/wine-gecko/2.47.4/) |
 
 Why CrossOver's Wine: the official builds crash with 32-bit programs such as Qt 5 apps on macOS,
 and CrossOver's patches fix that. Vitral builds its own engine from CodeWeavers' sources; the

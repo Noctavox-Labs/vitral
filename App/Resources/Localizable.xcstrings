@@ -813,6 +813,16 @@
         }
       }
     },
+    "Instalando el navegador que usa el programa (Wine Gecko)… %lld %%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installing the browser the program uses (Wine Gecko)… %lld %%"
+          }
+        }
+      }
+    },
     "Instalar" : {
       "localizations" : {
         "en" : {
