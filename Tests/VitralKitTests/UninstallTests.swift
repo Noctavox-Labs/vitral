@@ -168,6 +168,10 @@ private func makeOldApp(_ folder: TemporaryFolder, name: String) throws -> URL {
     hung.executableURL = URL(fileURLWithPath: "/bin/bash")
     hung.arguments = ["-c", #"exec -a 'C:\Program Files\Hung\hung.exe' "$0" 60"#, sleep.path]
     hung.environment = ["WINEPREFIX": prefix.path]
+    // Not waitUntilExit(): it waits on the run loop of the thread that started the process, and
+    // after an await the test can be on another one, where the news never arrives (it hung).
+    let (exits, exited) = AsyncStream<Process.TerminationReason>.makeStream()
+    hung.terminationHandler = { exited.yield($0.terminationReason); exited.finish() }
     try hung.run()
     defer { if hung.isRunning { kill(hung.processIdentifier, SIGKILL) } }
 
@@ -183,7 +187,7 @@ private func makeOldApp(_ folder: TemporaryFolder, name: String) throws -> URL {
     let home = VitralHome(url: folder.url.appendingPathComponent("home"))
     let session = WineSession(engine: InstalledEngine(engine: EngineCatalog.default, home: home), prefix: prefix)
     #expect(await session.forceQuit(timeout: 0.5))
-    hung.waitUntilExit()
-    #expect(hung.terminationReason == .uncaughtSignal)
+    var reasons = exits.makeAsyncIterator()
+    #expect(await reasons.next() == .uncaughtSignal)
     #expect(WineProcesses.list(prefix: prefix).isEmpty)
 }

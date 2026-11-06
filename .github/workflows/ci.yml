@@ -11,6 +11,8 @@ permissions:
 jobs:
   build-and-test:
     runs-on: macos-latest
+    # A test that hangs would otherwise keep the Mac for 6 hours (2026-11-06).
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Swift version
