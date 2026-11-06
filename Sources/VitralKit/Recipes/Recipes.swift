@@ -161,6 +161,9 @@ public enum Recipes {
         case "electron-builder-no-powershell":
             return tr("PowerShell desactivado: el de Wine no hace nada y el instalador creía que el programa seguía abierto",
                       "PowerShell turned off: Wine's does nothing, and the installer thought the program was still open", language)
+        case EngineCatalog.stayRecipe:
+            return tr("Se queda con su motor: con el más nuevo no abrió",
+                      "Keeps its engine: it did not open with the newer one", language)
         case "wine-gecko":
             return tr("Wine Gecko \(WineGecko.version) instalado: el programa muestra páginas con el navegador de Internet Explorer",
                       "Wine Gecko \(WineGecko.version) installed: the program shows pages with Internet Explorer's browser", language)

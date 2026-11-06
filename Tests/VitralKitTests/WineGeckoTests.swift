@@ -81,3 +81,20 @@ private func wow64Prefix(_ folder: TemporaryFolder) throws -> URL {
     #expect(!session.registryContains([.string(#"HKEY_LOCAL_MACHINE\Software\Wine\MSHTML\2.47.4"#,
                                                "GeckoPath", #"C:\windows\system32\gecko\2.47.4\wine_gecko"#)]))
 }
+
+@Test func newerBuildReplacesTheEngine() throws {
+    #expect(EngineCatalog.default.id == "cx26.3.0-2")
+    #expect(EngineCatalog.successor(of: "cx26.3.0-1")?.id == "cx26.3.0-2")
+    #expect(EngineCatalog.successor(of: "cx26.3.0-2") == nil)
+    // A different Wine is not a newer build of the same one.
+    #expect(EngineCatalog.successor(of: "cx24.0.7_7") == nil)
+    #expect(EngineCatalog.engine(id: "cx26.3.0-1") != nil)
+    #expect(Recipes.describe(EngineCatalog.stayRecipe) != EngineCatalog.stayRecipe)
+
+    // Updating a prefix never offers Wine Mono; MSHTML registers again only where Gecko is.
+    let folder = try TemporaryFolder()
+    let prefix = try wow64Prefix(folder)
+    #expect(InstalledEngine.prefixUpdateOverrides(prefix: prefix) == "winemenubuilder.exe=d;mscoree=d;mshtml=d")
+    try folder.write("prefix/drive_c/windows/syswow64/gecko/2.47.4/wine_gecko/VERSION", Data("Wine Gecko 2.47.4".utf8))
+    #expect(InstalledEngine.prefixUpdateOverrides(prefix: prefix) == "winemenubuilder.exe=d;mscoree=d")
+}

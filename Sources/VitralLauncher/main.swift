@@ -68,6 +68,10 @@ final class Launcher: NSObject, NSApplicationDelegate {
         if !sharedRunning, let withBrowser = await addBrowserIfNeeded(to: launch, loading: loading) {
             self.launch = withBrowser
         }
+        if !sharedRunning, let move = await moveToNewerEngine(self.launch ?? launch, loading: loading) {
+            engineMove = move
+            self.launch = move.launch
+        }
 
         var attempt = 1
         var trial: Trial?
@@ -85,8 +89,10 @@ final class Launcher: NSObject, NSApplicationDelegate {
             }
             // A fix that opens the program is saved once its first seconds pass without an error
             // box closing it (the watcher's answer), not when the program closes hours later.
-            let keeper = Task { [trial] in
-                if let trial, await watcher.value.opened { await keep(trial) }
+            let keeper = Task { [trial, engineMove] in
+                guard await watcher.value.opened else { return }
+                if let engineMove { await keep(engineMove) }
+                if let trial { await keep(trial) }
             }
             let status = (try? await WineSession.wait(for: process)) ?? -1
             watcher.cancel()
@@ -113,6 +119,14 @@ final class Launcher: NSObject, NSApplicationDelegate {
 
             // It did not open. A fix being tried did not help: back to how it was.
             if !sharedRunning { await launch.session.killServer() }
+            // Nor with the newer engine: back to the previous one, and open it again with that.
+            if let move = engineMove {
+                await undo(move)
+                loading.update(tr("No abrió con el motor nuevo. Vuelvo al anterior…", "It did not open with the newer engine. Going back to the previous one…"))
+                loading.show(after: .zero)
+                attempt = 1
+                continue
+            }
             if let current = trial {
                 undo(current)
                 trial = nil
@@ -134,6 +148,103 @@ final class Launcher: NSObject, NSApplicationDelegate {
             break
         }
         quit(0)
+    }
+
+    // MARK: Engine
+
+    /// An app moving to a newer build of its engine (cx26.3.0-1 → -2: the same Wine with Vitral's
+    /// fixes), until the program shows whether it opens with it.
+    private struct EngineMove {
+        let previous: ProgramLaunch
+        let launch: ProgramLaunch
+        let backup: PrefixBackup?
+    }
+    private var engineMove: EngineMove?
+    /// The newer engine this opening tried, with which the program did not open either.
+    private var engineTried: String?
+
+    /// Tries the engine that replaces the app's, if there is one and the program has not already
+    /// failed with it: downloads it once, copies the prefix to go back (an APFS clone), and updates
+    /// the prefix for it as Wine would, without Wine's offers to download Wine Mono.
+    private func moveToNewerEngine(_ launch: ProgramLaunch, loading: LoadingPanel) async -> EngineMove? {
+        let current = launch.manifest.engine
+        guard let next = EngineCatalog.successor(of: current),
+              !launch.manifest.recipes.contains(where: { $0.id == EngineCatalog.stayRecipe && $0.because == next.id }) else { return nil }
+        write(tr("Hay un motor más nuevo: \(next.id) reemplaza a \(current). Lo pruebo.",
+                 "There is a newer engine: \(next.id) replaces \(current). Trying it."))
+        loading.update(tr("Actualizando el motor…", "Updating the engine…"))
+        let components = ComponentInstaller(home: .default)
+        do {
+            for piece in next.components where !components.isInstalled(piece) {
+                try await components.install(piece) { fraction in
+                    Task { @MainActor in
+                        loading.update(tr("Bajando el motor nuevo… \(Int(fraction * 100)) %", "Downloading the newer engine… \(Int(fraction * 100)) %"))
+                    }
+                }
+            }
+        } catch {
+            write(tr("No pude bajar el motor nuevo: \(error). Sigo con el actual.", "Could not download the newer engine: \(error). Staying with this one."))
+            return nil
+        }
+        let prefix = launch.session.prefix
+        for old in PrefixBackup.leftovers(of: prefix) { try? FileManager.default.removeItem(at: old) }
+        // Without a way back, the app stays as it is.
+        guard let backup = makeBackup(of: prefix, scope: .everything) else { return nil }
+        var manifest = launch.manifest
+        manifest.engine = next.id
+        do {
+            loading.update(tr("Preparando el programa para el motor nuevo…", "Preparing the program for the newer engine…"))
+            let moved = try ProgramLaunch(wrapper: wrapper, manifest: manifest)
+            try await moved.session.updatePrefix()
+            // The registry values of its recipes, in case the update changed one.
+            let registry = manifest.settings.registry
+            if !registry.isEmpty, !moved.session.registryContains(registry) { try await moved.session.importRegistry(registry) }
+            return EngineMove(previous: launch, launch: moved, backup: backup)
+        } catch {
+            write(tr("No pude preparar el motor nuevo: \(error). Sigo con el actual.", "Could not prepare the newer engine: \(error). Staying with this one."))
+            await launch.session.killServer()
+            restore(backup)
+            return nil
+        }
+    }
+
+    /// The program opened with the newer engine: it stays, in this app and in the others of the
+    /// same installer, which use the same files.
+    private func keep(_ move: EngineMove) async {
+        guard engineMove != nil else { return }
+        engineMove = nil
+        let wrapper = self.wrapper, manifest = move.launch.manifest, previous = move.previous.manifest.engine, backup = move.backup
+        let problems = await Task.detached { () -> [String] in
+            backup?.discard()
+            var problems: [String] = []
+            do { try wrapper.save(manifest) } catch { problems.append("\(wrapper.url.lastPathComponent): \(error)") }
+            for app in Uninstaller.companions(of: wrapper.url) {
+                let other = Wrapper(url: app)
+                guard var theirs = try? other.readManifest(), theirs.engine == previous else { continue }
+                theirs.engine = manifest.engine
+                do { try other.save(theirs) } catch { problems.append("\(app.lastPathComponent): \(error)") }
+            }
+            return problems
+        }.value
+        write(problems.isEmpty
+              ? tr("Abrió con el motor nuevo: queda \(manifest.engine).", "It opened with the newer engine: \(manifest.engine) stays.")
+              : tr("Abrió con el motor nuevo, pero no pude guardarlo en: \(problems.joined(separator: "; "))",
+                   "It opened with the newer engine, but could not save it in: \(problems.joined(separator: "; "))"))
+    }
+
+    /// It did not open with the newer engine: the files go back, and the app remembers not to try
+    /// that engine again.
+    private func undo(_ move: EngineMove) async {
+        engineMove = nil
+        write(tr("Con el motor nuevo no abrió: vuelvo a \(move.previous.manifest.engine).",
+                 "It did not open with the newer engine: going back to \(move.previous.manifest.engine)."))
+        restore(move.backup)
+        engineTried = move.launch.manifest.engine
+        var manifest = move.previous.manifest
+        manifest.recipes.append(AppliedRecipe(id: EngineCatalog.stayRecipe, because: move.launch.manifest.engine))
+        let wrapper = self.wrapper, kept = manifest
+        let saved = await Task.detached { (try? wrapper.save(kept)) != nil }.value
+        launch = saved ? ((try? ProgramLaunch(wrapper: wrapper, manifest: kept)) ?? move.previous) : move.previous
     }
 
     // MARK: Fixes
@@ -588,6 +699,10 @@ final class Launcher: NSObject, NSApplicationDelegate {
         if !earlierText.isEmpty {
             details.append(tr("En otra apertura ya probé: \(earlierText.joined(separator: "; ")). No alcanzó. Lo vuelvo a probar cuando Vitral tenga un catálogo de fallas o un motor nuevo.",
                               "Another time I already tried: \(earlierText.joined(separator: "; ")). It was not enough. I will try again once Vitral has a new failure catalog or engine."))
+        }
+        if let engineTried {
+            details.append(tr("También probé el motor más nuevo (\(engineTried)) y no abrió, así que sigue con el anterior.",
+                              "I also tried the newer engine (\(engineTried)) and it did not open, so it keeps the previous one."))
         }
         if hung {
             details.append(tr("Seguía abierto sin ventana y el registro mostraba una falla, así que lo cerré.",

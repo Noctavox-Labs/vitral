@@ -72,10 +72,13 @@ private func makeApp(_ folder: TemporaryFolder, name: String, installer: String?
     let apps = folder.url.appendingPathComponent("apps")
     try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
 
-    // No app uses CrossOver 24: its Wine goes; the shared libraries stay (the default engine uses them).
-    #expect(EngineUsage.unusedComponents(home: home, apps: apps).map(\.id) == [EngineCatalog.crossover24.wine.id])
+    // No app uses CrossOver 24 or the first build of 26.3: their Wine goes; the shared libraries
+    // stay (the default engine uses them).
+    #expect(Set(EngineUsage.unusedComponents(home: home, apps: apps).map(\.id))
+            == [EngineCatalog.crossover24.wine.id, EngineCatalog.crossover26First.wine.id])
 
     _ = try makeApp(folder, name: "Old", installer: nil, engine: EngineCatalog.crossover24.id)
+    _ = try makeApp(folder, name: "Older build", installer: nil, engine: EngineCatalog.crossover26First.id)
     #expect(EngineUsage.unusedComponents(home: home, apps: apps).isEmpty)
 }
 

@@ -182,6 +182,17 @@ public struct WineSession: Sendable {
         }
     }
 
+    /// Brings the prefix up to this engine. Wine does it by itself the first time another build
+    /// opens a prefix (the date of its `wine.inf` changed), but with the program's DLL settings,
+    /// and then it can offer to download Wine Mono and wait for an answer.
+    public func updatePrefix() async throws {
+        let boot = process(["wineboot", "--update"])
+        boot.environment?["WINEDLLOVERRIDES"] = InstalledEngine.prefixUpdateOverrides(prefix: prefix)
+        let status = try await Self.wait(for: boot)
+        await waitForServer()
+        guard status == 0 else { throw WineError.failed(command: "wineboot --update", status: status) }
+    }
+
     /// Imports registry values with `reg import` and checks that Wine saved them.
     public func importRegistry(_ values: [RegistryValue]) async throws {
         guard !values.isEmpty else { return }

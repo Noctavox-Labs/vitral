@@ -6,6 +6,9 @@ public struct WineEngine: Sendable, Equatable {
     public let name: String
     public let wine: Component
     public let libraries: Component
+    /// Engines this one replaces: earlier builds of the same Wine, without some of its fixes.
+    /// Apps made with them move to this one by themselves (the launcher tries it when they open).
+    public var replaces: [String] = []
 
     public var components: [Component] { [wine, libraries] }
 }
@@ -18,8 +21,28 @@ public struct WineEngine: Sendable, Equatable {
 /// (`scripts/build-engine.sh`, run by the Engine workflow) and publishes it in its releases.
 public enum EngineCatalog {
     /// Wine from CrossOver 26.3.0 (Wine 11.0 base) with DXMT 0.80 (Direct3D 11 on Metal), built
-    /// by Vitral. Opens Qt 5 programs (32-bit) and Electron 37 programs (tested 2026-11-05).
+    /// by Vitral with its fixes to Wine (`engine-patches/`, 8 of them: Encarta 2009's pages, error
+    /// boxes in the log). Opens Qt 5 programs (32-bit) and Electron 37 programs.
     public static let crossover26 = WineEngine(
+        id: "cx26.3.0-2",
+        name: "CrossOver 26.3.0 (Wine 11.0) + DXMT 0.80",
+        wine: Component(
+            id: "wine-cx26.3.0-2",
+            name: "Wine (CrossOver 26.3.0, Vitral build 2, with DXMT 0.80)",
+            url: URL(string: "https://github.com/noctavox-labs/vitral/releases/download/engine-cx26.3.0-2/wine-cx26.3.0.tar.xz")!,
+            sha256: "c5ce41ceb301042e5d65d302679f057ef24fd97d169f1d41c2b59412557df4ce",
+            bytes: 91_957_388,
+            archiveRoot: "wine-cx26.3.0",
+            license: "LGPL-2.1-or-later (Wine), MIT (DXMT); see share/licenses",
+            source: URL(string: "https://media.codeweavers.com/pub/crossover/source/crossover-sources-26.3.0.tar.gz")!
+        ),
+        libraries: gcenxLibraries,
+        replaces: ["cx26.3.0-1"]
+    )
+
+    /// The first build of the same Wine, without Vitral's fixes (tested 2026-11-05). Kept for the
+    /// apps made with it until they move to the next one.
+    public static let crossover26First = WineEngine(
         id: "cx26.3.0-1",
         name: "CrossOver 26.3.0 (Wine 11.0) + DXMT 0.80",
         wine: Component(
@@ -67,10 +90,17 @@ public enum EngineCatalog {
         source: URL(string: "https://github.com/Gcenx/macOS_Wine_builds")!
     )
 
-    public static let all: [WineEngine] = [crossover26, crossover24]
+    public static let all: [WineEngine] = [crossover26, crossover26First, crossover24]
     public static let `default` = crossover26
 
     public static func engine(id: String) -> WineEngine? { all.first { $0.id == id } }
+
+    /// In an app's recipes, with the newer engine as `because`: the program did not open with it,
+    /// so the app keeps its engine until there is another one.
+    public static let stayRecipe = "engine-stays"
+
+    /// The engine that replaces this one, if there is one.
+    public static func successor(of id: String) -> WineEngine? { all.first { $0.replaces.contains(id) } }
 }
 
 /// An engine unpacked on this Mac.
@@ -90,6 +120,12 @@ public struct InstalledEngine: Sendable {
 
     /// DLL overrides while the prefix is created: no Wine Mono or Gecko download offers.
     public static let prefixCreationOverrides = "winemenubuilder.exe=d;mscoree=d;mshtml=d"
+
+    /// While another build updates the prefix: no Wine Mono download offer, and MSHTML only where
+    /// Gecko is (then it registers again, with nothing to offer).
+    public static func prefixUpdateOverrides(prefix: URL) -> String {
+        WineGecko.isInstalled(prefix: prefix) ? "winemenubuilder.exe=d;mscoree=d" : prefixCreationOverrides
+    }
 
     /// DLL overrides while programs run: no macOS menu entries or file associations for Windows
     /// programs; and no Internet Explorer (MSHTML) unless Wine Gecko is in the prefix, because
