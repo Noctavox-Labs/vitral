@@ -27,10 +27,10 @@ up for that program.
   any that does not help. If it cannot fix it (some need a newer engine), it says why and helps
   you report it on GitHub with a report you read before sending. New failures and fixes arrive
   in a signed catalog, without waiting for a new Vitral.
-- **You can still change everything.** Advanced settings are one click away, with a
+- **You can still change everything** *(coming)*. Advanced settings one click away, with a
   **Reset to recommended** button.
-- **Sharing is easy.** Export the app and send it; the other person imports it in Vitral, with no
-  Terminal commands. Vitral checks Rosetta and macOS quarantine for them.
+- **Sharing is easy** *(coming)*. Export the app and send it; the other person imports it in
+  Vitral, with no Terminal commands. Vitral checks Rosetta and macOS quarantine for them.
 
 ## How it compares
 

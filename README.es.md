@@ -28,10 +28,10 @@ configurada para ese programa.
   arreglos, y deshace los que no sirven. Si no puede arreglarlo (algunas fallas piden un motor
   más nuevo), explica por qué y te ayuda a informarlo en GitHub con un informe que lees antes de
   enviar. Las fallas y arreglos nuevos llegan en un catálogo firmado, sin esperar un Vitral nuevo.
-- **Puedes cambiarlo todo.** Los ajustes avanzados están a un clic, con un botón
+- **Puedes cambiarlo todo** *(próximamente)*. Los ajustes avanzados, a un clic, con un botón
   **Volver a lo recomendado**.
-- **Compartir es fácil.** Exportas la app y la mandas; la otra persona la importa en Vitral, sin
-  comandos de Terminal. Vitral se encarga de Rosetta y de la cuarentena de macOS.
+- **Compartir es fácil** *(próximamente)*. Exportas la app y la mandas; la otra persona la importa
+  en Vitral, sin comandos de Terminal. Vitral se encarga de Rosetta y de la cuarentena de macOS.
 
 ## En qué se diferencia
 
