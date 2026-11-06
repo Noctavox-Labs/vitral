@@ -49,8 +49,8 @@ public enum InstallError: Error, CustomStringConvertible {
             return tr("El instalador no pudo abrirse (código \(status)). Registro: \(log.path)",
                       "The installer could not start (status \(status)). Log: \(log.path)")
         case .windowsInUse(let name):
-            return tr("Cierra \(name) (y los demás programas de su Windows) y vuelve a intentarlo: hay que cambiar ajustes de ese Windows.",
-                      "Close \(name) (and the other programs of its Windows) and try again: settings of that Windows have to change.")
+            return tr("Cierra \(name) (y los demás programas de su mismo instalador) y vuelve a intentarlo: hay que cambiar ajustes que comparten.",
+                      "Close \(name) (and the other programs from its installer) and try again: settings they share have to change.")
         case .installerStopped(let message, let log):
             return tr("El instalador se detuvo: «\(message)». Registro: \(log.path)",
                       "The installer stopped: “\(message)”. Log: \(log.path)")
@@ -58,8 +58,8 @@ public enum InstallError: Error, CustomStringConvertible {
             return tr("No se pudo instalar .NET Framework 4.8 (versión encontrada: \(release.map(String.init) ?? "ninguna")).",
                       "Could not install .NET Framework 4.8 (version found: \(release.map(String.init) ?? "none")).")
         case .sharedWindowsMissing:
-            return tr("Esta app es de una versión anterior de Vitral y lleva su Windows adentro. Desinstálala e instálala de nuevo para agregarle programas.",
-                      "This app comes from an earlier Vitral and carries its Windows inside. Uninstall it and install it again to add programs to it.")
+            return tr("Esta app es de una versión anterior de Vitral y guarda sus archivos de otra forma. Desinstálala e instálala de nuevo para agregarle programas.",
+                      "This app comes from an earlier Vitral and keeps its files another way. Uninstall it and install it again to add programs to it.")
         case .prerequisiteLoop(let package, let log):
             let name = BurnLog.friendlyName(package)
             return tr("El instalador repetía sin parar la instalación de \(name): termina sin instalar nada en Wine y el instalador vuelve a pedirlo. Lo detuve. Este programa todavía no se puede instalar con Vitral. Registro: \(log.path)",

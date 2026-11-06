@@ -71,6 +71,11 @@ struct MainView: View {
         } message: {
             Text(model.uninstallError ?? "")
         }
+        .alert("No se pudo agregar el programa", isPresented: Binding(get: { model.addProgramError != nil }, set: { if !$0 { model.addProgramError = nil } })) {
+            Button("Aceptar", role: .cancel) {}
+        } message: {
+            Text(model.addProgramError ?? "")
+        }
     }
 
     static let installerTypes: [UTType] = ["exe", "msi"].compactMap { UTType(filenameExtension: $0) } + [.zip]
@@ -152,8 +157,45 @@ struct LibraryGrid: View {
             ForEach(model.library) { app in
                 LibraryCard(app: app)
             }
+            ForEach(model.pendingApps) { pending in
+                PendingCard(app: pending)
+            }
         }
         .glassGroup(spacing: 16)
+    }
+}
+
+/// A card for an app Vitral is still making: it breathes and says so until the app is ready.
+struct PendingCard: View {
+    let app: AppModel.PendingApp
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(nsImage: app.icon)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 72, height: 72)
+                .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
+                .phaseAnimator([false, true]) { icon, dim in
+                    icon.opacity(dim ? 0.35 : 0.8).scaleEffect(dim ? 0.92 : 1)
+                } animation: { _ in .easeInOut(duration: 0.8) }
+            Text(app.name)
+                .font(.callout.weight(.medium))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity)
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.mini).tint(Palette.progress)
+                Text("Agregando…")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 18)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, minHeight: 170)
+        .vitralGlass(cornerRadius: 22)
+        .help("Vitral está creando la app de \(app.name)")
     }
 }
 
@@ -209,6 +251,15 @@ struct LibraryCard: View {
         .contextMenu {
             Button("Abrir") { model.openApp(app.url) }
             Button("Mostrar en Finder") { model.showInFinder(app.url) }
+            if !app.others.isEmpty {
+                Divider()
+                Menu("Agregar otro programa del mismo instalador") {
+                    ForEach(app.others, id: \.self) { choice in
+                        Button(choice.name) { Task { await model.addProgram(choice, to: app) } }
+                            .disabled(model.pendingApps.contains { $0.name == choice.name })
+                    }
+                }
+            }
             Divider()
             Button("Desinstalar…", role: .destructive) { confirmingUninstall = true }
         }
@@ -232,7 +283,7 @@ struct LibraryCard: View {
             if companions.isEmpty {
                 Text("Si está abierto, se cierra. La app (con el programa y su configuración) y sus registros van a la Papelera, desde donde se pueden recuperar. Tus archivos en Documentos, Descargas, Música, Imágenes y Películas no se tocan.")
             } else {
-                Text("Vino con \(companions.formatted(.list(type: .and))), del mismo instalador: comparten un Windows. Si desinstalas también las otras, se va ese Windows; si solo esta, el Windows se queda para las otras. Todo va a la Papelera, desde donde se puede recuperar. Tus archivos en Documentos, Descargas, Música, Imágenes y Películas no se tocan.")
+                Text("Vino con \(companions.formatted(.list(type: .and))), del mismo instalador: comparten archivos y ajustes. Si desinstalas también las otras, se borra todo; si solo esta, los archivos y ajustes se quedan para las otras. Todo va a la Papelera, desde donde se puede recuperar. Tus archivos en Documentos, Descargas, Música, Imágenes y Películas no se tocan.")
             }
         }
     }

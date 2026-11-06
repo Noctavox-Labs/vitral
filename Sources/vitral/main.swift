@@ -29,10 +29,10 @@ func printUsage() {
                                                pasa opciones al instalador, como "/VERYSILENT" de Inno Setup.
           vitral desinstalar [--todas] <app>   Cierra el programa si está abierto y manda la app y sus registros a la
                                                Papelera. Tus archivos de Documentos, Descargas… no se tocan.
-                                               Si otra app usa su mismo Windows, el Windows se queda; con --todas
-                                               se van también esas apps y el Windows.
-          vitral programas <app>               Los otros programas del Windows de una app (los de una suite).
-          vitral agregar <app> <programa>      Crea otra app para uno de esos programas, sobre el mismo Windows.
+                                               Si otra app vino del mismo instalador, los archivos y ajustes que
+                                               comparten se quedan; con --todas se van esas apps y todo.
+          vitral programas <app>               Los otros programas que trajo el instalador de una app (una suite).
+          vitral agregar <app> <programa>      Crea otra app para uno de esos programas (comparten archivos y ajustes).
           vitral version                       Muestra la versión.
 
         Los comandos también funcionan en inglés (analyze, icon, engines install, engines clean, install, uninstall, programs, add). Idioma: VITRAL_LANG=es o en.
@@ -55,10 +55,10 @@ func printUsage() {
                                              passes options to the installer, such as Inno Setup's "/VERYSILENT".
           vitral uninstall [--all] <app>     Close the program if it is open and move the app and its logs to the
                                              Trash. Your files in Documents, Downloads… are not touched.
-                                             If another app uses the same Windows, the Windows stays; with --all
-                                             those apps and the Windows go too.
-          vitral programs <app>              The other programs in an app's Windows (those of a suite).
-          vitral add <app> <program>         Make another app for one of them, on the same Windows.
+                                             If another app came from the same installer, the files and settings
+                                             they share stay; with --all those apps and everything go too.
+          vitral programs <app>              The other programs an app's installer brought (a suite).
+          vitral add <app> <program>         Make another app for one of them (they share files and settings).
           vitral version                     Show the version.
 
         Commands also work in Spanish (analizar, icono, motores instalar, motores limpiar, instalar, desinstalar, programas, agregar). Language: VITRAL_LANG=en or es.
@@ -467,7 +467,7 @@ func install(_ options: [String]) async {
         switch stage {
         case .checking: print(tr("1/6 Revisando el instalador…", "1/6 Checking the installer…"))
         case .downloadingEngine, .installingDotNet: break
-        case .preparingWindows: print(tr("2/6 Preparando Windows (la primera vez tarda un poco)…", "2/6 Preparing Windows (the first time takes a while)…"))
+        case .preparingWindows: print(tr("2/6 Preparando el espacio del programa (la primera vez tarda un poco)…", "2/6 Preparing the program's space (the first time takes a while)…"))
         case .runningInstaller:
             print(tr("3/6 Abriendo el instalador: sigue sus pasos en su ventana.",
                      "3/6 Opening the installer: follow its steps in its window."))
@@ -533,7 +533,7 @@ func listPrograms(_ options: [String]) {
     do {
         let choices = try ProgramShortcuts.available(besides: app)
         if choices.isEmpty {
-            print(tr("Su Windows no tiene otros programas con acceso directo.", "Its Windows has no other programs with a shortcut."))
+            print(tr("Su instalador no dejó otros programas con acceso directo.", "Its installer left no other programs with a shortcut."))
         }
         for choice in choices { print("\(choice.name)  (\(choice.program))") }
     } catch {
@@ -555,8 +555,8 @@ func addProgram(_ options: [String]) async {
                  + (choices.isEmpty ? "—" : choices.map(\.name).joined(separator: ", ")))
         }
         let added = try await ProgramInstaller().addProgram(choice, sharingWindowsOf: app, launcher: launcher)
-        print(tr("✓ \(choice.name): \(added.path) (comparte el Windows de \(app.deletingPathExtension().lastPathComponent))",
-                 "✓ \(choice.name): \(added.path) (shares the Windows of \(app.deletingPathExtension().lastPathComponent))"))
+        print(tr("✓ \(choice.name): \(added.path) (comparte archivos y ajustes con \(app.deletingPathExtension().lastPathComponent))",
+                 "✓ \(choice.name): \(added.path) (shares files and settings with \(app.deletingPathExtension().lastPathComponent))"))
     } catch {
         fail("✗ " + String(describing: error))
     }
@@ -577,8 +577,8 @@ func uninstall(_ options: [String]) async {
         for item in trashed { print("  " + item.path) }
         if !together, !companions.isEmpty {
             let names = companions.map { $0.deletingPathExtension().lastPathComponent }.joined(separator: ", ")
-            print(tr("Su Windows se queda: lo usa \(names). Para quitar todo: vitral desinstalar --todas <app>",
-                     "Its Windows stays: \(names) uses it. To remove everything: vitral uninstall --all <app>"))
+            print(tr("Sus archivos y ajustes se quedan: los usa \(names). Para quitar todo: vitral desinstalar --todas <app>",
+                     "Its files and settings stay: \(names) uses them. To remove everything: vitral uninstall --all <app>"))
         }
     } catch {
         fail("✗ " + String(describing: error))

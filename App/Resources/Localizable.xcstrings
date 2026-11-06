@@ -127,6 +127,26 @@
         }
       }
     },
+    "Agregando…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adding…"
+          }
+        }
+      }
+    },
+    "Agregar otro programa del mismo instalador" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Another Program from the Same Installer"
+          }
+        }
+      }
+    },
     "Antes hace falta instalar Rosetta." : {
       "localizations" : {
         "en" : {
@@ -427,12 +447,12 @@
         }
       }
     },
-    "El instalador también trae otros programas. ¿Los quieres como apps? Usarán el mismo Windows que %@." : {
+    "El instalador también trae otros programas. ¿Los quieres como apps? Compartirán archivos y ajustes con %@." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The installer also brought other programs. Do you want them as apps? They will use the same Windows as %@."
+            "value" : "The installer also brought other programs. Do you want them as apps? They will share files and settings with %@."
           }
         }
       }
@@ -777,6 +797,16 @@
         }
       }
     },
+    "No se pudo agregar el programa" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't add the program"
+          }
+        }
+      }
+    },
     "No se pudo desinstalar" : {
       "localizations" : {
         "en" : {
@@ -817,12 +847,12 @@
         }
       }
     },
-    "Preparando Windows…" : {
+    "Preparando el espacio del programa…" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Preparing Windows…"
+            "value" : "Preparing the program's space…"
           }
         }
       }
@@ -1077,12 +1107,12 @@
         }
       }
     },
-    "Vino con %@, del mismo instalador: comparten un Windows. Si desinstalas también las otras, se va ese Windows; si solo esta, el Windows se queda para las otras. Todo va a la Papelera, desde donde se puede recuperar. Tus archivos en Documentos, Descargas, Música, Imágenes y Películas no se tocan." : {
+    "Vino con %@, del mismo instalador: comparten archivos y ajustes. Si desinstalas también las otras, se borra todo; si solo esta, los archivos y ajustes se quedan para las otras. Todo va a la Papelera, desde donde se puede recuperar. Tus archivos en Documentos, Descargas, Música, Imágenes y Películas no se tocan." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "It came with %@, from the same installer: they share one Windows. If you uninstall the others too, that Windows goes; if only this one, the Windows stays for the others. Everything goes to the Trash, where you can put it back. Your files in Documents, Downloads, Music, Pictures and Movies are not touched."
+            "value" : "It came with %@, from the same installer: they share files and settings. If you uninstall the others too, everything goes; if only this one, the files and settings stay for the others. Everything goes to the Trash, where you can put it back. Your files in Documents, Downloads, Music, Pictures and Movies are not touched."
           }
         }
       }
@@ -1093,6 +1123,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vitral"
+          }
+        }
+      }
+    },
+    "Vitral está creando la app de %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vitral is making the app for %@"
           }
         }
       }

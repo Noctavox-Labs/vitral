@@ -29,6 +29,8 @@ final class AppModel {
         let name: String
         let icon: NSImage
         let manifest: WrapperManifest
+        /// Programs of its Windows that no app opens yet (a suite's other programs).
+        var others: [ProgramChoice] = []
     }
 
     /// A Windows installer or program the person dropped, already analyzed.
@@ -279,8 +281,38 @@ final class AppModel {
                 Self.bringUpToDate(wrapper, launcher: launcher)
             }
             return LibraryApp(url: wrapper.url, name: name.replacingOccurrences(of: ".app", with: ""),
-                              icon: NSWorkspace.shared.icon(forFile: wrapper.url.path), manifest: manifest)
+                              icon: NSWorkspace.shared.icon(forFile: wrapper.url.path), manifest: manifest,
+                              others: (try? ProgramShortcuts.available(besides: wrapper.url)) ?? [])
         }
+    }
+
+    /// Last error making an app for another program of a Windows, shown in an alert.
+    var addProgramError: String?
+
+    /// An app being made from the library ("Add another program"), shown as a card until it is ready.
+    struct PendingApp: Identifiable {
+        var id: String { name }
+        let name: String
+        let icon: NSImage
+    }
+    private(set) var pendingApps: [PendingApp] = []
+
+    /// "Add another program": makes an app for `choice`, on the same Windows as `app`.
+    func addProgram(_ choice: ProgramChoice, to app: LibraryApp) async {
+        guard let launcher = InstallOptions.findLauncher() else {
+            addProgramError = InstallError.launcherMissing.description
+            return
+        }
+        guard !pendingApps.contains(where: { $0.name == choice.name }) else { return }
+        pendingApps.append(PendingApp(name: choice.name, icon: app.icon))
+        do {
+            _ = try await ProgramInstaller().addProgram(choice, sharingWindowsOf: app.url, launcher: launcher)
+        } catch {
+            addProgramError = String(describing: error)
+        }
+        // In the same update, so the new card replaces the pending one without a gap.
+        refreshLibrary()
+        pendingApps.removeAll { $0.name == choice.name }
     }
 
     /// Not while the app is open: its program is using the Windows that would move.

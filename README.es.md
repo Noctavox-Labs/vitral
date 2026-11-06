@@ -75,8 +75,8 @@ porque macOS solo abre apps cuya firma cubre todo lo que llevan dentro:
 
 Los accesos directos del propio instalador le dicen a Vitral qué programas trae. Si son varios
 (una suite, o un programa con su editor, como MetaTrader 5 y MetaEditor), Vitral crea la app del
-principal y ofrece los demás; cada uno que elijas queda como su propia app, sobre el mismo
-Windows. Al desinstalar una, Vitral ofrece quitar también las demás y su Windows. Desde la Terminal:
+principal y ofrece los demás; cada uno que elijas queda como su propia app, y comparten
+archivos y ajustes. Al desinstalar una, Vitral ofrece quitar también las demás. Desde la Terminal:
 `vitral programas <app>`, `vitral agregar <app> <programa>` y `vitral desinstalar --todas <app>`.
 
 Si el instalador abre el programa al terminar, Vitral cierra esa copia (corre sin estos ajustes)
@@ -123,7 +123,7 @@ Los juegos vienen después.
 | Notepad++ 8.9 | Win32 | Funciona |
 | HeidiSQL 12.22 | Delphi | Funciona |
 | WinMerge 2.16 | MFC | Funciona (comparación de carpetas y archivos) |
-| MetaTrader 5 | Win32 | Funciona, junto con MetaEditor sobre el mismo Windows |
+| MetaTrader 5 | Win32 | Funciona, junto con MetaEditor (del mismo instalador) |
 | Greenshot 1.3 | .NET Framework 4 | Abre con el .NET Framework 4.8 de Vitral; vive en la barra de menú |
 | Una app educativa de 32 bits | Qt 5 + QtWebEngine | Funciona con los ajustes de Qt de Vitral |
 | Una app en Electron 37 | Electron | Funciona con `--in-process-gpu` y DXMT |

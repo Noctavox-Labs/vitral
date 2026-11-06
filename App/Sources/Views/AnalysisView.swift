@@ -181,7 +181,7 @@ struct AnalysisView: View {
     @ViewBuilder
     private func otherPrograms(_ others: [ProgramChoice], app: URL) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("El instalador también trae otros programas. ¿Los quieres como apps? Usarán el mismo Windows que \(app.deletingPathExtension().lastPathComponent).")
+            Text("El instalador también trae otros programas. ¿Los quieres como apps? Compartirán archivos y ajustes con \(app.deletingPathExtension().lastPathComponent).")
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
             ForEach(others, id: \.self) { choice in
@@ -223,7 +223,7 @@ struct AnalysisView: View {
         switch stage {
         case .checking: String(localized: "Revisando el instalador…")
         case .downloadingEngine(let fraction): String(localized: "Descargando el motor de Windows… \(Int(fraction * 100)) %")
-        case .preparingWindows: String(localized: "Preparando Windows…")
+        case .preparingWindows: String(localized: "Preparando el espacio del programa…")
         case .runningInstaller: String(localized: "Sigue los pasos del instalador en su ventana.")
         case .finishingInstaller: String(localized: "El instalador terminó. Terminando de instalar…")
         case .closingProgram: String(localized: "El instalador abrió el programa: lo cierro para terminar la app…")

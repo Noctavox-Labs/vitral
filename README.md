@@ -72,8 +72,8 @@ only opens apps whose signature covers everything inside them:
 
 The installer's own shortcuts tell Vitral which programs it brought. When there are several (a
 suite, or a program with its editor, like MetaTrader 5 and MetaEditor), Vitral makes the app for
-the main one and offers the others; each one you pick becomes its own app on the same Windows.
-Uninstalling one offers to remove the others and their Windows too. From the Terminal:
+the main one and offers the others; each one you pick becomes its own app, and they share files and settings.
+Uninstalling one offers to remove the others too. From the Terminal:
 `vitral programs <app>`, `vitral add <app> <program>` and `vitral uninstall --all <app>`.
 
 If the installer opens the program when it finishes, Vitral closes that copy (it runs without
@@ -120,7 +120,7 @@ Games come later.
 | Notepad++ 8.9 | Win32 | Works |
 | HeidiSQL 12.22 | Delphi | Works |
 | WinMerge 2.16 | MFC | Works (folder and file comparisons) |
-| MetaTrader 5 | Win32 | Works, together with MetaEditor on the same Windows |
+| MetaTrader 5 | Win32 | Works, together with MetaEditor (from the same installer) |
 | Greenshot 1.3 | .NET Framework 4 | Opens with Vitral's .NET Framework 4.8; lives in the menu bar |
 | A 32-bit educational app | Qt 5 + QtWebEngine | Works with Vitral's Qt settings |
 | An Electron 37 app | Electron | Works with `--in-process-gpu` and DXMT |

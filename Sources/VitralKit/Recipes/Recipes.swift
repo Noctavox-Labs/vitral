@@ -129,8 +129,8 @@ public enum Recipes {
             return tr("PowerShell desactivado: el de Wine no hace nada y el instalador creía que el programa seguía abierto",
                       "PowerShell turned off: Wine's does nothing, and the installer thought the program was still open", language)
         case "dotnet-framework-4.8":
-            return tr(".NET Framework 4.8 de Microsoft instalado en su Windows (en vez de Wine Mono)",
-                      "Microsoft's .NET Framework 4.8 installed in its Windows (instead of Wine Mono)", language)
+            return tr(".NET Framework 4.8 de Microsoft instalado para este programa (en vez de Wine Mono)",
+                      "Microsoft's .NET Framework 4.8 installed for this program (instead of Wine Mono)", language)
         default:
             return id
         }
