@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "revision": 2026110601,
+  "revision": 2026110602,
   "entries": [
     {
       "id": "anti-cheat",
@@ -133,8 +133,8 @@
       "kind": "needsNewerEngine",
       "title": { "es": "Al motor gráfico le falta IDXGISurface", "en": "The graphics engine lacks IDXGISurface" },
       "explanation": {
-        "es": "DXMT 0.80 no da una superficie DXGI desde una textura de Direct3D 11, y lo que la usa falla con «E_NOINTERFACE» (los títulos GT de vMix, Direct2D sobre Direct3D). DXMT ya lo tiene en su versión en desarrollo: llegará con un motor nuevo.",
-        "en": "DXMT 0.80 gives no DXGI surface from a Direct3D 11 texture, and what uses one fails with “E_NOINTERFACE” (vMix's GT titles, Direct2D on Direct3D). DXMT already has it in development: it will come with a newer engine."
+        "es": "DXMT 0.80 no da una superficie DXGI desde una textura de Direct3D 11, y lo que la usa falla con «E_NOINTERFACE» (Direct2D sobre Direct3D). DXMT ya lo tiene en su versión en desarrollo y llegará con un motor nuevo. A los títulos GT de vMix no les alcanza: después usan efectos de Direct2D que Wine todavía no dibuja.",
+        "en": "DXMT 0.80 gives no DXGI surface from a Direct3D 11 texture, and what uses one fails with “E_NOINTERFACE” (Direct2D on Direct3D). DXMT already has it in development, and it will come with a newer engine. It is not enough for vMix's GT titles: they then use Direct2D effects that Wine cannot draw yet."
       },
       "when": [{ "log": ["Unknown interface query cafcb56c-6ac3-4889-bf47-9e23bbd260ec"] }],
       "fixes": [{ "engine": "newer" }],
