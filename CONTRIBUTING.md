@@ -35,8 +35,26 @@ Requires a Mac with Apple silicon, macOS 14+, and Xcode or the Command Line Tool
 
 ## Reporting a program that doesn't work / Reportar un programa que no funciona
 
-Open an issue with the "An app doesn't work" template and paste the output of
-`vitral analyze --json`. Please don't attach the installer.
+In Vitral, use **Report a Problem…** (in the alert when a program closes while opening, or in the
+library's menu), or run `vitral report --open <app>`: it opens the "An app doesn't work" form
+filled in, with a report you can read and edit first. Please don't attach the installer.
 
-Abre un issue con la plantilla «Una app no funciona» y pega el resultado de
-`vitral analizar --json`. No adjuntes el instalador.
+En Vitral, usa **Informar un problema…** (en el aviso cuando un programa se cierra al abrir, o en
+el menú de la biblioteca), o `vitral informe --abrir <app>`: abre el formulario «Una app no
+funciona» lleno, con un informe que puedes leer y cambiar antes. No adjuntes el instalador.
+
+## Known failures / Fallas conocidas
+
+`catalog/failures.json` lists the failures Vitral recognizes and the fixes it tries by itself:
+each with how it shows in the logs, when it applies, what to try (settings, recipes, official
+components; never code) and where it was learned. To propose one, edit that file, raise its
+`revision` (`YYYYMMDDnn`), run `scripts/embed-catalog.py` and `swift test`, and add a test with
+the real log lines. Publishing it signed (`scripts/sign-catalog.sh`) needs the release key, so
+only maintainers do that.
+
+`catalog/failures.json` lista las fallas que Vitral reconoce y los arreglos que prueba solo: cómo
+se ve cada una en los registros, cuándo aplica, qué probar (ajustes, recetas, componentes
+oficiales; nunca código) y de dónde salió. Para proponer una, edita ese archivo, sube su
+`revision` (`AAAAMMDDnn`), corre `scripts/embed-catalog.py` y `swift test`, y suma una prueba con
+las líneas reales del registro. Publicarlo firmado (`scripts/sign-catalog.sh`) necesita la llave
+de las versiones, así que lo hacen los mantenedores.

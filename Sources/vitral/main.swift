@@ -39,9 +39,12 @@ func printUsage() {
                                                en el navegador (nada se publica hasta que lo envíes); con --enlace,
                                                solo escribe su dirección.
           vitral diagnosticar <app|registro>   Compara lo que pasó con las fallas conocidas y dice qué se sabe de ellas.
+          vitral catalogo [--actualizar | --verificar <archivo>]
+                                               Muestra qué catálogo de fallas se usa, busca uno nuevo en GitHub
+                                               o comprueba la firma de un catálogo.
           vitral version                       Muestra la versión.
 
-        Los comandos también funcionan en inglés (analyze, icon, engines install, engines clean, install, uninstall, programs, add, report, diagnose). Idioma: VITRAL_LANG=es o en.
+        Los comandos también funcionan en inglés (analyze, icon, engines install, engines clean, install, uninstall, programs, add, report, diagnose, catalog). Idioma: VITRAL_LANG=es o en.
         """,
         """
         Vitral \(Vitral.version): Windows programs on your Mac.
@@ -71,9 +74,12 @@ func printUsage() {
                                              in the browser (nothing is posted until you send it); with --link,
                                              only print its address.
           vitral diagnose <app|log>          Compare what happened with the known failures and say what is known.
+          vitral catalog [--update | --verify <file>]
+                                             Show which failure catalog is in use, look for a new one on GitHub,
+                                             or check a catalog's signature.
           vitral version                     Show the version.
 
-        Commands also work in Spanish (analizar, icono, motores instalar, motores limpiar, instalar, desinstalar, programas, agregar, informe, diagnosticar). Language: VITRAL_LANG=en or es.
+        Commands also work in Spanish (analizar, icono, motores instalar, motores limpiar, instalar, desinstalar, programas, agregar, informe, diagnosticar, catalogo). Language: VITRAL_LANG=en or es.
         """
     ))
 }
@@ -597,7 +603,7 @@ func diagnose(_ options: [String]) {
         // A log by itself: any phase it may be.
         let text = LogExcerpt.read(URL(fileURLWithPath: path))
         diagnoses = [FailurePhase.install, .start, .running].flatMap { phase in
-            Diagnoser.diagnose(FailureObservation(phase: phase, logs: [text]))
+            Diagnoser.diagnose(FailureObservation(phase: phase, logs: [text]), catalog: .current)
         }.reduce(into: []) { all, d in if !all.contains(where: { $0.id == d.id }) { all.append(d) } }
     } else {
         let app = appURL(options[0])
@@ -629,6 +635,52 @@ func diagnose(_ options: [String]) {
         if let evidence = diagnosis.evidence { print(tr("  Visto: ", "  Seen: ") + evidence) }
         if !diagnosis.fixesText.isEmpty { print(tr("  Se puede probar: ", "  Can try: ") + diagnosis.fixesText.joined(separator: "; ")) }
     }
+}
+
+func catalog(_ options: [String]) async {
+    let store = CatalogStore()
+    switch options.first {
+    case "--verificar", "--verify":
+        guard options.count == 2 else { printUsage(); exit(2) }
+        do {
+            let data = try Data(contentsOf: URL(fileURLWithPath: (options[1] as NSString).expandingTildeInPath))
+            let catalog = try JSONDecoder().decode(SignedCatalog.self, from: data).verified(publicKey: CatalogStore.publicKey)
+            print(tr("✓ Firma válida. Revisión \(catalog.revision), \(catalog.entries.count) entradas.",
+                     "✓ Valid signature. Revision \(catalog.revision), \(catalog.entries.count) entries."))
+        } catch {
+            fail("✗ \(error)")
+        }
+        return
+    case "--actualizar", "--update":
+        do {
+            let best = try await store.refresh()
+            print(tr("Catálogo en uso: revisión \(best.revision).", "Catalog in use: revision \(best.revision)."))
+        } catch {
+            fail(tr("✗ No se pudo bajar el catálogo: \(error)", "✗ Could not download the catalog: \(error)"))
+        }
+    case nil:
+        break
+    default:
+        printUsage(); exit(2)
+    }
+    let builtIn = FailureCatalog.builtIn
+    print(tr("Incluido en Vitral: revisión \(builtIn.revision), \(builtIn.entries.count) entradas.",
+             "Built into Vitral: revision \(builtIn.revision), \(builtIn.entries.count) entries."))
+    do {
+        if let downloaded = try store.downloaded() {
+            print(tr("Descargado: revisión \(downloaded.revision), \(downloaded.entries.count) entradas (firma válida).",
+                     "Downloaded: revision \(downloaded.revision), \(downloaded.entries.count) entries (valid signature)."))
+        } else {
+            print(tr("Descargado: ninguno todavía.", "Downloaded: none yet."))
+        }
+    } catch {
+        print(tr("Descargado: no sirve (\(error)).", "Downloaded: unusable (\(error))."))
+    }
+    print(tr("En uso: revisión \(store.best().revision).", "In use: revision \(store.best().revision)."))
+    if let last = store.lastCheck { print(tr("Última búsqueda: ", "Last check: ") + last.formatted()) }
+    print(CatalogStore.automaticChecks
+          ? tr("Se busca solo (con «Buscar actualizaciones automáticamente»).", "Looked for automatically (with “Check for updates automatically”).")
+          : tr("No se busca solo: «Buscar actualizaciones automáticamente» está desactivado.", "Not looked for automatically: “Check for updates automatically” is off."))
 }
 
 func addProgram(_ options: [String]) async {
@@ -710,6 +762,8 @@ case "informe", "report":
     report(Array(arguments.dropFirst()))
 case "diagnosticar", "diagnose":
     diagnose(Array(arguments.dropFirst()))
+case "catalogo", "catálogo", "catalog":
+    await catalog(Array(arguments.dropFirst()))
 case "version", "versión", "--version", "-v":
     print("Vitral \(Vitral.version)")
 case "ayuda", "help", "--help", "-h":

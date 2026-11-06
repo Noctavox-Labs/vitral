@@ -18,6 +18,8 @@ final class Launcher: NSObject, NSApplicationDelegate {
     private var tried: [Repair] = []
     /// Fixes already saved in the app in this opening.
     private var kept: Set<String> = []
+    /// Fixes tried in an earlier opening without success, not tried again this time.
+    private var triedBefore: [Repair] = []
 
     /// A fix being tried: what was there before, and the copy to go back to.
     private struct Trial {
@@ -125,15 +127,64 @@ final class Launcher: NSObject, NSApplicationDelegate {
 
     // MARK: Fixes
 
+    /// The catalog the fixes come from, once looked up in this opening.
+    private var catalog: FailureCatalog?
+
+    /// The newest catalog: when a program does not open is when a new fix may help, so Vitral
+    /// looks on GitHub (at most once an hour, five seconds at most, if the person lets it look
+    /// for updates).
+    private func currentCatalog() async -> FailureCatalog {
+        if let catalog { return catalog }
+        let store = CatalogStore()
+        if CatalogStore.automaticChecks, store.isDue(every: 3600) {
+            do {
+                let found = try await store.refresh(timeout: 5)
+                write(tr("Catálogo de fallas: revisión \(found.revision).", "Failure catalog: revision \(found.revision)."))
+            } catch {
+                write(tr("No pude buscar un catálogo de fallas nuevo: \(error)", "Could not look for a new failure catalog: \(error)"))
+            }
+        }
+        let best = store.best()
+        catalog = best
+        return best
+    }
+
+    private var historyURL: URL? {
+        launch.map { RepairHistory.url(app: wrapper.url, prefix: $0.session.prefix) }
+    }
+
+    /// Notes how a fix went, so the next openings do not try it again with this catalog and engine.
+    private func remember(_ repair: Repair, _ outcome: RepairHistory.Outcome?) {
+        guard let url = historyURL, let launch else { return }
+        var history = RepairHistory.load(from: url)
+        if let outcome {
+            history.record(repair.key, outcome: outcome, revision: catalog?.revision ?? 0, engine: launch.manifest.engine)
+        } else {
+            history.forget(repair.key)
+        }
+        try? history.save(to: url)
+    }
+
     /// The next fix for what the logs show, if Vitral can try one by itself.
     private func nextRepair(sharedRunning: Bool) async -> Repair? {
         guard let launch else { return nil }
         try? log?.synchronize()
+        let catalog = await currentCatalog()
         let app = wrapper.url
         let inspection = await Task.detached { AppInspection(app: app, phase: .start) }.value
-        let diagnoses = inspection.diagnoses()
-        let repairs = RepairPlanner.plan(diagnoses, settings: launch.manifest.settings, prefix: launch.session.prefix,
-                                         tried: Set(tried.map(\.key)))
+        let diagnoses = inspection.diagnoses(catalog: catalog)
+        // Not again what did not help before, with this same catalog and engine.
+        let before = historyURL.map { RepairHistory.load(from: $0).tried(revision: catalog.revision, engine: launch.manifest.engine) } ?? []
+        let thisTime = Set(tried.map(\.key))
+        let possible = RepairPlanner.plan(diagnoses, settings: launch.manifest.settings, prefix: launch.session.prefix, tried: thisTime)
+        let repairs = possible.filter { !before.contains($0.key) }
+        // Tried in an earlier opening (not this one), and not again until something changes.
+        let earlier = possible.filter { before.contains($0.key) }
+        if !earlier.isEmpty {
+            triedBefore = earlier
+            write(tr("Ya probé antes, sin éxito: \(earlier.map(\.key).joined(separator: ", ")). Vuelvo a probarlo con otro catálogo o motor.",
+                     "Already tried before, without success: \(earlier.map(\.key).joined(separator: ", ")). I will try again with another catalog or engine."))
+        }
         // While another program of the same installer is open, its files cannot be changed.
         return repairs.first { !sharedRunning || !$0.changesPrefix }
     }
@@ -160,6 +211,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
                         "Vitral downloads Microsoft's official installers (about 120 MB) and installs it for this program only. If it still does not open, everything goes back as it was."),
                       action: tr("Instalar .NET Framework", "Install .NET Framework")) else {
                 write(tr("No se instaló .NET Framework (la persona dijo que no).", "Did not install .NET Framework (the person said no)."))
+                remember(repair, .declined)
                 return nil
             }
             backup = makeBackup(of: prefix, scope: .everything)
@@ -176,6 +228,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
                 write(tr("No se pudo instalar .NET Framework: \(error)", "Could not install .NET Framework: \(error)"))
                 await launch.session.killServer()
                 restore(backup)
+                remember(repair, .failed)
                 return nil
             }
         } else if let settings = repair.settings {
@@ -189,6 +242,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
                     write(tr("No se pudo cambiar el registro: \(error)", "Could not change the registry: \(error)"))
                     await launch.session.killServer()
                     restore(backup)
+                    remember(repair, .failed)
                     return nil
                 }
             }
@@ -228,6 +282,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
         write(tr("El arreglo no alcanzó: lo deshago.", "The fix was not enough: undoing it."))
         launch = trial.previous
         restore(trial.backup)
+        remember(trial.repair, .notEnough)
     }
 
     /// The fix opened the program: it stays in the app, with why.
@@ -243,6 +298,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
                 return String(describing: error)
             }
         }.value
+        remember(trial.repair, nil)
         if let saved {
             write(tr("El arreglo funcionó, pero no pude guardarlo en la app: \(saved)", "The fix worked, but could not save it in the app: \(saved)"))
         } else {
@@ -348,7 +404,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
         let app = wrapper.url
         let inspection = await Task.detached { AppInspection(app: app, phase: .start) }.value
         inspection.missing.forEach { write($0.logLine) }
-        let diagnoses = inspection.diagnoses()
+        let diagnoses = inspection.diagnoses(catalog: await currentCatalog())
         for diagnosis in diagnoses {
             write(tr("Diagnóstico: \(diagnosis.title) [\(diagnosis.id)]", "Diagnosis: \(diagnosis.title) [\(diagnosis.id)]"))
         }
@@ -363,8 +419,13 @@ final class Launcher: NSObject, NSApplicationDelegate {
         }
         let triedText = tried.map(\.description)
         if !triedText.isEmpty {
-            details.append(tr("Probé \(triedText.joined(separator: "; ")), y no alcanzó: lo dejé como estaba.",
+            details.append(tr("Probé: \(triedText.joined(separator: "; ")). No alcanzó, así que lo dejé como estaba.",
                               "I tried: \(triedText.joined(separator: "; ")). It was not enough, so I left it as it was."))
+        }
+        let earlierText = triedBefore.map(\.description)
+        if !earlierText.isEmpty {
+            details.append(tr("En otra apertura ya probé: \(earlierText.joined(separator: "; ")). No alcanzó. Lo vuelvo a probar cuando Vitral tenga un catálogo de fallas o un motor nuevo.",
+                              "Another time I already tried: \(earlierText.joined(separator: "; ")). It was not enough. I will try again once Vitral has a new failure catalog or engine."))
         }
         details.append(attempts > 1
             ? tr("Lo intenté \(attempts) veces. El registro puede ayudar a encontrar la causa.",
@@ -382,8 +443,9 @@ final class Launcher: NSObject, NSApplicationDelegate {
         case .alertFirstButtonReturn:
             try? log?.synchronize()
             var report = await Task.detached { ProblemReporter.app(inspection, closedWhileOpening: attempts) }.value
-            if !triedText.isEmpty {
-                report.facts.insert(.init(tr("Arreglos probados", "Fixes tried"), tried.map(\.key).joined(separator: ", ")), at: 0)
+            let allTried = (triedBefore + tried).map(\.key)
+            if !allTried.isEmpty {
+                report.facts.insert(.init(tr("Arreglos probados", "Fixes tried"), allTried.joined(separator: ", ")), at: 0)
             }
             review(report)
         case .alertSecondButtonReturn:

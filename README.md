@@ -22,8 +22,11 @@ up for that program.
 - **It decides for you.** Vitral reads the installer before running anything: installer type,
   32 or 64 bits, the framework inside (Qt, Electron, .NET…), what it needs. Then it picks the
   settings that are known to work.
-- **It checks its own work.** The first time the program opens, Vitral watches for a window,
-  reads Wine's logs and the program's own logs, and fixes known problems by itself.
+- **It checks its own work.** When a program closes instead of opening, Vitral reads Wine's
+  logs and the program's own, recognizes known failures and tries their fixes by itself, undoing
+  any that does not help. If it cannot fix it (some need a newer engine), it says why and helps
+  you report it on GitHub with a report you read before sending. New failures and fixes arrive
+  in a signed catalog, without waiting for a new Vitral.
 - **You can still change everything.** Advanced settings are one click away, with a
   **Reset to recommended** button.
 - **Sharing is easy.** Export the app and send it; the other person imports it in Vitral, with no
@@ -35,7 +38,7 @@ up for that program.
 |-----------------------------------------|--------------|-----------|-----------|------------|
 | Any Windows program                     | ✓            | ✓         | ✓         | ✓          |
 | Analyzes the installer and picks settings | –          | –         | partly    | ✓          |
-| Detects and fixes problems on first run | –            | –         | –         | ✓          |
+| Recognizes and fixes known problems when a program does not open | – | – | – | ✓          |
 | One shareable Mac app per program       | –            | ✓ (Terminal needed to share) | – | ✓      |
 | Free                                    | ✓            | ✓         | –         | ✓          |
 
@@ -178,13 +181,17 @@ patches fix that, and CrossOver 26 has what Electron apps need.
 | **1. One command** *(now)* | `vitral install Setup.exe` creates a sharp, portable Mac app with its icon, with no manual steps beyond the program's own installer. Reached for its first targets: a 32-bit Qt 5 + QtWebEngine educational app that needed a dozen manual fixes, and an Electron 37 app, on Vitral's own engine. Next: more test Macs and programs |
 | **2. The app** *(started)* | SwiftUI app with Liquid Glass: setup assistant (Rosetta, engine), drag and drop, library, "Does it look right?", advanced settings |
 | **3. Sharing** *(started)* | Signed and notarized releases and automatic updates inside the app (done); export and import |
-| **4. More programs** *(started)* | [Compatibility list](#programs-tested), .NET Framework, installers with several programs; next: community recipes |
+| **4. More programs** *(started)* | [Compatibility list](#programs-tested), .NET Framework, installers with several programs, a catalog of known failures with fixes Vitral tries by itself (downloaded and signed); next: blank windows and programs that hang, retrying installations, community recipes |
 | **5. After Rosetta** | Apple is phasing out general Rosetta support after macOS 27; Vitral is built so a Rosetta-free Wine engine can drop in |
 
 ## Principles
 
 - **No telemetry.** Nothing leaves your Mac unless you send a report yourself.
 - **Downloads only from official sources**, with pinned SHA-256 checksums.
+- **Known failures arrive signed.** The catalog of failures and fixes comes from this repository
+  (`catalog/`), only while automatic update checks are on, and Vitral uses it only if it is
+  signed with the same key as its updates. A fix is a setting or an official component, never
+  code.
 - **Anti-cheat is detected and explained, never bypassed.**
 - **Respect software licenses.** Share a program only with people covered by its license, or
   share just the recipe so they use their own installer.

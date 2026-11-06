@@ -62,6 +62,13 @@ final class AppModel {
         refresh()
         refreshLibrary()
         showSetup = needsSetup
+        // New known failures and fixes, without a new Vitral: once a day, if the person lets
+        // Vitral look for updates by itself.
+        Task.detached(priority: .background) {
+            let store = CatalogStore()
+            guard CatalogStore.automaticChecks, store.isDue(every: 86_400) else { return }
+            _ = try? await store.refresh()
+        }
     }
 
     var engineInstalled: Bool { engine.components.allSatisfy(installer.isInstalled) }
@@ -152,7 +159,7 @@ final class AppModel {
             // Only one sheet at a time: the analysis replaces the setup assistant.
             showSetup = false
             if case .working = installState {} else { installState = .idle }
-            let known = Diagnoser.diagnose(.analysis(report)).filter { $0.kind == .notYet || $0.kind == .never }
+            let known = Diagnoser.diagnose(.analysis(report), catalog: .current).filter { $0.kind == .notYet || $0.kind == .never }
             dropped = DroppedFile(url: url, report: report, icon: icon, knownIssues: known)
         } catch {
             dropError = String(localized: "No pude leer ese archivo.")
@@ -238,7 +245,7 @@ final class AppModel {
         let (installer, since, report) = (file.url, installStarted, file.report)
         return await Task.detached {
             Diagnoser.diagnose(.installation(report, fileName: installer.lastPathComponent, message: message,
-                                             log: ProgramInstaller.latestInstallLog(since: since)))
+                                             log: ProgramInstaller.latestInstallLog(since: since)), catalog: .current)
         }.value
     }
 

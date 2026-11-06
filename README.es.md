@@ -23,9 +23,11 @@ configurada para ese programa.
 - **Decide por ti.** Vitral lee el instalador antes de ejecutar nada: tipo de instalador, 32 o 64
   bits, la tecnología que usa (Qt, Electron, .NET…) y lo que necesita. Con eso elige la
   configuración que se sabe que funciona.
-- **Revisa su propio trabajo.** La primera vez que se abre el programa, Vitral espera a que
-  aparezca la ventana, lee los registros de Wine y los del propio programa, y corrige solo los
-  problemas conocidos.
+- **Revisa su propio trabajo.** Si un programa se cierra en vez de abrir, Vitral lee los
+  registros de Wine y los del propio programa, reconoce las fallas conocidas y prueba solo sus
+  arreglos, y deshace los que no sirven. Si no puede arreglarlo (algunas fallas piden un motor
+  más nuevo), explica por qué y te ayuda a informarlo en GitHub con un informe que lees antes de
+  enviar. Las fallas y arreglos nuevos llegan en un catálogo firmado, sin esperar un Vitral nuevo.
 - **Puedes cambiarlo todo.** Los ajustes avanzados están a un clic, con un botón
   **Volver a lo recomendado**.
 - **Compartir es fácil.** Exportas la app y la mandas; la otra persona la importa en Vitral, sin
@@ -37,7 +39,7 @@ configurada para ese programa.
 |----------------------------------------------|--------------|-----------|-----------|------------|
 | Cualquier programa de Windows                | ✓            | ✓         | ✓         | ✓          |
 | Analiza el instalador y elige la configuración | –          | –         | en parte  | ✓          |
-| Detecta y corrige fallas al primer arranque  | –            | –         | –         | ✓          |
+| Reconoce y corrige fallas conocidas cuando un programa no abre | – | – | – | ✓          |
 | Una app de Mac por programa, para compartir  | –            | ✓ (hay que usar la Terminal) | – | ✓     |
 | Gratis                                       | ✓            | ✓         | –         | ✓          |
 
@@ -185,13 +187,17 @@ necesitan las apps de Electron.
 | **1. Un comando** *(ahora)* | `vitral instalar Setup.exe` crea una app de Mac nítida, portable y con ícono, sin pasos a mano aparte del instalador del programa. Logrado con sus primeros objetivos: una app educativa en Qt 5 + QtWebEngine de 32 bits que necesitaba una docena de arreglos manuales, y una app en Electron 37, con el motor propio. Sigue: más Macs y programas de prueba |
 | **2. La app** *(empezada)* | App en SwiftUI con Liquid Glass: asistente de preparación (Rosetta, motor), arrastrar y soltar, biblioteca, «¿Se ve bien?», ajustes avanzados |
 | **3. Compartir** *(empezada)* | Versiones firmadas y notarizadas y actualizaciones automáticas dentro de la app (hecho); exportar e importar |
-| **4. Más programas** *(empezada)* | [Lista de compatibilidad](#programas-probados), .NET Framework, instaladores con varios programas; sigue: recetas de la comunidad |
+| **4. Más programas** *(empezada)* | [Lista de compatibilidad](#programas-probados), .NET Framework, instaladores con varios programas, un catálogo de fallas conocidas con arreglos que Vitral prueba solo (descargado y firmado); sigue: ventanas en blanco y programas que se cuelgan, reintentar instalaciones, recetas de la comunidad |
 | **5. Después de Rosetta** | Apple deja Rosetta para uso general después de macOS 27; Vitral está hecho para cambiar a un motor de Wine que no lo necesite |
 
 ## Principios
 
 - **Sin telemetría.** Nada sale de tu Mac, salvo un informe que tú decidas enviar.
 - **Descargas solo de fuentes oficiales**, con sumas SHA-256 fijadas.
+- **Las fallas conocidas llegan firmadas.** El catálogo de fallas y arreglos viene de este
+  repositorio (`catalog/`), solo si está activada la búsqueda automática de actualizaciones, y
+  Vitral lo usa solo si está firmado con la misma llave que sus actualizaciones. Un arreglo es un
+  ajuste o un componente oficial, nunca código.
 - **Los antitrampas se detectan y se explican, nunca se eluden.**
 - **Respeto a las licencias.** Comparte un programa solo con personas cubiertas por su licencia,
   o comparte solo la receta para que cada quien use su propio instalador.

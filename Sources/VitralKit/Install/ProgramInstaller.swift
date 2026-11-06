@@ -365,6 +365,15 @@ public struct ProgramInstaller: Sendable {
 
             progress(.applyingSettings)
             var (settings, applied) = Recipes.settings(for: found.report)
+            // Programs the catalog knows by name get their fixes now, not after failing.
+            let known = RepairPlanner.knownProgram(names: RepairPlanner.names(of: found.report.executable?.version,
+                                                                               installer: installer.lastPathComponent),
+                                                   settings: settings)
+            settings = known.settings
+            applied += known.applied
+            for recipe in known.applied {
+                logHandle.write(Data("[Vitral] Known program: \(recipe.id) [\(recipe.because)]\n".utf8))
+            }
             if let picked { settings.arguments = picked.arguments + settings.arguments }
             // The installer's settings stay in the prefix; the manifest lists them too.
             settings.registry = setup.registry + settings.registry
@@ -428,6 +437,10 @@ public struct ProgramInstaller: Sendable {
             throw InstallError.programNotFound(log: ProgramInstaller.logs)
         }
         var (settings, applied) = Recipes.settings(for: report)
+        let known = RepairPlanner.knownProgram(names: RepairPlanner.names(of: report.executable?.version, installer: manifest.installer),
+                                               settings: settings)
+        settings = known.settings
+        applied += known.applied
         settings.arguments = choice.arguments + settings.arguments
         if !settings.registry.isEmpty {
             // Registry changes are saved when the Windows stops; the other program keeps it running.

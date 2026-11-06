@@ -73,6 +73,38 @@ public enum RepairPlanner {
         return result == current ? nil : result
     }
 
+    /// Settings for a program the catalog knows by name: an entry that can be fixed and matches
+    /// before installing (`phase: analysis`, `product`). Its first settings fix goes in when the app
+    /// is made, so the program opens well the first time. `names` are the installer's file name
+    /// and the program's name and version.
+    public static func knownProgram(names: [String], settings: LaunchSettings,
+                                    catalog: FailureCatalog = .current) -> (settings: LaunchSettings, applied: [AppliedRecipe]) {
+        var settings = settings
+        var applied: [AppliedRecipe] = []
+        let diagnoses = Diagnoser.diagnose(FailureObservation(phase: .analysis, names: names), catalog: catalog)
+        for diagnosis in diagnoses where diagnosis.kind == .fixable {
+            for fix in diagnosis.signature.fixes {
+                guard let changed = Self.settings(with: fix, from: settings) else { continue }
+                settings = changed
+                applied.append(AppliedRecipe(id: fix.recipe ?? diagnosis.id, because: diagnosis.id))
+                break
+            }
+        }
+        return (settings, applied)
+    }
+
+    /// The names a program is known by: "Paint.NET 5.1.12", its file description, the installer.
+    public static func names(of product: VersionInfo?, installer: String?) -> [String] {
+        var names: [String] = []
+        if let installer { names.append(installer) }
+        if let product {
+            for name in [product.productName, product.fileDescription].compactMap({ $0 }) {
+                names.append([name, product.productVersion].compactMap { $0 }.joined(separator: " "))
+            }
+        }
+        return names
+    }
+
     static func describe(_ fix: FailureFix, language: Language) -> String {
         if let recipe = fix.recipe { return Recipes.describe(recipe, language: language) }
         if fix.component == "dotnet48" { return Recipes.describe("dotnet-framework-4.8", language: language) }

@@ -29,7 +29,8 @@ public enum ProblemReporter {
         var problem = ProblemReport(kind: .install(message), productName: productName,
                                     program: productName + (version?.productVersion.map { " " + $0 } ?? ""),
                                     mac: describe(mac), facts: facts, log: [], logFile: log)
-        problem.diagnoses = Diagnoser.diagnose(.installation(report, fileName: installer.lastPathComponent, message: message, log: log))
+        problem.diagnoses = Diagnoser.diagnose(.installation(report, fileName: installer.lastPathComponent, message: message, log: log),
+                                               catalog: .current)
         return finish(problem, privacy: privacy)
     }
 
@@ -95,12 +96,12 @@ public enum ProblemReporter {
         var report = report
         var lines: [String] = []
         if let file = report.logFile, FileManager.default.fileExists(atPath: file.path) {
-            lines = LogExcerpt.lines(of: LogExcerpt.read(file))
+            lines = LogExcerpt.lines(of: LogExcerpt.read(file), catalog: .current)
         }
         // The program's own logs, each line marked with its file.
         for file in report.programLogs {
             let text = LogExcerpt.read(file, head: 64 * 1024, tail: 256 * 1024)
-            lines += LogExcerpt.lines(of: text, limit: 20).map { "[\(file.lastPathComponent)] \($0)" }
+            lines += LogExcerpt.lines(of: text, limit: 20, catalog: .current).map { "[\(file.lastPathComponent)] \($0)" }
         }
         report.log = lines.map(privacy.redact)
         // What Vitral recognized goes first: it is what a reader needs.

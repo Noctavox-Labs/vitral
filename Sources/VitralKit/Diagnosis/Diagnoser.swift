@@ -261,7 +261,7 @@ public struct AppInspection: Sendable {
             antiCheat: antiCheat, missingFunction: missing.contains { $0.function != nil })
     }
 
-    public func diagnoses(catalog: FailureCatalog = .builtIn) -> [Diagnosis] {
+    public func diagnoses(catalog: FailureCatalog = .current) -> [Diagnosis] {
         Diagnoser.diagnose(observation, catalog: catalog)
     }
 }

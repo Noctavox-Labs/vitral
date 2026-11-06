@@ -3,14 +3,45 @@ import Foundation
 /// Known failures: how each one shows (its signature) and what to do about it. Data, not code, so
 /// that later it can be downloaded without a new Vitral (PLAN §13, 2026-11-06). Every entry comes
 /// from a real case; `source` says which.
-public struct FailureCatalog: Codable, Sendable {
-    public var version: Int
+///
+/// Published as `catalog/failures.json` (source) and `catalog/failures.signed.json` (signed with
+/// Sparkle's release key, what Vitral downloads). Forward compatible: an entry this Vitral cannot
+/// read in full (a new kind, a new condition) is left out rather than read in part.
+public struct FailureCatalog: Codable, Sendable, Equatable {
+    /// The format this Vitral reads. A catalog with a higher one is ignored.
+    public static let supportedFormat = 1
+
+    public var format: Int
+    /// Grows with every published change (YYYYMMDDnn): the highest wins.
+    public var revision: Int
     public var entries: [FailureSignature]
+
+    public init(format: Int = supportedFormat, revision: Int, entries: [FailureSignature]) {
+        self.format = format
+        self.revision = revision
+        self.entries = entries
+    }
+
+    enum CodingKeys: String, CodingKey { case format, revision, entries }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        format = try c.decode(Int.self, forKey: .format)
+        revision = try c.decode(Int.self, forKey: .revision)
+        entries = try c.decode([Lossy<FailureSignature>].self, forKey: .entries).compactMap(\.value)
+    }
+
+    /// Reads a catalog. Fails if it is not one, or needs a newer Vitral.
+    public static func decode(_ data: Data) throws -> FailureCatalog {
+        let catalog = try JSONDecoder().decode(FailureCatalog.self, from: data)
+        guard catalog.format <= supportedFormat else { throw CatalogError.newerFormat(catalog.format) }
+        return catalog
+    }
 
     /// The catalog that comes with this Vitral.
     public static let builtIn: FailureCatalog = {
         do {
-            return try JSONDecoder().decode(FailureCatalog.self, from: Data(builtInJSON.utf8))
+            return try decode(Data(builtInJSON.utf8))
         } catch {
             fatalError("Built-in failure catalog does not decode: \(error)")
         }
@@ -76,6 +107,12 @@ public struct LocalizedText: Codable, Sendable, Equatable {
     public func text(_ language: Language = .current) -> String { language == .spanish ? es : en }
 }
 
+/// Decodes a value, or nil if it cannot (an entry made for a newer Vitral).
+struct Lossy<Value: Decodable>: Decodable {
+    let value: Value?
+    init(from decoder: Decoder) throws { value = try? Value(from: decoder) }
+}
+
 /// When a failure applies. Every part given must hold.
 public struct FailureCondition: Codable, Sendable, Equatable {
     /// Moments it can happen in; any if absent.
@@ -96,6 +133,65 @@ public struct FailureCondition: Codable, Sendable, Equatable {
     /// The engine lacks a function the program imports (`EngineCheck`).
     public var missingFunction: Bool?
     public var antiCheat: Bool?
+
+    public init(phase: [FailurePhase]? = nil, log: [String]? = nil, logAll: [String]? = nil, status: [Int32]? = nil,
+                window: Bool? = nil, technology: [String]? = nil, product: String? = nil,
+                missingFunction: Bool? = nil, antiCheat: Bool? = nil) {
+        self.phase = phase
+        self.log = log
+        self.logAll = logAll
+        self.status = status
+        self.window = window
+        self.technology = technology
+        self.product = product
+        self.missingFunction = missingFunction
+        self.antiCheat = antiCheat
+    }
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case phase, log, logAll, status, window, technology, product, missingFunction, antiCheat
+    }
+
+    /// A part this Vitral does not know would be skipped, and the condition would hold more often
+    /// than meant: such a condition does not decode.
+    public init(from decoder: Decoder) throws {
+        let all = try decoder.container(keyedBy: AnyKey.self)
+        if let unknown = all.allKeys.first(where: { CodingKeys(stringValue: $0.stringValue) == nil }) {
+            throw DecodingError.dataCorruptedError(forKey: unknown, in: all, debugDescription: "Unknown condition: \(unknown.stringValue)")
+        }
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        phase = try c.decodeIfPresent([FailurePhase].self, forKey: .phase)
+        log = try c.decodeIfPresent([String].self, forKey: .log)
+        logAll = try c.decodeIfPresent([String].self, forKey: .logAll)
+        status = try c.decodeIfPresent([Int32].self, forKey: .status)
+        window = try c.decodeIfPresent(Bool.self, forKey: .window)
+        technology = try c.decodeIfPresent([String].self, forKey: .technology)
+        product = try c.decodeIfPresent(String.self, forKey: .product)
+        missingFunction = try c.decodeIfPresent(Bool.self, forKey: .missingFunction)
+        antiCheat = try c.decodeIfPresent(Bool.self, forKey: .antiCheat)
+    }
+}
+
+struct AnyKey: CodingKey {
+    let stringValue: String
+    var intValue: Int? { nil }
+    init(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { nil }
+}
+
+public enum CatalogError: Error, Equatable, CustomStringConvertible {
+    case newerFormat(Int)
+    case badSignature
+    case notSigned
+
+    public var description: String {
+        switch self {
+        case .newerFormat(let format):
+            return tr("El catálogo necesita un Vitral más nuevo (formato \(format)).", "The catalog needs a newer Vitral (format \(format)).")
+        case .badSignature: return tr("La firma del catálogo no es válida.", "The catalog's signature is not valid.")
+        case .notSigned: return tr("El catálogo no está firmado.", "The catalog is not signed.")
+        }
+    }
 }
 
 public enum FailurePhase: String, Codable, Sendable {
@@ -108,7 +204,8 @@ public enum FailurePhase: String, Codable, Sendable {
     case running
 }
 
-/// One thing to try. Only one field is set.
+/// One thing to try. Only one field is set; a fix with a field this Vitral does not know does not
+/// decode, and its entry is left out.
 public struct FailureFix: Codable, Sendable, Equatable {
     /// One of `Recipes`' rules.
     public var recipe: String?
@@ -119,232 +216,30 @@ public struct FailureFix: Codable, Sendable, Equatable {
     /// "newer": an engine with what this one lacks.
     public var engine: String?
     public var retry: Bool?
-}
 
-extension FailureCatalog {
-    // Regular expressions are ICU's. In this raw string a backslash is a backslash, and JSON
-    // needs it doubled: `\\.` matches a dot.
-    static let builtInJSON = #"""
-    {
-      "version": 1,
-      "entries": [
-        {
-          "id": "anti-cheat",
-          "kind": "never",
-          "title": { "es": "Tiene antitrampas", "en": "It has anti-cheat" },
-          "explanation": {
-            "es": "Los antitrampas (Easy Anti-Cheat, BattlEye) no funcionan en Wine, y Vitral nunca los elude ni disfraza el sistema.",
-            "en": "Anti-cheat (Easy Anti-Cheat, BattlEye) does not work under Wine, and Vitral never bypasses it or disguises the system."
-          },
-          "when": [{ "antiCheat": true }],
-          "source": "PLAN.md §5"
-        },
-        {
-          "id": "paint-net-direct2d",
-          "kind": "notYet",
-          "title": { "es": "Paint.NET 5.0 y 5.1 todavía no funcionan", "en": "Paint.NET 5.0 and 5.1 do not work yet" },
-          "explanation": {
-            "es": "Dependen de Direct2D, que Wine casi no tiene: el instalador muestra «Unhandled exception» una y otra vez. Paint.NET 5.2 trae su propio Direct2D para Wine y pide Wine 11.14 o más nuevo: Vitral lo probará cuando tenga ese motor.",
-            "en": "They depend on Direct2D, which Wine barely has: the installer shows “Unhandled exception” again and again. Paint.NET 5.2 brings its own Direct2D for Wine and needs Wine 11.14 or newer: Vitral will try it once it has that engine."
-          },
-          "when": [{ "product": "(?i)paint\\.net[ .]5\\.[01]\\b" }],
-          "source": "Compatibilidad.md (Paint.NET 5.1.12, 2026-11-05)"
-        },
-        {
-          "id": "power-bi",
-          "kind": "notYet",
-          "title": { "es": "Power BI Desktop todavía no abre", "en": "Power BI Desktop does not open yet" },
-          "explanation": {
-            "es": "Se instala (con .NET Framework 4.8), pero se cae al abrir con «AccessViolationException». CodeWeavers tampoco lo logra con CrossOver.",
-            "en": "It installs (with .NET Framework 4.8) but crashes when opening with “AccessViolationException”. CodeWeavers cannot run it with CrossOver either."
-          },
-          "when": [
-            { "phase": ["start", "running"], "log": ["AccessViolationException at Microsoft\\.PowerBI"] },
-            { "phase": ["analysis"], "product": "(?i)power ?bi" }
-          ],
-          "source": "Compatibilidad.md (Power BI Desktop 2.159, 2026-11-05)"
-        },
-        {
-          "id": "chromium-missing-function",
-          "kind": "needsNewerEngine",
-          "title": { "es": "Le falta una función de Windows al motor", "en": "The engine lacks a Windows function" },
-          "explanation": {
-            "es": "Los programas hechos con Chromium (Electron, CEF, QtWebEngine) se cierran a propósito cuando el motor no tiene una función de Windows que usan. Hace falta un motor más nuevo.",
-            "en": "Programs built on Chromium (Electron, CEF, QtWebEngine) close on purpose when the engine lacks a Windows function they use. It needs a newer engine."
-          },
-          "when": [
-            { "phase": ["start"], "window": false, "log": ["crashpad_client_win\\.cc.*not connected"] },
-            { "phase": ["start"], "window": false, "status": [3], "missingFunction": true, "technology": ["electron", "cef", "qtWebEngine"] }
-          ],
-          "fixes": [{ "engine": "newer" }],
-          "source": "Caso aTube Catcher.md (user32.IsWindowArranged en CX 24)"
-        },
-        {
-          "id": "chromium-gpu-process",
-          "kind": "fixable",
-          "title": { "es": "La ventana queda en blanco", "en": "The window stays blank" },
-          "explanation": {
-            "es": "Chromium dibuja en un proceso aparte, y DXMT (Direct3D 11 sobre Metal) todavía no muestra lo que dibuja otro proceso. Dibujando dentro del programa (--in-process-gpu) se ve.",
-            "en": "Chromium draws in a separate process, and DXMT (Direct3D 11 on Metal) cannot show yet what another process draws. Drawing inside the program (--in-process-gpu) works."
-          },
-          "when": [{ "log": ["cross-process swapchain not supported"] }],
-          "fixes": [{ "recipe": "electron-in-process-gpu" }],
-          "source": "Caso aTube Catcher.md (DXMT 0.80)"
-        },
-        {
-          "id": "qt-opengl",
-          "kind": "fixable",
-          "title": { "es": "Qt no pudo dibujar con OpenGL", "en": "Qt could not draw with OpenGL" },
-          "explanation": {
-            "es": "Qt Quick intenta dibujar con OpenGL y en Wine falla («Failed to create OpenGL context»). Dibujando por software (QMLSCENE_DEVICE=softwarecontext) abre bien.",
-            "en": "Qt Quick tries to draw with OpenGL and fails under Wine (“Failed to create OpenGL context”). Drawing in software (QMLSCENE_DEVICE=softwarecontext) works."
-          },
-          "when": [{ "log": ["Failed to create OpenGL context", "OpenGL context creation failed", "SetPixelFormat failed"] }],
-          "fixes": [{ "recipe": "qt5-quick-software" }, { "environment": { "QT_OPENGL": "software" } }],
-          "source": "Caso Shape It.md"
-        },
-        {
-          "id": "qt-dpi-window",
-          "kind": "fixable",
-          "title": { "es": "Qt no pudo crear su ventana", "en": "Qt could not create its window" },
-          "explanation": {
-            "es": "Con la escala automática de Qt 5 (QT_AUTO_SCREEN_SCALE_FACTOR), Wine no implementa EnableNonClientDpiScaling y Qt cancela la ventana. Con QT_SCALE_FACTOR=2 se crea y se ve nítida.",
-            "en": "With Qt 5's automatic scaling (QT_AUTO_SCREEN_SCALE_FACTOR), Wine lacks EnableNonClientDpiScaling and Qt gives up the window. With QT_SCALE_FACTOR=2 it is created, and sharp."
-          },
-          "when": [{ "logAll": ["EnableNonClientDpiScaling\\(\\) failed", "Failed to create platform window|CreateWindowEx failed"] }],
-          "fixes": [{ "recipe": "qt5-retina" }],
-          "source": "Caso Shape It.md"
-        },
-        {
-          "id": "qt-single-instance",
-          "kind": "fixable",
-          "title": { "es": "Quedó trabado el candado de instancia única", "en": "A stale single-instance lock" },
-          "explanation": {
-            "es": "Tras un cierre forzado, el programa cree que ya hay otra copia abierta y se cierra sin avisar. Borrar el candado antes de abrir lo arregla.",
-            "en": "After a forced quit, the program believes another copy is open and closes silently. Removing the lock before opening fixes it."
-          },
-          "when": [{ "log": ["QSingleInstance: Failed to transfer arguments", "Master did not respond in time"] }],
-          "fixes": [{ "recipe": "qt-single-instance" }],
-          "source": "Caso Shape It.md"
-        },
-        {
-          "id": "dotnet-framework-missing",
-          "kind": "fixable",
-          "title": { "es": "Falta .NET Framework", "en": ".NET Framework is missing" },
-          "explanation": {
-            "es": "El programa o su instalador necesitan el .NET Framework de Microsoft, y Wine Mono no alcanza. Vitral puede instalar .NET Framework 4.8 (unos 5 minutos).",
-            "en": "The program or its installer needs Microsoft's .NET Framework, and Wine Mono is not enough. Vitral can install .NET Framework 4.8 (about five minutes)."
-          },
-          "when": [
-            { "phase": ["install"], "log": ["Unknown custom message name \"lcid\""] },
-            { "log": ["Library mscoree\\.dll \\(which is needed by", "Wine Mono is not installed"] }
-          ],
-          "fixes": [{ "component": "dotnet48" }],
-          "source": "Compatibilidad.md (Greenshot, vMix, Power BI)"
-        },
-        {
-          "id": "electron-builder-powershell",
-          "kind": "fixable",
-          "title": { "es": "El instalador cree que el programa sigue abierto", "en": "The installer thinks the program is still open" },
-          "explanation": {
-            "es": "Los instaladores de electron-builder le preguntan a PowerShell si el programa está abierto, y el PowerShell de Wine siempre dice que sí. Con PowerShell desactivado preguntan con tasklist, que funciona.",
-            "en": "electron-builder installers ask PowerShell whether the program is open, and Wine's PowerShell always says yes. With PowerShell turned off they ask tasklist, which works."
-          },
-          "when": [{ "phase": ["install"], "log": ["WindowsPowerShell\\\\v1\\.0\\\\powershell\\.exe"] }],
-          "fixes": [{ "recipe": "electron-builder-no-powershell" }],
-          "source": "Caso aTube Catcher.md"
-        },
-        {
-          "id": "dxgi-surface",
-          "kind": "needsNewerEngine",
-          "title": { "es": "Al motor gráfico le falta IDXGISurface", "en": "The graphics engine lacks IDXGISurface" },
-          "explanation": {
-            "es": "DXMT 0.80 no da una superficie DXGI desde una textura de Direct3D 11, y lo que la usa falla con «E_NOINTERFACE» (los títulos GT de vMix, Direct2D sobre Direct3D). DXMT ya lo tiene en su versión en desarrollo: llegará con un motor nuevo.",
-            "en": "DXMT 0.80 gives no DXGI surface from a Direct3D 11 texture, and what uses one fails with “E_NOINTERFACE” (vMix's GT titles, Direct2D on Direct3D). DXMT already has it in development: it will come with a newer engine."
-          },
-          "when": [{ "log": ["Unknown interface query cafcb56c-6ac3-4889-bf47-9e23bbd260ec"] }],
-          "fixes": [{ "engine": "newer" }],
-          "source": "Compatibilidad.md (vMix GT, Paint.NET)"
-        },
-        {
-          "id": "engine-without-gstreamer",
-          "kind": "needsNewerEngine",
-          "title": { "es": "El motor no trae GStreamer", "en": "The engine has no GStreamer" },
-          "explanation": {
-            "es": "Algunos videos y sonidos que Windows reproduce con Media Foundation o DirectShow necesitan GStreamer, que el motor de Vitral todavía no incluye.",
-            "en": "Some video and sound that Windows plays with Media Foundation or DirectShow needs GStreamer, which Vitral's engine does not include yet."
-          },
-          "when": [{ "log": ["Library winegstreamer\\.dll \\(which is needed by"] }],
-          "fixes": [{ "engine": "newer" }],
-          "source": "vMix (x64).log, 2026-11-05"
-        },
-        {
-          "id": "microsoft-library-missing",
-          "kind": "notYet",
-          "title": { "es": "Falta una biblioteca de Microsoft ({1})", "en": "A Microsoft library is missing ({1})" },
-          "explanation": {
-            "es": "El programa usa {1}, que suele venir con su instalador (Visual C++, DirectX). Vitral todavía no la instala sola.",
-            "en": "The program uses {1}, which usually comes with its installer (Visual C++, DirectX). Vitral does not install it by itself yet."
-          },
-          "when": [{ "log": ["(?i)Library ((?:msvcp|vcruntime|msvcr|mfc)[0-9]+u?(?:_[0-9]+)?\\.dll|d3dcompiler_[0-9]+\\.dll|d3dx[0-9]+_[0-9]+\\.dll|xinput[0-9_]+\\.dll) \\(which is needed by"] }],
-          "source": "PLAN.md §5 (Visual C++)"
-        },
-        {
-          "id": "crash-at-start",
-          "kind": "retry",
-          "title": { "es": "Se cayó al arrancar", "en": "It crashed while starting" },
-          "explanation": {
-            "es": "A veces Wine se cae al abrir un programa y al volver a abrirlo funciona (Shape It! con CX 24, una vez de cada cuatro). Si se repite siempre, es otra cosa.",
-            "en": "Sometimes Wine crashes while opening a program, and opening it again works (Shape It! on CX 24, once in four). If it happens every time, it is something else."
-          },
-          "when": [{ "phase": ["start"], "window": false, "log": ["Unhandled (page fault|exception|stack overflow|illegal instruction)"] }],
-          "fixes": [{ "retry": true }],
-          "source": "Caso Shape It.md"
-        },
-        {
-          "id": "noise-bluetooth", "kind": "harmless",
-          "title": { "es": "Wine no tiene Bluetooth", "en": "Wine has no Bluetooth" },
-          "when": [{ "log": ["winebth"] }]
-        },
-        {
-          "id": "noise-kerberos", "kind": "harmless",
-          "title": { "es": "Wine no tiene Kerberos", "en": "Wine has no Kerberos" },
-          "when": [{ "log": ["no Kerberos support"] }]
-        },
-        {
-          "id": "noise-dxmt-cache", "kind": "harmless",
-          "title": { "es": "DXMT usa la caché del sistema", "en": "DXMT uses the system cache" },
-          "when": [{ "log": ["Failed to set Metal cache path"] }]
-        },
-        {
-          "id": "noise-chromium-network", "kind": "harmless",
-          "title": { "es": "Chromium pregunta por cambios de red", "en": "Chromium asks for network changes" },
-          "when": [{ "log": ["WSALookupServiceBegin failed"] }]
-        },
-        {
-          "id": "noise-vulkan", "kind": "harmless",
-          "title": { "es": "Wine avisa qué dibuja Direct3D 10/11", "en": "Wine says what draws Direct3D 10/11" },
-          "when": [{ "log": ["Using the Vulkan renderer for d3d10/11"] }]
-        },
-        {
-          "id": "noise-qt-dpi", "kind": "harmless",
-          "title": { "es": "Qt pide una función de escala que Wine no tiene", "en": "Qt asks for a scaling function Wine lacks" },
-          "when": [{ "log": ["EnableNonClientDpiScaling\\(\\) failed"] }],
-          "source": "Caso Shape It.md (sale también cuando abre bien)"
-        },
-        {
-          "id": "noise-qt-audio", "kind": "harmless",
-          "title": { "es": "Qt Multimedia no lista los dispositivos de audio", "en": "Qt Multimedia does not list audio devices" },
-          "when": [{ "log": ["Could not query audio devices"] }],
-          "source": "Caso Shape It.md (el audio suena igual)"
-        },
-        {
-          "id": "noise-toolbar", "kind": "harmless",
-          "title": { "es": "Mensajes de barra de herramientas que Wine no conoce", "en": "Toolbar messages Wine does not know" },
-          "when": [{ "log": ["ToolbarWindowProc unknown msg"] }],
-          "source": "Compatibilidad.md (MetaTrader 5)"
-        }
-      ]
+    public init(recipe: String? = nil, environment: [String: String]? = nil, arguments: [String]? = nil,
+                component: String? = nil, engine: String? = nil, retry: Bool? = nil) {
+        self.recipe = recipe
+        self.environment = environment
+        self.arguments = arguments
+        self.component = component
+        self.engine = engine
+        self.retry = retry
     }
-    """#
+
+    enum CodingKeys: String, CodingKey { case recipe, environment, arguments, component, engine, retry }
+
+    public init(from decoder: Decoder) throws {
+        let all = try decoder.container(keyedBy: AnyKey.self)
+        if let unknown = all.allKeys.first(where: { CodingKeys(stringValue: $0.stringValue) == nil }) {
+            throw DecodingError.dataCorruptedError(forKey: unknown, in: all, debugDescription: "Unknown fix: \(unknown.stringValue)")
+        }
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        recipe = try c.decodeIfPresent(String.self, forKey: .recipe)
+        environment = try c.decodeIfPresent([String: String].self, forKey: .environment)
+        arguments = try c.decodeIfPresent([String].self, forKey: .arguments)
+        component = try c.decodeIfPresent(String.self, forKey: .component)
+        engine = try c.decodeIfPresent(String.self, forKey: .engine)
+        retry = try c.decodeIfPresent(Bool.self, forKey: .retry)
+    }
 }
