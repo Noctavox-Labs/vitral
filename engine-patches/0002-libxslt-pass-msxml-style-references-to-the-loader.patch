@@ -1,0 +1,26 @@
+--- a/libs/xslt/libxslt/imports.c
++++ b/libs/xslt/libxslt/imports.c
+@@ -134,6 +134,11 @@
+ 
+     base = xmlNodeGetBase(style->doc, cur);
+     URI = xmlBuildURI(uriRef, base);
++    /* MSXML accepts references that are not valid URIs, such as
++     * "msencdata:$$XSLLANG\strings.xsl" (Encarta 2009): leave them to msxml3's
++     * loader, which resolves them like Windows does. */
++    if (URI == NULL)
++        URI = xmlStrdup(uriRef);
+     if (URI == NULL) {
+ 	xsltTransformError(NULL, style, cur,
+ 	    "xsl:import : invalid URI reference %s\n", uriRef);
+@@ -224,6 +229,11 @@
+ 
+     base = xmlNodeGetBase(style->doc, cur);
+     URI = xmlBuildURI(uriRef, base);
++    /* MSXML accepts references that are not valid URIs, such as
++     * "msencdata:$$XSLLANG\strings.xsl" (Encarta 2009): leave them to msxml3's
++     * loader, which resolves them like Windows does. */
++    if (URI == NULL)
++        URI = xmlStrdup(uriRef);
+     if (URI == NULL) {
+ 	xsltTransformError(NULL, style, cur,
+ 	    "xsl:include : invalid URI reference %s\n", uriRef);

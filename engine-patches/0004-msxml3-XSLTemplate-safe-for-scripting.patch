@@ -1,0 +1,118 @@
+--- a/dlls/msxml3/stylesheet.c
++++ b/dlls/msxml3/stylesheet.c
+@@ -29,6 +29,7 @@
+ #include "winuser.h"
+ #include "ole2.h"
+ #include "msxml6.h"
++#include "objsafe.h"
+ 
+ #include "msxml_private.h"
+ 
+@@ -43,9 +44,11 @@
+ {
+     DispatchEx dispex;
+     IXSLTemplate IXSLTemplate_iface;
++    IObjectSafety IObjectSafety_iface;
+     LONG ref;
+ 
+     IXMLDOMNode *node;
++    DWORD safeopt;
+ } xsltemplate;
+ 
+ enum output_type
+@@ -120,6 +123,10 @@
+     {
+         *ppvObject = iface;
+     }
++    else if (IsEqualGUID( riid, &IID_IObjectSafety ))
++    {
++        *ppvObject = &This->IObjectSafety_iface;
++    }
+     else if (dispex_query_interface(&This->dispex, riid, ppvObject))
+     {
+         return *ppvObject ? S_OK : E_NOINTERFACE;
+@@ -260,7 +267,73 @@
+     NULL,
+     xsltemplate_iface_tids
+ };
++
++/* Like MSXML's, the template is safe for scripting: web pages create it with
++ * new ActiveXObject("MSXML2.XSLTemplate.6.0") (Encarta 2009), and the HTML engine
++ * refuses objects without IObjectSafety. Same options as the DOM document. */
++static inline xsltemplate *impl_from_IObjectSafety( IObjectSafety *iface )
++{
++    return CONTAINING_RECORD(iface, xsltemplate, IObjectSafety_iface);
++}
+ 
++static HRESULT WINAPI xsltemplate_Safety_QueryInterface(IObjectSafety *iface, REFIID riid, void **ppv)
++{
++    xsltemplate *This = impl_from_IObjectSafety(iface);
++    return IXSLTemplate_QueryInterface(&This->IXSLTemplate_iface, riid, ppv);
++}
++
++static ULONG WINAPI xsltemplate_Safety_AddRef(IObjectSafety *iface)
++{
++    xsltemplate *This = impl_from_IObjectSafety(iface);
++    return IXSLTemplate_AddRef(&This->IXSLTemplate_iface);
++}
++
++static ULONG WINAPI xsltemplate_Safety_Release(IObjectSafety *iface)
++{
++    xsltemplate *This = impl_from_IObjectSafety(iface);
++    return IXSLTemplate_Release(&This->IXSLTemplate_iface);
++}
++
++#define SAFETY_SUPPORTED_OPTIONS (INTERFACESAFE_FOR_UNTRUSTED_CALLER|INTERFACESAFE_FOR_UNTRUSTED_DATA|INTERFACE_USES_SECURITY_MANAGER)
++
++static HRESULT WINAPI xsltemplate_Safety_GetInterfaceSafetyOptions(IObjectSafety *iface, REFIID riid,
++        DWORD *supported, DWORD *enabled)
++{
++    xsltemplate *This = impl_from_IObjectSafety(iface);
++
++    TRACE("(%p)->(%s %p %p)\n", This, debugstr_guid(riid), supported, enabled);
++
++    if(!supported || !enabled) return E_POINTER;
++
++    *supported = SAFETY_SUPPORTED_OPTIONS;
++    *enabled = This->safeopt;
++    return S_OK;
++}
++
++static HRESULT WINAPI xsltemplate_Safety_SetInterfaceSafetyOptions(IObjectSafety *iface, REFIID riid,
++        DWORD mask, DWORD enabled)
++{
++    xsltemplate *This = impl_from_IObjectSafety(iface);
++
++    TRACE("(%p)->(%s %lx %lx)\n", This, debugstr_guid(riid), mask, enabled);
++
++    if ((mask & ~SAFETY_SUPPORTED_OPTIONS) != 0)
++        return E_FAIL;
++
++    This->safeopt = (This->safeopt & ~mask) | (mask & enabled);
++    return S_OK;
++}
++
++#undef SAFETY_SUPPORTED_OPTIONS
++
++static const IObjectSafetyVtbl xsltemplateObjectSafetyVtbl = {
++    xsltemplate_Safety_QueryInterface,
++    xsltemplate_Safety_AddRef,
++    xsltemplate_Safety_Release,
++    xsltemplate_Safety_GetInterfaceSafetyOptions,
++    xsltemplate_Safety_SetInterfaceSafetyOptions
++};
++
+ HRESULT XSLTemplate_create(void **ppObj)
+ {
+     xsltemplate *This;
+@@ -272,8 +345,10 @@
+         return E_OUTOFMEMORY;
+ 
+     This->IXSLTemplate_iface.lpVtbl = &XSLTemplateVtbl;
++    This->IObjectSafety_iface.lpVtbl = &xsltemplateObjectSafetyVtbl;
+     This->ref = 1;
+     This->node = NULL;
++    This->safeopt = 0;
+     init_dispex(&This->dispex, (IUnknown*)&This->IXSLTemplate_iface, &xsltemplate_dispex);
+ 
+     *ppObj = &This->IXSLTemplate_iface;

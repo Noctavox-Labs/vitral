@@ -1,0 +1,79 @@
+--- a/dlls/mshtml/htmlwindow.c
++++ b/dlls/mshtml/htmlwindow.c
+@@ -3892,7 +3892,40 @@
+ 
+     return DISP_E_UNKNOWNNAME;
+ }
++
++/* Like Internet Explorer (and the HTML standard), a name shared by several elements gives a
++ * collection of all of them, and calling it, as in name(i), gives its i-th element or null.
++ * Encarta 2009 walks its section headers, all with id "SecHeader", with SecHeader(i) until it
++ * gets null; with the first element every time, its articles hung. Returns NULL for a single
++ * element, which keeps the getElementById path below. */
++static IHTMLElementCollection *get_elements_by_global_name(HTMLInnerWindow *window, const WCHAR *name)
++{
++    IHTMLElementCollection *all, *col = NULL;
++    VARIANT name_var, index;
++    IDispatch *disp;
++    HRESULT hres;
++
++    if(!window->doc)
++        return NULL;
++    hres = IHTMLDocument2_get_all(&window->doc->IHTMLDocument2_iface, &all);
++    if(FAILED(hres) || !all)
++        return NULL;
+ 
++    V_VT(&name_var) = VT_BSTR;
++    V_BSTR(&name_var) = SysAllocString(name);
++    V_VT(&index) = VT_EMPTY;
++    hres = IHTMLElementCollection_item(all, name_var, index, &disp);
++    SysFreeString(V_BSTR(&name_var));
++    IHTMLElementCollection_Release(all);
++    if(FAILED(hres) || !disp)
++        return NULL;
++
++    if(FAILED(IDispatch_QueryInterface(disp, &IID_IHTMLElementCollection, (void**)&col)))
++        col = NULL;
++    IDispatch_Release(disp);
++    return col;
++}
++
+ HRESULT HTMLWindow_invoke(DispatchEx *dispex, DISPID id, LCID lcid, WORD flags, DISPPARAMS *params,
+                           VARIANT *res, EXCEPINFO *ei, IServiceProvider *caller)
+ {
+@@ -3935,7 +3968,35 @@
+         switch(flags) {
+         case DISPATCH_PROPERTYGET|DISPATCH_METHOD:
+         case DISPATCH_PROPERTYGET: {
++            IHTMLElementCollection *col;
+             IHTMLElement *elem;
++            UINT argc = params->cArgs - params->cNamedArgs;
++
++            if((col = get_elements_by_global_name(This->base.inner_window, prop->name))) {
++                if(argc && (flags & DISPATCH_METHOD)) {
++                    VARIANT index;
++                    IDispatch *disp;
++
++                    /* name(i) or name(name, i): item(), as calling the collection does */
++                    V_VT(&index) = VT_EMPTY;
++                    if(argc > 1)
++                        index = params->rgvarg[params->cArgs - 2];
++                    hres = IHTMLElementCollection_item(col, params->rgvarg[params->cArgs - 1], index, &disp);
++                    IHTMLElementCollection_Release(col);
++                    if(FAILED(hres))
++                        return hres;
++                    if(disp) {
++                        V_VT(res) = VT_DISPATCH;
++                        V_DISPATCH(res) = disp;
++                    }else {
++                        V_VT(res) = VT_NULL;
++                    }
++                    return S_OK;
++                }
++                V_VT(res) = VT_DISPATCH;
++                V_DISPATCH(res) = (IDispatch*)col;
++                return S_OK;
++            }
+ 
+             hres = IHTMLDocument3_getElementById(&This->base.inner_window->doc->IHTMLDocument3_iface,
+                     prop->name, &elem);

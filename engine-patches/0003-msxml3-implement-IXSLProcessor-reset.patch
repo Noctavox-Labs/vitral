@@ -1,0 +1,27 @@
+--- a/dlls/msxml3/stylesheet.c
++++ b/dlls/msxml3/stylesheet.c
+@@ -581,6 +581,7 @@
+     }
+ 
+     SysFreeString(This->outstr);
++    This->outstr = NULL;
+ 
+     hr = node_transform_node_params(get_node_obj(This->input), This->stylesheet->node,
+             &This->outstr, stream, &This->params);
+@@ -651,8 +652,14 @@
+ {
+     xslprocessor *This = impl_from_IXSLProcessor( iface );
+ 
+-    FIXME("(%p): stub\n", This);
+-    return E_NOTIMPL;
++    TRACE("(%p)\n", This);
++
++    /* Back to the state before transform(): its result goes, while the input, the output
++     * object, the parameters and the start mode stay. Encarta 2009 calls this between pages
++     * and stops when it fails. */
++    SysFreeString(This->outstr);
++    This->outstr = NULL;
++    return S_OK;
+ }
+ 
+ static HRESULT WINAPI xslprocessor_get_readyState(

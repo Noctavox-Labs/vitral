@@ -1,0 +1,21 @@
+--- a/dlls/msxml3/node.c
++++ b/dlls/msxml3/node.c
+@@ -483,12 +483,12 @@
+         if(!before_node_obj) return E_FAIL;
+     }
+ 
+-    /* unlink from current parent first */
+-    if(node_obj->parent)
+-    {
+-        hr = IXMLDOMNode_removeChild(node_obj->parent, node_obj->iface, NULL);
+-        if (hr == S_OK) xmldoc_remove_orphan(node_obj->node->doc, node_obj->node);
+-    }
++    /* Unlink from the current parent first, through the tree: node_obj->parent holds no
++     * reference, so the parent's object may be gone by now. Encarta 2009 appends nodes whose
++     * first parent it has already released, and calling through that pointer crashed it. */
++    if(node_obj->node->parent)
++        xmlUnlinkNode(node_obj->node);
++    node_obj->parent = NULL;
+     doc = node_obj->node->doc;
+ 
+     if(before)

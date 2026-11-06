@@ -1,0 +1,74 @@
+--- a/dlls/mshtml/protocol.c
++++ b/dlls/mshtml/protocol.c
+@@ -528,7 +528,57 @@
+ /********************************************************************
+  * res protocol implementation
+  */
++
++static BOOL is_bitmap_type(const WCHAR *type)
++{
++    if(IS_INTRESOURCE(type))
++        return LOWORD(type) == LOWORD(RT_BITMAP);
++    return type[0] == '#' && wcstol(type + 1, NULL, 10) == LOWORD(RT_BITMAP);
++}
++
++/* Like Internet Explorer, a bitmap resource comes as a .bmp file: resources keep the bitmap
++ * without its file header, and without it no image decoder recognizes it. Encarta 2009 shows
++ * its media player buttons from res://encartau.dll/#2/... */
++static BYTE *bitmap_file_from_resource(const BYTE *res, DWORD res_len, DWORD *ret_len)
++{
++    const BITMAPINFOHEADER *info = (const BITMAPINFOHEADER*)res;
++    DWORD colors = 0, palette, header;
++    BITMAPFILEHEADER file;
++    BYTE *ret;
+ 
++    if(res_len < sizeof(DWORD) || info->biSize > res_len)
++        return NULL;
++    if(info->biSize == sizeof(BITMAPCOREHEADER)) {
++        const BITMAPCOREHEADER *core = (const BITMAPCOREHEADER*)res;
++        palette = core->bcBitCount <= 8 ? (1u << core->bcBitCount) * sizeof(RGBTRIPLE) : 0;
++    }else if(info->biSize >= sizeof(BITMAPINFOHEADER)) {
++        if(info->biClrUsed)
++            colors = info->biClrUsed;
++        else if(info->biBitCount <= 8)
++            colors = 1u << info->biBitCount;
++        palette = colors * sizeof(RGBQUAD);
++        if(info->biSize == sizeof(BITMAPINFOHEADER) && info->biCompression == BI_BITFIELDS)
++            palette += 3 * sizeof(DWORD);
++    }else {
++        return NULL;
++    }
++    header = info->biSize + palette;
++    if(header > res_len)
++        return NULL;
++
++    file.bfType = 0x4d42; /* "BM" */
++    file.bfSize = sizeof(file) + res_len;
++    file.bfReserved1 = file.bfReserved2 = 0;
++    file.bfOffBits = sizeof(file) + header;
++
++    if(!(ret = malloc(sizeof(file) + res_len)))
++        return NULL;
++    memcpy(ret, &file, sizeof(file));
++    memcpy(ret + sizeof(file), res, res_len);
++    *ret_len = sizeof(file) + res_len;
++    return ret;
++}
++
+ static HRESULT WINAPI ResProtocol_Start(IInternetProtocol *iface, LPCWSTR szUrl,
+         IInternetProtocolSink* pOIProtSink, IInternetBindInfo* pOIBindInfo,
+         DWORD grfPI, HANDLE_PTR dwReserved)
+@@ -634,8 +684,11 @@
+     }
+ 
+     This->data_len = SizeofResource(hdll, src);
+-    This->data = malloc(This->data_len);
+-    memcpy(This->data, LoadResource(hdll, src), This->data_len);
++    if(!is_bitmap_type(res_type)
++       || !(This->data = bitmap_file_from_resource(LoadResource(hdll, src), This->data_len, &This->data_len))) {
++        This->data = malloc(This->data_len);
++        memcpy(This->data, LoadResource(hdll, src), This->data_len);
++    }
+     This->cur = 0;
+ 
+     FreeLibrary(hdll);
