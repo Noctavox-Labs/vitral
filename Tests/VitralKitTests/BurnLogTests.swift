@@ -90,3 +90,12 @@ import Testing
     #expect(InnoSetupLog.fatalError(in: log) == #"Runtime error (at 65:679): Internal error: Unknown custom message name "lcid""#)
     #expect(InnoSetupLog.fatalError(in: "2026-11-05 14:04:27.061   Installation process succeeded.") == nil)
 }
+
+@Test func dotNetProgressMovesOnWithoutReachingTheEndOfTheStep() {
+    let at = { (seconds: Double) in DotNetFramework.creep(from: 0.2, to: 0.6, elapsed: seconds, expected: 180) }
+    #expect(at(0) == 0.2)
+    #expect(at(30) > 0.2 && at(30) < at(60))
+    #expect(abs(at(180) - (0.2 + 0.4 * 0.86)) < 0.01)
+    // A slower Mac keeps moving, but never past the step.
+    #expect(at(900) < 0.6 && at(900) > at(600))
+}

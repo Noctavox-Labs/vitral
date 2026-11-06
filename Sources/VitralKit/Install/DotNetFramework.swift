@@ -57,6 +57,12 @@ public enum DotNetFramework {
         return best
     }
 
+    /// Where the bar is `elapsed` seconds into a step expected to take `expected`: most of the way
+    /// by then (86 %), and closer and closer to `end` afterwards without reaching it.
+    static func creep(from start: Double, to end: Double, elapsed: Double, expected: Double) -> Double {
+        start + (end - start) * (1 - exp(-2 * max(elapsed, 0) / expected))
+    }
+
     public static func isInstalled(prefix: URL) -> Bool { (installedRelease(prefix: prefix) ?? 0) >= release48 }
 
     /// Downloads both installers if needed and installs .NET Framework 4.8 into the session's
@@ -89,18 +95,36 @@ public enum DotNetFramework {
             return status
         }
 
+        // The installers run silently and say nothing about how far they are: the bar moves on
+        // its own towards the end of each step, slowing down, so it never looks stuck.
+        func step<T: Sendable>(_ start: Double, _ end: Double, expected: Double,
+                               _ work: () async throws -> T) async rethrows -> T {
+            progress(start)
+            let ticker = Task {
+                let begin = Date()
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(1))
+                    progress(creep(from: start, to: end, elapsed: Date().timeIntervalSince(begin), expected: expected))
+                }
+            }
+            defer { ticker.cancel() }
+            return try await work()
+        }
+
         note("4.0, as Windows XP (it brings mscoree.dll)")
-        progress(0.25)
-        try await windowsVersion("winxp64")
-        let status40 = try await runInstaller(files[0], ["/q", "/c:install.exe /q"])
+        let status40 = try await step(0.2, 0.6, expected: 180) {
+            try await windowsVersion("winxp64")
+            return try await runInstaller(files[0], ["/q", "/c:install.exe /q"])
+        }
         note("4.0 ended with \(status40)")
         // Microsoft's mscoree, not Wine's.
         try await session.importRegistry([.string(#"HKEY_CURRENT_USER\Software\Wine\DllOverrides"#, "mscoree", "native")])
 
         note("4.8, as Windows 7 (on Windows 10 it says it is already there)")
-        progress(0.6)
-        try await windowsVersion("win7")
-        let status48 = try await runInstaller(files[1], ["/q", "/norestart"])
+        let status48 = try await step(0.6, 1, expected: 150) {
+            try await windowsVersion("win7")
+            return try await runInstaller(files[1], ["/q", "/norestart"])
+        }
         note("4.8 ended with \(status48)")
         try await windowsVersion("win10")
         progress(1)
