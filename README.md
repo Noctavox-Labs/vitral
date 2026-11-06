@@ -6,27 +6,30 @@
 
 > **Status: early development.** [**Download Vitral**](https://github.com/noctavox-labs/vitral/releases/latest)
 > (a Mac with Apple silicon and macOS 14 or later; it installs Rosetta if your Mac lacks it).
-> It is signed and notarized, and updates itself. Expect rough edges. The repository has `vitral`, a command-line tool that inspects Windows installers and turns
+> It is signed and notarized, and keeps itself up to date even if you only open your programs. Expect rough edges. The repository has `vitral`, a command-line tool that inspects Windows installers and turns
 > programs into Mac apps, and the first version of the app: a setup assistant that checks your
 > Mac and installs what is missing, a window where you drop an installer to install it, and
-> your library of Windows apps. It installs, from their own installers, Qt, Electron, Delphi,
-> MFC and .NET Framework programs, on Vitral's own Wine engine: see the
+> your library of Windows apps. It installs, from their own installers or CD and DVD images, Qt,
+> Electron, Delphi, MFC and .NET Framework programs, and programs that show pages with Internet
+> Explorer's control, like Microsoft Encarta, on Vitral's own Wine engine: see the
 > [programs tested so far](#programs-tested). Follow the [roadmap](#roadmap) to see what comes next.
 
 ## The idea
 
-You drag a Windows installer (`.exe`, `.msi` or `.zip`) onto Vitral. You get back a Mac app with
-its own icon that opens with a double click, looks sharp on a Retina display and is already set
-up for that program.
+You drag a Windows installer (`.exe`, `.msi` or `.zip`, or the `.iso` image of a CD or DVD) onto
+Vitral. You get back a Mac app with the program's own icon, in full color, that opens with a
+double click, looks sharp on a Retina display and is already set up for that program.
 
 - **It decides for you.** Vitral reads the installer before running anything: installer type,
   32 or 64 bits, the framework inside (Qt, Electron, .NET…), what it needs. Then it picks the
   settings that are known to work.
-- **It checks its own work.** When a program closes instead of opening, Vitral reads Wine's
-  logs and the program's own, recognizes known failures and tries their fixes by itself, undoing
+- **It checks its own work.** When a program closes instead of opening, or shows an error box
+  and closes, Vitral reads Wine's logs, the program's own and what the box said, recognizes known failures and tries their fixes by itself, undoing
   any that does not help. If it cannot fix it (some need a newer engine), it says why and helps
   you report it on GitHub with a report you read before sending. New failures and fixes arrive
   in a signed catalog, without waiting for a new Vitral.
+- **It keeps itself up to date.** Vitral updates itself, and your apps get the new engine and
+  fixes when you open them, even if you never open Vitral (see [Updates](#updates)).
 - **You can still change everything** *(coming)*. Advanced settings one click away, with a
   **Reset to recommended** button.
 - **Sharing is easy** *(coming)*. Export the app and send it; the other person imports it in
@@ -51,6 +54,7 @@ git clone https://github.com/noctavox-labs/vitral.git
 cd vitral
 swift run vitral analyze "path/to/Setup.exe"          # an installer
 swift run vitral analyze "path/to/My Program"         # the folder of an installed program
+swift run vitral analyze "path/to/Disc.iso"           # a CD or DVD image
 swift run vitral analyze --json "path/to/Setup.exe"   # machine-readable
 swift run vitral icon "path/to/Program.exe" Program.icns
 swift run vitral engines                             # Wine engines and Rosetta
@@ -58,11 +62,12 @@ swift run vitral engines install                     # download and verify the r
 swift build && .build/debug/vitral install "path/to/Setup.exe"   # install it as a Mac app
 ```
 
-`vitral install` creates Windows (a Wine prefix) for the program, opens the installer so you
-can follow its steps, finds the installed program, applies the settings its framework needs and
-leaves `~/Applications/<Program>.app` with the program's icon. The app is small and signed on
-your Mac; its Windows lives in `~/Library/Application Support/Vitral/Prefixes/`, because macOS
-only opens apps whose signature covers everything inside them:
+`vitral install` creates a space of its own for the program (a Wine prefix), opens the installer
+so you can follow its steps, finds the installed program, applies the settings its framework
+needs and leaves `~/Applications/<Program>.app` with the icon its Windows shortcut shows, at the
+best resolution and color depth the program has. The app is small and signed on your Mac; the
+program's files and settings live in `~/Library/Application Support/Vitral/Prefixes/`, because
+macOS only opens apps whose signature covers everything inside them:
 
 - **Qt 5:** sharp on Retina, Qt Quick without OpenGL, no stale single-instance lock.
 - **Electron:** drawn inside the program (`--in-process-gpu`), so DXMT can show it; for
@@ -72,19 +77,28 @@ only opens apps whose signature covers everything inside them:
   installer or a program needs it, Vitral installs Microsoft's .NET Framework 4.8 the way
   [winetricks](https://github.com/Winetricks/winetricks) does (about five minutes, downloaded
   from Microsoft with pinned checksums) and runs the installer again if it had stopped.
+- **Pages with Internet Explorer's control** (MFC programs like Encarta): Vitral adds
+  [Wine Gecko](https://gitlab.winehq.org/wine/wine/-/wikis/Gecko), the engine those pages need,
+  downloaded once from WineHQ with pinned checksums.
+- **CD and DVD images (`.iso`):** Vitral opens the image, finds its installer and shows the image
+  to the installer as a disc drive. While it installs, it says what the installer is doing.
 
 The installer's own shortcuts tell Vitral which programs it brought. When there are several (a
 suite, or a program with its editor, like MetaTrader 5 and MetaEditor), Vitral makes the app for
 the main one and offers the others; each one you pick becomes its own app, and they share files and settings.
-Uninstalling one offers to remove the others too. From the Terminal:
+In the library they share one card, like a folder on iPhone: click an app's small icon to open
+it, or the card to see them all. Uninstalling one offers to remove the others too. From the Terminal:
 `vitral programs <app>`, `vitral add <app> <program>` and `vitral uninstall --all <app>`.
 
 If the installer opens the program when it finishes, Vitral closes that copy (it runs without
 these settings) and goes on. Before finishing, Vitral compares the Windows functions the program
 uses with the ones the engine has, and warns if something would stop it from opening. Each app
 carries a small launcher that checks Rosetta and the engine, opens the program, tries again if it
-crashes while starting, and keeps a log in `~/Library/Logs/Vitral/`. Programs that live in the menu bar, with no window (such
-as Greenshot), count as open. `vitral install --arguments "/VERYSILENT"` passes options to the
+crashes while starting, and keeps a log in `~/Library/Logs/Vitral/`. When Vitral brings a newer
+build of the app's engine, the launcher moves the app to it the next time it opens, and puts
+everything back as it was if the program does not open with it. Programs that live in the menu
+bar, with no window (such as Greenshot), count as open. A program that freezes closes with
+**Force Quit…** (right-click its app in the library), along with everything it left running. `vitral install --arguments "/VERYSILENT"` passes options to the
 installer, for unattended installations.
 
 Examples:
@@ -113,6 +127,21 @@ Vulkan) and anti-cheat systems. `vitral icon` turns the program's icon into a ma
 every Retina size. The tool speaks English and Spanish (it follows your macOS language;
 `VITRAL_LANG=en` forces English).
 
+## Updates
+
+Published copies of Vitral update themselves with [Sparkle](https://sparkle-project.org), which
+checks the signature of each update. Many people only open their programs and never Vitral, so
+the apps help:
+
+- Once a day, opening an app checks Vitral's feed on GitHub. If there is a newer Vitral, the app
+  opens it without a window or Dock icon; Vitral updates itself and quits, without opening
+  again. Your program is not interrupted.
+- The next time you open the app, before the program shows, it takes the new Vitral's launcher,
+  and with it the new engine and fixes.
+
+All of this happens only with "Check for updates automatically" on (Vitral's settings). Apps
+made with Vitral 0.1.6 or earlier learn it the first time Vitral 0.1.7 or later opens.
+
 ## Programs tested
 
 Installed with Vitral from their official installers, on a MacBook Pro M1 Pro with macOS 27.
@@ -128,6 +157,7 @@ Games come later.
 | Winamp 5.9 | Win32 (skins) | Works |
 | A 32-bit educational app | Qt 5 + QtWebEngine | Works with Vitral's Qt settings |
 | An Electron 37 app | Electron | Works with `--in-process-gpu` and DXMT |
+| Microsoft Encarta 2009 (Premium DVD, from its `.iso`) | MFC + Internet Explorer pages (XSLT) | Works: search, articles, pictures and media player, with Vitral's fixes to Wine and Wine Gecko. Encarta Kids, from the same disc, too |
 | vMix 29 | .NET Framework + Direct3D 11 | Installs with .NET Framework 4.8 and plays video; GT titles and some input controls do not draw yet, and it can freeze |
 | Power BI Desktop | .NET Framework + WebView2 | With .NET Framework 4.8 it installs, but crashes on start inside its own code |
 | Paint.NET 5.1 | .NET 9 + Direct2D | Does not open: Wine's Direct2D is incomplete. Paint.NET 5.2 should, with a newer engine |
@@ -164,7 +194,10 @@ Vitral runs Windows programs with its own build of **CrossOver's Wine**, from th
 CodeWeavers publishes under the LGPL: today CrossOver 26.3.0 (Wine 11.0), for 32- and 64-bit
 programs, with [DXMT](https://github.com/3Shain/dxmt) 0.80 (Direct3D 11 on Metal, MIT) inside.
 The official Wine builds crash with 32-bit programs such as Qt 5 apps on macOS; CrossOver's
-patches fix that, and CrossOver 26 has what Electron apps need.
+patches fix that, and CrossOver 26 has what Electron apps need. On top, Vitral applies its own
+fixes to Wine, in [`engine-patches/`](engine-patches): today seven that Microsoft Encarta needed
+(resources, XSLT, Internet Explorer's control) and one that lets Vitral read the error boxes a
+program shows. Vitral offers them to the Wine project.
 
 - `scripts/build-engine.sh` builds it on a Mac with Apple silicon in a few minutes (Rosetta,
   plus `brew install mingw-w64 bison flex freetype gnutls sdl2`; no Intel Homebrew needed).
@@ -173,6 +206,10 @@ patches fix that, and CrossOver 26 has what Electron apps need.
   repository's [releases](https://github.com/noctavox-labs/vitral/releases).
 - Vitral downloads it the first time it is needed and checks it against the SHA-256 pinned in
   `Sources/VitralKit/Engines/WineEngine.swift`. Inside, `share/licenses/` lists each source.
+- A new build of the same engine (today `engine-cx26.3.0-2`) replaces the one before it: each
+  app moves to it the next time it opens, and stays on the old one if the program does not open
+  with the new one.
+
 ## Roadmap
 
 | Phase | Goal |
@@ -180,13 +217,15 @@ patches fix that, and CrossOver 26 has what Electron apps need.
 | **0. Foundations** *(done)* | Repository, CI, installer and program analyzer, Wine engine download |
 | **1. One command** *(now)* | `vitral install Setup.exe` creates a sharp, portable Mac app with its icon, with no manual steps beyond the program's own installer. Reached for its first targets: a 32-bit Qt 5 + QtWebEngine educational app that needed a dozen manual fixes, and an Electron 37 app, on Vitral's own engine. Next: more test Macs and programs |
 | **2. The app** *(started)* | SwiftUI app with Liquid Glass: setup assistant (Rosetta, engine), drag and drop, library, "Does it look right?", advanced settings |
-| **3. Sharing** *(started)* | Signed and notarized releases and automatic updates inside the app (done); export and import |
-| **4. More programs** *(started)* | [Compatibility list](#programs-tested), .NET Framework, installers with several programs, a catalog of known failures with fixes Vitral tries by itself (downloaded and signed); next: blank windows and programs that hang, retrying installations, community recipes |
+| **3. Sharing** *(started)* | Signed and notarized releases and automatic updates, also for people who only open their programs (done); export and import |
+| **4. More programs** *(started)* | [Compatibility list](#programs-tested), .NET Framework, installers with several programs, CD and DVD images, Internet Explorer pages (Wine Gecko), programs that show an error box and close, a catalog of known failures with fixes Vitral tries by itself (downloaded and signed); next: blank windows and programs that hang, retrying installations, community recipes |
 | **5. After Rosetta** | Apple is phasing out general Rosetta support after macOS 27; Vitral is built so a Rosetta-free Wine engine can drop in |
 
 ## Principles
 
-- **No telemetry.** Nothing leaves your Mac unless you send a report yourself.
+- **No telemetry.** Nothing leaves your Mac unless you send a report yourself. Update checks (by
+  Vitral, and once a day by your apps when you open them) only read Vitral's feed on GitHub, and
+  only while automatic checks are on.
 - **Downloads only from official sources**, with pinned SHA-256 checksums.
 - **Known failures arrive signed.** The catalog of failures and fixes comes from this repository
   (`catalog/`), only while automatic update checks are on, and Vitral uses it only if it is
@@ -210,6 +249,7 @@ officially supported.
 [Obelisk](https://github.com/Zagrios/Obelisk) · [mapc-engine](https://github.com/abduzeedo/mapc-engine) ·
 [Sikarugir](https://github.com/Sikarugir-App) · [DXVK-macOS](https://github.com/Gcenx/DXVK-macOS) ·
 [DXMT](https://github.com/3Shain/dxmt) · [MoltenVK](https://github.com/KhronosGroup/MoltenVK) ·
+[Wine Gecko](https://gitlab.winehq.org/wine/wine/-/wikis/Gecko) ·
 [Winetricks](https://github.com/Winetricks/winetricks) · [innoextract](https://constexpr.org/innoextract/).
 See [NOTICE.md](NOTICE.md).
 

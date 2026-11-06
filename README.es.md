@@ -6,28 +6,32 @@
 
 > **Estado: en desarrollo temprano.** [**Descarga Vitral**](https://github.com/noctavox-labs/vitral/releases/latest)
 > (Mac con chip de Apple y macOS 14 o más nuevo; instala Rosetta si tu Mac no la tiene). Va
-> firmada y notarizada, y se actualiza sola. Puede tener detalles por pulir. El repositorio tiene `vitral`, una herramienta de línea de comandos que
+> firmada y notarizada, y se mantiene al día aunque solo abras tus programas. Puede tener detalles por pulir. El repositorio tiene `vitral`, una herramienta de línea de comandos que
 > revisa instaladores de Windows y convierte programas en apps de Mac, y la primera versión de
 > la app: un asistente que revisa tu Mac e instala lo que falta, una ventana donde sueltas un
 > instalador para instalarlo, y tu biblioteca de apps de Windows. Instala, desde sus propios
-> instaladores, programas en Qt, Electron, Delphi, MFC y .NET Framework, con el motor de Wine
-> propio de Vitral: mira los [programas probados](#programas-probados). En la
+> instaladores o imágenes de CD y DVD, programas en Qt, Electron, Delphi, MFC y .NET Framework, y
+> programas que muestran páginas con el control de Internet Explorer, como Microsoft Encarta, con
+> el motor de Wine propio de Vitral: mira los [programas probados](#programas-probados). En la
 > [hoja de ruta](#hoja-de-ruta) está lo que viene.
 
 ## La idea
 
-Arrastras un instalador de Windows (`.exe`, `.msi` o `.zip`) a Vitral. Obtienes una app de Mac
-con su propio ícono, que abre con doble clic, se ve nítida en una pantalla Retina y ya viene
-configurada para ese programa.
+Arrastras un instalador de Windows (`.exe`, `.msi` o `.zip`, o la imagen `.iso` de un CD o DVD) a
+Vitral. Obtienes una app de Mac con el ícono del programa, a todo color, que abre con doble clic,
+se ve nítida en una pantalla Retina y ya viene configurada para ese programa.
 
 - **Decide por ti.** Vitral lee el instalador antes de ejecutar nada: tipo de instalador, 32 o 64
   bits, la tecnología que usa (Qt, Electron, .NET…) y lo que necesita. Con eso elige la
   configuración que se sabe que funciona.
-- **Revisa su propio trabajo.** Si un programa se cierra en vez de abrir, Vitral lee los
-  registros de Wine y los del propio programa, reconoce las fallas conocidas y prueba solo sus
+- **Revisa su propio trabajo.** Si un programa se cierra en vez de abrir, o muestra un cuadro de
+  error y se cierra, Vitral lee los registros de Wine, los del propio programa y lo que decía el
+  cuadro, reconoce las fallas conocidas y prueba solo sus
   arreglos, y deshace los que no sirven. Si no puede arreglarlo (algunas fallas piden un motor
   más nuevo), explica por qué y te ayuda a informarlo en GitHub con un informe que lees antes de
   enviar. Las fallas y arreglos nuevos llegan en un catálogo firmado, sin esperar un Vitral nuevo.
+- **Se mantiene al día.** Vitral se actualiza solo, y tus apps reciben el motor y los arreglos
+  nuevos al abrirlas, aunque nunca abras Vitral (mira [Actualizaciones](#actualizaciones)).
 - **Puedes cambiarlo todo** *(próximamente)*. Los ajustes avanzados, a un clic, con un botón
   **Volver a lo recomendado**.
 - **Compartir es fácil** *(próximamente)*. Exportas la app y la mandas; la otra persona la importa
@@ -53,6 +57,7 @@ git clone https://github.com/noctavox-labs/vitral.git
 cd vitral
 swift run vitral analizar "ruta/al/Setup.exe"          # un instalador
 swift run vitral analizar "ruta/a/Mi Programa"         # la carpeta de un programa instalado
+swift run vitral analizar "ruta/al/Disco.iso"          # una imagen de CD o DVD
 swift run vitral analizar --json "ruta/al/Setup.exe"   # para otros programas
 swift run vitral icono "ruta/al/Programa.exe" Programa.icns
 swift run vitral motores                               # motores de Wine y Rosetta
@@ -60,11 +65,13 @@ swift run vitral motores instalar                      # baja y verifica el moto
 swift build && .build/debug/vitral instalar "ruta/a/Setup.exe"   # instalarlo como app de Mac
 ```
 
-`vitral instalar` crea un Windows (un prefijo de Wine) para el programa, abre el instalador
-para que sigas sus pasos, encuentra el programa instalado, aplica los ajustes que necesita su
-tecnología y deja `~/Applications/<Programa>.app` con el ícono del programa. La app es pequeña
-y se firma en tu Mac; su Windows vive en `~/Library/Application Support/Vitral/Prefixes/`,
-porque macOS solo abre apps cuya firma cubre todo lo que llevan dentro:
+`vitral instalar` crea un espacio propio para el programa (un prefijo de Wine), abre el
+instalador para que sigas sus pasos, encuentra el programa instalado, aplica los ajustes que
+necesita su tecnología y deja `~/Applications/<Programa>.app` con el ícono que muestra su acceso
+directo de Windows, con la mejor resolución y profundidad de color que trae el programa. La app
+es pequeña y se firma en tu Mac; los archivos y ajustes del programa viven en
+`~/Library/Application Support/Vitral/Prefixes/`, porque macOS solo abre apps cuya firma cubre
+todo lo que llevan dentro:
 
 - **Qt 5:** nítido en Retina, Qt Quick sin OpenGL y sin el candado de instancia única trabado.
 - **Electron:** dibuja dentro del programa (`--in-process-gpu`) para que DXMT lo muestre; en los
@@ -74,19 +81,30 @@ porque macOS solo abre apps cuya firma cubre todo lo que llevan dentro:
   un programa lo necesita, Vitral instala .NET Framework 4.8 de Microsoft como lo hace
   [winetricks](https://github.com/Winetricks/winetricks) (unos cinco minutos, bajado de Microsoft
   con sumas fijadas) y vuelve a abrir el instalador si se había detenido.
+- **Páginas con el control de Internet Explorer** (programas en MFC como Encarta): Vitral pone
+  [Wine Gecko](https://gitlab.winehq.org/wine/wine/-/wikis/Gecko), el motor que esas páginas
+  necesitan, bajado una vez de WineHQ con sumas fijadas.
+- **Imágenes de CD y DVD (`.iso`):** Vitral abre la imagen, encuentra su instalador y se la
+  muestra al instalador como una unidad de disco. Mientras instala, dice qué está haciendo el
+  instalador.
 
 Los accesos directos del propio instalador le dicen a Vitral qué programas trae. Si son varios
 (una suite, o un programa con su editor, como MetaTrader 5 y MetaEditor), Vitral crea la app del
 principal y ofrece los demás; cada uno que elijas queda como su propia app, y comparten
-archivos y ajustes. Al desinstalar una, Vitral ofrece quitar también las demás. Desde la Terminal:
+archivos y ajustes. En la biblioteca comparten un recuadro, como una carpeta del iPhone: con un
+clic en el ícono chico de una app se abre esa, y con un clic en el recuadro se ven todas. Al
+desinstalar una, Vitral ofrece quitar también las demás. Desde la Terminal:
 `vitral programas <app>`, `vitral agregar <app> <programa>` y `vitral desinstalar --todas <app>`.
 
 Si el instalador abre el programa al terminar, Vitral cierra esa copia (corre sin estos ajustes)
 y sigue. Antes de terminar compara las funciones de Windows que usa el programa con las que tiene
 el motor, y avisa si falta algo que le impediría abrir. Cada app lleva un lanzador pequeño que
 revisa Rosetta y el motor, abre el programa, vuelve a intentar si se cae al arrancar y guarda un
-registro en `~/Library/Logs/Vitral/`. Los programas que viven en la barra de menú, sin ventana
-(como Greenshot), cuentan como abiertos. `vitral instalar --argumentos "/VERYSILENT"` le pasa
+registro en `~/Library/Logs/Vitral/`. Cuando Vitral trae una compilación más nueva del motor de
+la app, el lanzador la pasa a ese motor la siguiente vez que se abre, y deja todo como estaba si
+el programa no abre con él. Los programas que viven en la barra de menú, sin ventana (como
+Greenshot), cuentan como abiertos. Un programa que se congela se cierra con **Forzar cierre…**
+(clic derecho en su app de la biblioteca), junto con todo lo que dejó abierto. `vitral instalar --argumentos "/VERYSILENT"` le pasa
 opciones al instalador, para instalaciones sin intervención.
 
 Ejemplos:
@@ -115,6 +133,22 @@ Vulkan) y los antitrampas. `vitral icono` convierte el ícono del programa en un
 todos los tamaños Retina. Habla español e inglés (sigue el idioma de macOS; `VITRAL_LANG=es`
 fuerza español).
 
+## Actualizaciones
+
+Las copias publicadas de Vitral se actualizan solas con [Sparkle](https://sparkle-project.org),
+que comprueba la firma de cada actualización. Mucha gente solo abre sus programas y nunca
+Vitral, así que las apps ayudan:
+
+- Una vez al día, al abrir una app, se revisa la lista de versiones de Vitral en GitHub. Si hay
+  un Vitral más nuevo, la app lo abre sin ventana ni ícono en el Dock; Vitral se actualiza y se
+  cierra, sin volver a abrirse. Tu programa no se interrumpe.
+- La siguiente vez que abres la app, antes de que aparezca el programa, toma el lanzador del
+  Vitral nuevo, y con él el motor y los arreglos nuevos.
+
+Todo esto pasa solo con «Buscar actualizaciones automáticamente» activado (en los ajustes de
+Vitral). Las apps hechas con Vitral 0.1.6 o anterior lo aprenden la primera vez que se abre
+Vitral 0.1.7 o posterior.
+
 ## Programas probados
 
 Instalados con Vitral desde sus instaladores oficiales, en una MacBook Pro M1 Pro con macOS 27.
@@ -130,6 +164,7 @@ Los juegos vienen después.
 | Winamp 5.9 | Win32 (con *skins*) | Funciona |
 | Una app educativa de 32 bits | Qt 5 + QtWebEngine | Funciona con los ajustes de Qt de Vitral |
 | Una app en Electron 37 | Electron | Funciona con `--in-process-gpu` y DXMT |
+| Microsoft Encarta 2009 (Premium DVD, desde su `.iso`) | MFC + páginas de Internet Explorer (XSLT) | Funciona: búsqueda, artículos, imágenes y reproductor, con los arreglos de Vitral a Wine y Wine Gecko. Encarta Kids, del mismo disco, también |
 | vMix 29 | .NET Framework + Direct3D 11 | Se instala con .NET Framework 4.8 y reproduce video; los títulos GT y algunos controles de las entradas todavía no se dibujan, y se puede congelar |
 | Power BI Desktop | .NET Framework + WebView2 | Con .NET Framework 4.8 se instala, pero se cae al abrir dentro de su propio código |
 | Paint.NET 5.1 | .NET 9 + Direct2D | No abre: el Direct2D de Wine está incompleto. Paint.NET 5.2 debería, con un motor más nuevo |
@@ -169,7 +204,10 @@ el código que CodeWeavers publica bajo la LGPL: hoy CrossOver 26.3.0 (Wine 11.0
 programas de 32 y 64 bits, con [DXMT](https://github.com/3Shain/dxmt) 0.80 (Direct3D 11 sobre
 Metal, MIT) adentro. Las versiones oficiales de Wine se caen con programas de 32 bits como las
 apps en Qt 5 en macOS; los parches de CrossOver lo resuelven, y CrossOver 26 tiene lo que
-necesitan las apps de Electron.
+necesitan las apps de Electron. Encima, Vitral le aplica sus propios arreglos a Wine, en
+[`engine-patches/`](engine-patches): hoy siete que necesitó Microsoft Encarta (recursos, XSLT,
+el control de Internet Explorer) y uno que le permite a Vitral leer los cuadros de error que
+muestra un programa. Vitral se los ofrece al proyecto Wine.
 
 - `scripts/build-engine.sh` lo compila en una Mac con chip Apple en pocos minutos (Rosetta, más
   `brew install mingw-w64 bison flex freetype gnutls sdl2`; no hace falta un Homebrew de Intel).
@@ -179,6 +217,10 @@ necesitan las apps de Electron.
 - Vitral lo baja la primera vez que hace falta y lo comprueba contra el SHA-256 fijado en
   `Sources/VitralKit/Engines/WineEngine.swift`. Adentro, `share/licenses/` dice de dónde sale
   cada parte.
+- Una compilación nueva del mismo motor (hoy `engine-cx26.3.0-2`) reemplaza a la anterior: cada
+  app pasa a ella la siguiente vez que se abre, y se queda con la anterior si el programa no abre
+  con la nueva.
+
 ## Hoja de ruta
 
 | Fase | Meta |
@@ -186,13 +228,15 @@ necesitan las apps de Electron.
 | **0. Cimientos** *(hecho)* | Repositorio, pruebas automáticas, analizador de instaladores y programas, descarga del motor de Wine |
 | **1. Un comando** *(ahora)* | `vitral instalar Setup.exe` crea una app de Mac nítida, portable y con ícono, sin pasos a mano aparte del instalador del programa. Logrado con sus primeros objetivos: una app educativa en Qt 5 + QtWebEngine de 32 bits que necesitaba una docena de arreglos manuales, y una app en Electron 37, con el motor propio. Sigue: más Macs y programas de prueba |
 | **2. La app** *(empezada)* | App en SwiftUI con Liquid Glass: asistente de preparación (Rosetta, motor), arrastrar y soltar, biblioteca, «¿Se ve bien?», ajustes avanzados |
-| **3. Compartir** *(empezada)* | Versiones firmadas y notarizadas y actualizaciones automáticas dentro de la app (hecho); exportar e importar |
-| **4. Más programas** *(empezada)* | [Lista de compatibilidad](#programas-probados), .NET Framework, instaladores con varios programas, un catálogo de fallas conocidas con arreglos que Vitral prueba solo (descargado y firmado); sigue: ventanas en blanco y programas que se cuelgan, reintentar instalaciones, recetas de la comunidad |
+| **3. Compartir** *(empezada)* | Versiones firmadas y notarizadas y actualizaciones automáticas, también para quien solo abre sus programas (hecho); exportar e importar |
+| **4. Más programas** *(empezada)* | [Lista de compatibilidad](#programas-probados), .NET Framework, instaladores con varios programas, imágenes de CD y DVD, páginas de Internet Explorer (Wine Gecko), programas que muestran un cuadro de error y se cierran, un catálogo de fallas conocidas con arreglos que Vitral prueba solo (descargado y firmado); sigue: ventanas en blanco y programas que se cuelgan, reintentar instalaciones, recetas de la comunidad |
 | **5. Después de Rosetta** | Apple deja Rosetta para uso general después de macOS 27; Vitral está hecho para cambiar a un motor de Wine que no lo necesite |
 
 ## Principios
 
-- **Sin telemetría.** Nada sale de tu Mac, salvo un informe que tú decidas enviar.
+- **Sin telemetría.** Nada sale de tu Mac, salvo un informe que tú decidas enviar. Las búsquedas
+  de actualizaciones (de Vitral y, una vez al día, de tus apps al abrirlas) solo leen la lista de
+  versiones de Vitral en GitHub, y solo si está activada la búsqueda automática.
 - **Descargas solo de fuentes oficiales**, con sumas SHA-256 fijadas.
 - **Las fallas conocidas llegan firmadas.** El catálogo de fallas y arreglos viene de este
   repositorio (`catalog/`), solo si está activada la búsqueda automática de actualizaciones, y
@@ -216,6 +260,7 @@ soporte oficial.
 [Obelisk](https://github.com/Zagrios/Obelisk) · [mapc-engine](https://github.com/abduzeedo/mapc-engine) ·
 [Sikarugir](https://github.com/Sikarugir-App) · [DXVK-macOS](https://github.com/Gcenx/DXVK-macOS) ·
 [DXMT](https://github.com/3Shain/dxmt) · [MoltenVK](https://github.com/KhronosGroup/MoltenVK) ·
+[Wine Gecko](https://gitlab.winehq.org/wine/wine/-/wikis/Gecko) ·
 [Winetricks](https://github.com/Winetricks/winetricks) · [innoextract](https://constexpr.org/innoextract/).
 Ver [NOTICE.md](NOTICE.md).
 
