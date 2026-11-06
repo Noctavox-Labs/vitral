@@ -122,8 +122,10 @@ Games come later.
 | WinMerge 2.16 | MFC | Works (folder and file comparisons) |
 | MetaTrader 5 | Win32 | Works, together with MetaEditor (from the same installer) |
 | Greenshot 1.3 | .NET Framework 4 | Opens with Vitral's .NET Framework 4.8; lives in the menu bar |
+| Winamp 5.9 | Win32 (skins) | Works |
 | A 32-bit educational app | Qt 5 + QtWebEngine | Works with Vitral's Qt settings |
 | An Electron 37 app | Electron | Works with `--in-process-gpu` and DXMT |
+| vMix 29 | .NET Framework + Direct3D 11 | Installs with .NET Framework 4.8 and plays video; GT titles and some input controls do not draw yet, and it can freeze |
 | Power BI Desktop | .NET Framework + WebView2 | With .NET Framework 4.8 it installs, but crashes on start inside its own code |
 | Paint.NET 5.1 | .NET 9 + Direct2D | Does not open: Wine's Direct2D is incomplete. Paint.NET 5.2 should, with a newer engine |
 
