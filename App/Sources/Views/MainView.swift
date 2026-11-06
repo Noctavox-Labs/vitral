@@ -28,6 +28,23 @@ struct MainView: View {
                 .frame(maxWidth: .infinity)
             }
             .scrollContentBackground(.hidden)
+
+            // A group opened like a folder on iPhone: its apps, over the library.
+            if let id = model.openGroup, let group = model.libraryGroups.first(where: { $0.id == id }), group.apps.count > 1 {
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { closeGroup() }
+                    .transition(.opacity)
+                GroupPanel(group: group, close: closeGroup)
+                    .padding(36)
+                    .transition(.scale(scale: 0.85).combined(with: .opacity))
+            }
+        }
+        .onChange(of: model.library.map(\.url)) {
+            // Its apps were uninstalled, or all but one.
+            if let id = model.openGroup, (model.libraryGroups.first { $0.id == id }?.apps.count ?? 0) < 2 { model.openGroup = nil }
         }
         .onAppear { model.refreshLibrary() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -81,6 +98,10 @@ struct MainView: View {
         } message: {
             Text(model.addProgramError ?? "")
         }
+    }
+
+    private func closeGroup() {
+        withAnimation(.spring(duration: 0.3)) { model.openGroup = nil }
     }
 
     static let installerTypes: [UTType] = ["exe", "msi", "iso"].compactMap { UTType(filenameExtension: $0) } + [.zip]
@@ -159,8 +180,12 @@ struct LibraryGrid: View {
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 190), spacing: 16)], alignment: .leading, spacing: 16) {
-            ForEach(model.library) { app in
-                LibraryCard(app: app)
+            ForEach(model.libraryGroups) { group in
+                if group.apps.count == 1 {
+                    LibraryCard(app: group.apps[0])
+                } else {
+                    GroupCard(group: group)
+                }
             }
             ForEach(model.pendingApps) { pending in
                 PendingCard(app: pending)
@@ -174,6 +199,139 @@ struct LibraryGrid: View {
                 try? await Task.sleep(for: .seconds(2))
             }
         }
+    }
+}
+
+/// The apps of one installer in one card, like a folder on iPhone: an app's small icon opens that
+/// app, and the rest of the card opens the group.
+struct GroupCard: View {
+    @Environment(AppModel.self) private var model
+    let group: AppModel.LibraryGroup
+    @State private var hovering = false
+
+    var body: some View {
+        let shown = Array(group.apps.prefix(9))
+        // Up to 4 apps in two columns, as an iPhone folder; up to 9 in three.
+        let columns = shown.count <= 4 ? 2 : 3
+        let side: CGFloat = columns == 2 ? 34 : 22
+        let gap: CGFloat = columns == 2 ? 8 : 6
+        let opening = group.apps.contains { model.opening.contains($0.url) }
+        VStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: gap) {
+                ForEach(Array(stride(from: 0, to: shown.count, by: columns)), id: \.self) { start in
+                    HStack(spacing: gap) {
+                        ForEach(shown[start ..< min(start + columns, shown.count)]) { app in
+                            GroupIcon(app: app, side: side)
+                        }
+                    }
+                }
+            }
+            .padding(10)
+            .frame(width: 96, height: 96, alignment: .topLeading)
+            .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(.white.opacity(0.2), lineWidth: 0.75))
+            Text(group.name)
+                .font(.callout.weight(.medium))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity)
+            if opening {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.mini).tint(Palette.progress)
+                    Text("Abriendo…")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            } else {
+                Text("\(group.apps.count) apps")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 14)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, minHeight: 170)
+        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .onTapGesture { open() }
+        .vitralGlass(cornerRadius: 22, tint: hovering ? Palette.accent : nil)
+        .scaleEffect(hovering ? 1.02 : 1)
+        .animation(.spring(duration: 0.25), value: hovering)
+        .onHover { hovering = $0 }
+        .help("Ver las apps de \(group.name)")
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(group.name)
+        .accessibilityAction(named: "Ver las apps") { open() }
+        .contextMenu {
+            Button("Ver las apps") { open() }
+            Divider()
+            ForEach(group.apps) { app in
+                Button("Abrir \(app.name)") { model.openApp(app.url) }
+            }
+        }
+    }
+
+    private func open() {
+        withAnimation(.spring(duration: 0.35)) { model.openGroup = group.id }
+    }
+}
+
+/// An app's small icon in a group's card: a click opens the app.
+struct GroupIcon: View {
+    @Environment(AppModel.self) private var model
+    let app: AppModel.LibraryApp
+    let side: CGFloat
+
+    var body: some View {
+        let opening = model.opening.contains(app.url)
+        Button { model.openApp(app.url) } label: {
+            Image(nsImage: app.icon)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: side, height: side)
+                .shadow(color: .black.opacity(0.18), radius: 3, y: 1.5)
+                .phaseAnimator(opening ? [false, true] : [false]) { icon, dim in
+                    icon.opacity(dim ? 0.45 : 1).scaleEffect(dim ? 0.9 : 1)
+                } animation: { _ in .easeInOut(duration: 0.8) }
+        }
+        .buttonStyle(.plain)
+        .help("Abrir \(app.name)")
+        .accessibilityLabel("Abrir \(app.name)")
+    }
+}
+
+/// A group open over the library: its name and its apps as full cards, with their menus.
+struct GroupPanel: View {
+    let group: AppModel.LibraryGroup
+    let close: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Text(group.name)
+                    .font(.system(size: 24, weight: .semibold, design: .rounded))
+                Spacer()
+                Button(action: close) {
+                    Image(systemName: "xmark")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
+                .vitralGlass(in: Circle())
+                .keyboardShortcut(.cancelAction)
+                .help("Cerrar")
+            }
+            Text("Son del mismo instalador: comparten archivos y ajustes.")
+                .foregroundStyle(.secondary)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 190), spacing: 16)], alignment: .leading, spacing: 16) {
+                ForEach(group.apps) { app in
+                    LibraryCard(app: app)
+                }
+            }
+            .glassGroup(spacing: 16)
+        }
+        .padding(26)
+        .frame(maxWidth: 680)
+        .vitralGlass(cornerRadius: 32)
     }
 }
 

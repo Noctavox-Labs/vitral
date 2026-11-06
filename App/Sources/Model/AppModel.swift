@@ -35,6 +35,15 @@ final class AppModel {
         var others: [ProgramChoice] = []
     }
 
+    /// Apps of one installer (they share the same files and settings), shown together like a
+    /// folder on iPhone: Encarta, Encarta Kids and Encarta Dictionaries; vMix and its title designer.
+    struct LibraryGroup: Identifiable {
+        var id: String { prefix }
+        let prefix: String
+        let name: String
+        let apps: [LibraryApp]
+    }
+
     /// A Windows installer or program the person dropped, already analyzed.
     struct DroppedFile: Identifiable {
         let id = UUID()
@@ -64,6 +73,41 @@ final class AppModel {
     var dropError: String?
     var installState: InstallState = .idle
     private(set) var library: [LibraryApp] = []
+
+    /// The library as it is shown: each app alone, or with the others of its installer, where
+    /// the first of them is.
+    var libraryGroups: [LibraryGroup] {
+        var order: [String] = []
+        var byPrefix: [String: [LibraryApp]] = [:]
+        for app in library {
+            if byPrefix[app.prefix] == nil { order.append(app.prefix) }
+            byPrefix[app.prefix, default: []].append(app)
+        }
+        return order.map { prefix in
+            let apps = byPrefix[prefix] ?? []
+            return LibraryGroup(prefix: prefix, name: Self.groupName(apps), apps: apps)
+        }
+    }
+
+    /// The group shown open over the library, if any.
+    var openGroup: String?
+
+    /// What the apps' names begin with ("Encarta", "vMix"); otherwise the product most of them
+    /// are, or the installer's name.
+    static func groupName(_ apps: [LibraryApp]) -> String {
+        guard let first = apps.first else { return "" }
+        guard apps.count > 1 else { return first.name }
+        let words = apps.map { $0.name.split(separator: " ").map(String.init) }
+        var common: [String] = []
+        for (index, word) in words[0].enumerated() {
+            guard words.allSatisfy({ index < $0.count && $0[index].lowercased() == word.lowercased() }) else { break }
+            common.append(word)
+        }
+        if !common.isEmpty { return common.joined(separator: " ") }
+        let products = Dictionary(grouping: apps.compactMap { $0.manifest.product?.productName }, by: { $0 })
+        if let product = products.max(by: { $0.value.count < $1.value.count }), product.value.count > 1 { return product.key }
+        return first.manifest.installer.map { ($0 as NSString).deletingPathExtension } ?? first.name
+    }
 
     let engine = EngineCatalog.default
     private let installer = ComponentInstaller()
@@ -493,7 +537,12 @@ final class AppModel {
         let watch = program != nil && open.isEmpty && !opening.contains(url)
         if watch { opening.insert(url) }
 
-        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { launcher, _ in
+        let configuration = NSWorkspace.OpenConfiguration()
+        // A Vitral started with another home (to test) opens its apps with that one too.
+        if let home = ProcessInfo.processInfo.environment["VITRAL_HOME"], !home.isEmpty {
+            configuration.environment = ["VITRAL_HOME": home]
+        }
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { launcher, _ in
             guard watch else { return }
             Task { @MainActor in
                 await self.waitForWindow(of: program ?? "", launcher: launcher)

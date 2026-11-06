@@ -53,6 +53,16 @@
         }
       }
     },
+    "%lld apps" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld apps"
+          }
+        }
+      }
+    },
     "Abriendo…" : {
       "localizations" : {
         "en" : {
@@ -1263,6 +1273,16 @@
         }
       }
     },
+    "Son del mismo instalador: comparten archivos y ajustes." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "They come from the same installer: they share files and settings."
+          }
+        }
+      }
+    },
     "Suficiente para la mayoría de los programas." : {
       "localizations" : {
         "en" : {
@@ -1329,6 +1349,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Your Windows apps"
+          }
+        }
+      }
+    },
+    "Ver las apps" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the Apps"
+          }
+        }
+      }
+    },
+    "Ver las apps de %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the apps of %@"
           }
         }
       }
