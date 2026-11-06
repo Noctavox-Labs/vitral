@@ -75,15 +75,19 @@ final class Launcher: NSObject, NSApplicationDelegate {
             write(tr("Abriendo (intento \(attempt))…", "Opening (attempt \(attempt))…"))
 
             let process = launch.makeProcess(log: log ?? .nullDevice)
-            let watcher = Task { await watchForWindow(started: started) }
+            let watcher = Task { [trial] in
+                await watchForWindow(started: started, offset: offset, trying: trial, sharedRunning: sharedRunning)
+            }
             // A fix that opens the program is saved as soon as the window shows, not when the
             // program closes hours later.
             let keeper = Task { [trial] in
-                if let trial, await watcher.value { await keep(trial) }
+                if let trial, await watcher.value.opened { await keep(trial) }
             }
             let status = (try? await WineSession.wait(for: process)) ?? -1
             watcher.cancel()
-            let sawWindow = await watcher.value
+            let outcome = await watcher.value
+            let sawWindow = outcome.opened
+            hung = outcome == .hung
             await keeper.value
             let seconds = Date().timeIntervalSince(started)
             let attemptLog = readLog(from: offset)
@@ -98,7 +102,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
                 attempt += 1
                 continue
             }
-            guard StartupWatch.failedToStart(ranFor: seconds, sawWindow: sawWindow, status: status, log: attemptLog) else { break }
+            guard hung || StartupWatch.failedToStart(ranFor: seconds, sawWindow: sawWindow, status: status, log: attemptLog) else { break }
 
             // It did not open. A fix being tried did not help: back to how it was.
             if !sharedRunning { await launch.session.killServer() }
@@ -324,8 +328,26 @@ final class Launcher: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// True once a window of the program is on screen.
-    private func watchForWindow(started: Date) async -> Bool {
+    /// How an attempt to open went, as far as the launcher can see while it runs.
+    private enum Watch: Equatable {
+        /// A window of the program is on screen.
+        case window
+        /// Running for a while without a window, and nothing wrong in its logs: a menu bar program.
+        case menuBar
+        /// Running without a window, and its logs show a known failure Vitral can do something
+        /// about: the launcher closed it.
+        case hung
+        /// The program ended first.
+        case ended
+
+        var opened: Bool { self == .window || self == .menuBar }
+    }
+
+    /// Whether the last attempt was closed by the launcher because it hung without a window.
+    private var hung = false
+
+    /// Watches the attempt that started at `started` (its output in the log from `offset`).
+    private func watchForWindow(started: Date, offset: UInt64, trying trial: Trial?, sharedRunning: Bool) async -> Watch {
         while !Task.isCancelled {
             if let pid = launch?.programWindowOwners().first {
                 programPID = pid
@@ -333,19 +355,62 @@ final class Launcher: NSObject, NSApplicationDelegate {
                 bringProgramForward()
                 write(tr("Ventana a los \(String(format: "%.1f", Date().timeIntervalSince(started))) s",
                          "Window after \(String(format: "%.1f", Date().timeIntervalSince(started))) s"))
-                return true
+                return .window
             }
             // Programs that live in the menu bar (Greenshot) never show a window: running
-            // for a while without one, it has opened.
+            // for a while without one, it has opened. Unless its logs show it is stuck on a
+            // failure Vitral knows (Qt that could not make its window, a crash): then it is closed
+            // so a fix can be tried. Never with another program of the same installer open, which
+            // would close too.
             if Date().timeIntervalSince(started) > StartupWatch.menuBarProgramDelay, let launch, launch.programIsRunning() {
+                if !sharedRunning, let failure = await stuckOn(started: started, offset: offset, trying: trial) {
+                    // It may have shown its window, or ended, while the logs were read.
+                    guard !Task.isCancelled, launch.programIsRunning(), launch.programWindowOwners().isEmpty else { continue }
+                    write(tr("Sin ventana a los \(Int(Date().timeIntervalSince(started))) s, y el registro muestra: \(failure.title) [\(failure.id)]. Lo cierro.",
+                             "No window after \(Int(Date().timeIntervalSince(started))) s, and the log shows: \(failure.title) [\(failure.id)]. Closing it."))
+                    await launch.session.killServer()
+                    return .hung
+                }
+                guard !Task.isCancelled else { return .ended }
                 loading?.close()
                 write(tr("Abierto sin ventana a los \(Int(Date().timeIntervalSince(started))) s (¿en la barra de menú?)",
                          "Open without a window after \(Int(Date().timeIntervalSince(started))) s (in the menu bar?)"))
-                return true
+                return .menuBar
             }
             try? await Task.sleep(for: .milliseconds(500))
         }
-        return false
+        return .ended
+    }
+
+    /// The known failure a program running without a window is stuck on, if there is one Vitral
+    /// can act on: a crash (opening it again may work), the failure of a fix being tried (it was
+    /// not enough), or a failure with a fix left to try. Hints that do not stop a program from
+    /// opening (a missing GStreamer) do not count, nor anti-cheat, which shows up either way.
+    private func stuckOn(started: Date, offset: UInt64, trying trial: Trial?) async -> Diagnosis? {
+        guard let launch else { return nil }
+        try? log?.synchronize()
+        let attemptLog = readLog(from: offset)
+        let catalog = await currentCatalog()
+        let app = wrapper.url
+        // Only what this attempt wrote: its part of Wine's log and the program's logs since it started.
+        let observation = await Task.detached { () -> FailureObservation in
+            let inspection = AppInspection(app: app, phase: .start)
+            var observation = inspection.observation
+            let programLogs = inspection.prefix.map {
+                ProgramLogs.written(since: started, prefix: $0, programFolder: inspection.program?.deletingLastPathComponent())
+            } ?? []
+            observation.logs = [attemptLog] + programLogs.map { LogExcerpt.read($0, head: 64 * 1024, tail: 256 * 1024) }
+            observation.status = nil
+            observation.sawWindow = false
+            return observation
+        }.value
+        let diagnoses = Diagnoser.diagnose(observation, catalog: catalog)
+        if let crash = diagnoses.first(where: { $0.kind == .retry }) { return crash }
+        let fixable = diagnoses.filter { $0.kind == .fixable }
+        if trial != nil, let failure = fixable.first { return failure }
+        let before = historyURL.map { RepairHistory.load(from: $0).tried(revision: catalog.revision, engine: launch.manifest.engine) } ?? []
+        return RepairPlanner.plan(fixable, settings: launch.manifest.settings, prefix: launch.session.prefix,
+                                  tried: Set(tried.map(\.key)).union(before)).first?.diagnosis
     }
 
     /// Wine windows open behind the active app. The launcher is active when the person opens
@@ -427,6 +492,10 @@ final class Launcher: NSObject, NSApplicationDelegate {
             details.append(tr("En otra apertura ya probé: \(earlierText.joined(separator: "; ")). No alcanzó. Lo vuelvo a probar cuando Vitral tenga un catálogo de fallas o un motor nuevo.",
                               "Another time I already tried: \(earlierText.joined(separator: "; ")). It was not enough. I will try again once Vitral has a new failure catalog or engine."))
         }
+        if hung {
+            details.append(tr("Seguía abierto sin ventana y el registro mostraba una falla, así que lo cerré.",
+                              "It was still running without a window and its log showed a failure, so I closed it."))
+        }
         details.append(attempts > 1
             ? tr("Lo intenté \(attempts) veces. El registro puede ayudar a encontrar la causa.",
                  "I tried \(attempts) times. The log can help find the cause.")
@@ -434,7 +503,9 @@ final class Launcher: NSObject, NSApplicationDelegate {
         NSApp.activate()
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = tr("\(name) se cerró al abrir", "\(name) closed while opening")
+        alert.messageText = hung
+            ? tr("\(name) no mostró su ventana", "\(name) did not show its window")
+            : tr("\(name) se cerró al abrir", "\(name) closed while opening")
         alert.informativeText = details.joined(separator: "\n\n")
         alert.addButton(withTitle: tr("Informar el problema…", "Report the Problem…"))
         alert.addButton(withTitle: tr("Mostrar el registro", "Show the Log"))
