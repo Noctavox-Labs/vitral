@@ -326,3 +326,34 @@ private func writeQtProgram(_ folder: TemporaryFolder, at path: String, name: St
     let report = try ProgramAnalyzer.analyze(folderAt: folder.url.appendingPathComponent("Microsoft Encarta"))
     #expect(report.mainExecutable == "Encarta Premium DVD 2009/ENCARTA.EXE")
 }
+
+/// A 64-bit Mach-O with just an LC_UUID, and `tail` where a signature would be.
+private func machO(uuid: UInt8, tail: [UInt8]) -> Data {
+    var bytes = le32(0xFEED_FACF) + le32(0x0100_000C) + le32(0) + le32(2) + le32(1) + le32(24) + le32(0) + le32(0)
+    bytes += le32(0x1B) + le32(24) + [UInt8](repeating: uuid, count: 16)
+    return Data(bytes + tail)
+}
+
+@Test func theSameLauncherBuildSignedAgainIsNotNewer() throws {
+    // Signing the app rewrites its launcher: the bytes differ, the linker's UUID does not.
+    let folder = try TemporaryFolder()
+    let wrapper = Wrapper(url: folder.url.appendingPathComponent("P.app"))
+    let vitrals = folder.url.appendingPathComponent("vitral-launcher"), other = folder.url.appendingPathComponent("other")
+    try machO(uuid: 7, tail: [1, 2, 3]).write(to: vitrals)
+    try machO(uuid: 9, tail: [1, 2, 3]).write(to: other)
+    let script = folder.url.appendingPathComponent("script")
+    try Data("#!/bin/sh\n".utf8).write(to: script)
+    let manifest = WrapperManifest(name: "P", program: "p.exe", engine: "x", settings: LaunchSettings())
+    try wrapper.write(manifest: manifest, icns: nil, launcher: script, bundleIdentifier: "test.p")
+    // As if signed: same build, other bytes (codesign would not sign these made-up files).
+    try machO(uuid: 7, tail: [4, 5, 6, 7]).write(to: wrapper.launcherURL)
+
+    #expect(MachO.uuids(of: vitrals) == MachO.uuids(of: wrapper.launcherURL))
+    #expect(try !wrapper.updateLauncher(from: vitrals))
+    #expect(MachO.uuids(of: other) != MachO.uuids(of: wrapper.launcherURL))
+    #expect(MachO.uuids(of: folder.url.appendingPathComponent("nothing")) == nil)
+    // The real launcher, built by these tests' package.
+    let built = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent(".build/debug/vitral-launcher")
+    if FileManager.default.fileExists(atPath: built.path) { #expect(MachO.uuids(of: built)?.count == 1) }
+}

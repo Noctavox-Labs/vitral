@@ -47,6 +47,10 @@ key=$(/usr/libexec/PlistBuddy -c "Print SUPublicEDKey" "$built/Contents/Info.pli
 [[ -n $key ]] || fail "SUPublicEDKey is missing"
 notes=release-notes/$version.md
 [[ -f $notes ]] || fail "missing $notes"
+# The launcher compares the version it was built with (Vitral.version) with the installed
+# Vitral's to take its launcher: they must be the same, or every app would think it is behind.
+code=$(sed -n 's/.*static let version = "\(.*\)".*/\1/p' Sources/VitralKit/Vitral.swift)
+[[ $code == "$version" ]] || fail "Vitral.version is \"$code\", but the app is $version (project.yml)"
 
 out=.build/release/$version
 rm -rf "$out" && mkdir -p "$out"

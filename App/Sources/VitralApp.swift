@@ -34,16 +34,30 @@ struct VitralApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        !MainActor.assumeIsolated { Updater.inBackground }
+    }
 
-    #if DEBUG
-    /// For screenshots in development: VITRAL_APPEARANCE=light or dark.
     func applicationWillFinishLaunching(_ notification: Notification) {
+        // Opened by a launcher just to update itself: no Dock icon (it also starts hidden).
+        if MainActor.assumeIsolated({ Updater.inBackground }) { NSApp.setActivationPolicy(.accessory) }
+        #if DEBUG
+        // For screenshots in development: VITRAL_APPEARANCE=light or dark.
         switch ProcessInfo.processInfo.environment["VITRAL_APPEARANCE"] {
         case "light": NSApp.appearance = NSAppearance(named: .aqua)
         case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
         default: break
         }
+        #endif
     }
-    #endif
+
+    /// The person opened Vitral while it was updating itself in the background (or Sparkle
+    /// shows its question): from now on it is an ordinary Vitral.
+    func applicationDidBecomeActive(_ notification: Notification) {
+        MainActor.assumeIsolated {
+            guard Updater.inBackground else { return }
+            Updater.inBackground = false
+            NSApp.setActivationPolicy(.regular)
+        }
+    }
 }

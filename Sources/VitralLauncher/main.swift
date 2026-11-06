@@ -40,11 +40,18 @@ final class Launcher: NSObject, NSApplicationDelegate {
     }
 
     private func start() async {
+        // A newer Vitral on this Mac: this app takes its launcher and opens again with it.
+        if await takeNewerLauncher() { return }
         guard let launch = await prepare() else { return quit(1) }
         self.launch = launch
         // Named after the app itself, so two copies of a program keep separate logs.
         openLog(named: wrapper.url.deletingPathExtension().lastPathComponent)
         write("Vitral \(Vitral.version) · \(launch.manifest.name) · \(launch.manifest.program) · \(launch.manifest.engine)")
+        if let previous = ProcessInfo.processInfo.environment[VitralUpdate.updatedVariable] {
+            write(tr("Lanzador puesto al día: el de Vitral \(Vitral.version) en lugar del de \(previous).",
+                     "Launcher brought up to date: Vitral \(Vitral.version)'s instead of \(previous)'s."))
+        }
+        Task { await lookForNewerVitral() }
 
         // Already open (for example, the launcher was closed but the program was not): just show it.
         // Only if this app's Wine is running: another copy of the program (made with Vitral or
@@ -148,6 +155,79 @@ final class Launcher: NSObject, NSApplicationDelegate {
             break
         }
         quit(0)
+    }
+
+    // MARK: Updates
+
+    /// What the next launcher or Vitral needs to see what this one sees (only set when testing).
+    private static var passedOn: [String: String] {
+        ProcessInfo.processInfo.environment.filter { ["VITRAL_HOME", "VITRAL_APPLICATIONS", "VITRAL_APP", "VITRAL_APPCAST"].contains($0.key) }
+    }
+
+    /// Vitral on this Mac (`VITRAL_APP` to test): of the copies macOS knows, the newest one.
+    private func installedVitral() -> URL? {
+        if let custom = ProcessInfo.processInfo.environment["VITRAL_APP"], !custom.isEmpty { return URL(fileURLWithPath: custom) }
+        let copies = NSWorkspace.shared.urlsForApplications(withBundleIdentifier: VitralUpdate.bundleIdentifier)
+        return VitralUpdate.installed(among: copies)
+    }
+
+    /// Vitral gives the apps its launcher only when it opens. A person who only opens their
+    /// programs gets it here: if the Vitral on this Mac is newer than this launcher (it updated
+    /// itself), its launcher goes into the app (with the icon by its rules) and the app opens
+    /// again with it. Returns whether it did; if anything fails, this launcher carries on.
+    private func takeNewerLauncher() async -> Bool {
+        guard ProcessInfo.processInfo.environment[VitralUpdate.updatedVariable] == nil,
+              let vitral = installedVitral(), let version = VitralUpdate.version(of: vitral),
+              VitralUpdate.isNewer(version, than: Vitral.version),
+              let newer = VitralUpdate.launcher(in: vitral) else { return false }
+        let wrapper = self.wrapper
+        let replaced = await Task.detached { () -> Bool in
+            guard (try? wrapper.updateLauncher(from: newer)) == true else { return false }
+            if let icns = ProgramInstaller.icns(for: wrapper) { _ = try? wrapper.updateIcon(icns) }
+            return true
+        }.value
+        guard replaced else { return false }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        configuration.addsToRecentItems = false
+        configuration.environment = Self.passedOn.merging([VitralUpdate.updatedVariable: Vitral.version]) { $1 }
+        guard (try? await NSWorkspace.shared.openApplication(at: wrapper.url, configuration: configuration)) != nil else { return false }
+        quit(0)
+        return true
+    }
+
+    /// At most once a day, if the person lets Vitral look for updates by itself: if Sparkle's
+    /// feed has a newer Vitral, Vitral opens without a window to update itself (with Sparkle, as
+    /// when it is open: by itself, or asking if the person wants to be asked).
+    private func lookForNewerVitral() async {
+        guard CatalogStore.automaticChecks, VitralUpdate.isDue(),
+              let vitral = installedVitral(), let installed = VitralUpdate.version(of: vitral),
+              // Open, it updates itself.
+              !NSRunningApplication.runningApplications(withBundleIdentifier: VitralUpdate.bundleIdentifier)
+                .contains(where: { $0.bundleURL?.standardizedFileURL == vitral.standardizedFileURL }) else { return }
+        VitralUpdate.markChecked()
+        let newer: String?
+        do {
+            newer = try await VitralUpdate.newerVersion(than: installed)
+        } catch {
+            return write(tr("No pude ver si hay un Vitral más nuevo: \(error)", "Could not check for a newer Vitral: \(error)"))
+        }
+        guard let newer else { return }
+        write(tr("Hay un Vitral más nuevo (\(newer); en esta Mac, \(installed)): lo abro sin ventana para que se actualice.",
+                 "There is a newer Vitral (\(newer); on this Mac, \(installed)): opening it without a window so it updates itself."))
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = false
+        configuration.hides = true
+        configuration.addsToRecentItems = false
+        // Its own instance, so the argument reaches it even if another copy of Vitral is open.
+        configuration.createsNewApplicationInstance = true
+        configuration.arguments = [VitralUpdate.backgroundArgument]
+        configuration.environment = Self.passedOn
+        do {
+            _ = try await NSWorkspace.shared.openApplication(at: vitral, configuration: configuration)
+        } catch {
+            write(tr("No pude abrir Vitral para que se actualice: \(error)", "Could not open Vitral to update itself: \(error)"))
+        }
     }
 
     // MARK: Engine

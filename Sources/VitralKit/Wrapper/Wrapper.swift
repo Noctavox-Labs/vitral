@@ -143,13 +143,16 @@ public struct Wrapper: Sendable {
         try sign()
     }
 
-    /// Puts `launcher` in place of the app's launcher if they differ, so apps made with an older
-    /// Vitral get its fixes. Safe while the app is open: the new file takes the old one's name and
-    /// the running launcher keeps the file it started from. Returns whether it changed.
+    /// Puts `launcher` in place of the app's launcher if they are different builds, so apps made
+    /// with an older Vitral get its fixes. Signing the app rewrites its launcher's signature, so
+    /// builds are told apart by the linker's UUIDs (before, every app was "updated" and signed
+    /// again each time Vitral opened). Safe while the app is open: the new file takes the old
+    /// one's name and the running launcher keeps the file it started from. Returns whether it changed.
     @discardableResult
     public func updateLauncher(from launcher: URL) throws -> Bool {
         guard isWrapper else { throw WrapperError.notAWrapper(url) }
         let fm = FileManager.default
+        if let theirs = MachO.uuids(of: launcher), theirs == MachO.uuids(of: launcherURL) { return false }
         if fm.contentsEqual(atPath: launcher.path, andPath: launcherURL.path) { return false }
         let staged = launcherURL.deletingLastPathComponent().appendingPathComponent(".launcher-\(UUID().uuidString)")
         try fm.copyItem(at: launcher, to: staged)
