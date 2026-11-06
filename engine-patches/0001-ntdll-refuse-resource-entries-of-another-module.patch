@@ -1,0 +1,19 @@
+--- a/dlls/ntdll/resource.c
++++ b/dlls/ntdll/resource.c
+@@ -320,9 +320,15 @@
+ 
+     __TRY
+     {
++        const char *dir;
+         ULONG dirsize;
+ 
+-        if (!RtlImageDirectoryEntryToData( hmod, TRUE, IMAGE_DIRECTORY_ENTRY_RESOURCE, &dirsize ))
++        if (!(dir = RtlImageDirectoryEntryToData( hmod, TRUE, IMAGE_DIRECTORY_ENTRY_RESOURCE, &dirsize )))
++            status = STATUS_RESOURCE_DATA_NOT_FOUND;
++        /* Like Windows, refuse an entry that belongs to another module: some programs try their
++         * resource modules one by one until LoadResource succeeds (Encarta 2009), and would
++         * otherwise read another module's data at the same offset. */
++        else if ((const char *)entry < dir || (const char *)(entry + 1) > dir + dirsize)
+             status = STATUS_RESOURCE_DATA_NOT_FOUND;
+         else
+         {

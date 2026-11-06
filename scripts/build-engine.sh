@@ -63,10 +63,27 @@ done
 mkdir -p "$work"
 tarball="$work/crossover-sources-$CX_VERSION.tar.gz"
 fetch "$CX_URL" "$CX_SHA256" "$tarball"
-if [[ ! -f $src/configure ]]; then
+# Vitral's fixes to Wine, applied in order (engine-patches/NNNN-*.patch, made with diff -u from
+# the source's top folder). When they change, the source is extracted again and patched.
+shopt -s nullglob
+patches=(engine-patches/*.patch)
+shopt -u nullglob
+wanted=$( ((${#patches[@]})) && shasum -a 256 "${patches[@]}" || true)
+if [[ ! -f $src/configure || $(cat "$src/.vitral-patches" 2>/dev/null) != "$wanted" ]]; then
+    before=$(cat "$src/.vitral-patched-files" 2>/dev/null || true)
     say "extracting Wine"
     rm -rf "$src" && mkdir -p "$src"
     tar -xzf "$tarball" -C "$src" --strip-components=2 sources/wine
+    for patch in "${patches[@]}"; do
+        say "applying $(basename "$patch")"
+        patch -d "$src" -p1 --forward --quiet <"$patch" || fail "$patch does not apply"
+    done
+    after=$( ((${#patches[@]})) && sed -n 's|^+++ b/\([^[:space:]]*\).*|\1|p' "${patches[@]}" | sort -u || true)
+    # The extracted files keep their old dates: make must still rebuild what a patch changed,
+    # added or no longer changes.
+    for file in $before $after; do [[ -f $src/$file ]] && touch "$src/$file"; done
+    echo "$after" >"$src/.vitral-patched-files"
+    echo "$wanted" >"$src/.vitral-patches"
 fi
 
 # --- x86_64 libraries for configure's link tests ----------------------------------------------
@@ -162,9 +179,11 @@ commit=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
 cat >"$licenses/SOURCES.txt" <<SOURCES
 Vitral Wine engine: CrossOver $CX_VERSION (Wine $(sed 's/Wine version //' "$src/VERSION")) + DXMT $DXMT_VERSION
 
-Wine (LGPL-2.1-or-later), with CodeWeavers' changes, built unmodified from:
+Wine (LGPL-2.1-or-later), with CodeWeavers' changes, built from:
   $CX_URL
   SHA-256 $CX_SHA256
+with these changes of Vitral's (engine-patches/ in the repository below):
+$(for patch in "${patches[@]}"; do echo "  $(basename "$patch")"; done; ((${#patches[@]})) || echo "  (none)")
 DXMT $DXMT_VERSION (MIT), official build:
   $DXMT_URL
   SHA-256 $DXMT_SHA256
