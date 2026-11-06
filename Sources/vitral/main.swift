@@ -105,9 +105,15 @@ func describeKind(_ report: InstallerReport) -> String {
     case .installShield: return tr("Instalador InstallShield", "InstallShield installer")
     case .sevenZipSFX: return tr("Archivo 7-Zip autoextraíble", "7-Zip self-extracting archive")
     case .zip: return tr("Archivo ZIP (hay que descomprimirlo y buscar el programa)", "ZIP archive (unpack it and look for the program)")
+    case .discImage:
+        let label = report.discLabel.map { " «\($0)»" } ?? ""
+        return tr("Imagen de CD o DVD\(label) (se instala con el instalador del disco)", "CD or DVD image\(label) (installed with the disc's installer)")
     case .executable:
         if report.executable?.isDLL == true {
             return tr("Biblioteca de Windows (DLL): no se abre sola", "Windows library (DLL): it does not run on its own")
+        }
+        if ProgramInstaller.looksLikeSetup(report.fileName) {
+            return tr("Instalador de tipo desconocido (se abre tal cual)", "Installer of an unknown kind (run as it is)")
         }
         return tr("Programa de Windows (no es un instalador conocido)", "Windows program (not a known installer)")
     case .unknown: return tr("No parece un instalador ni un programa de Windows", "Does not look like a Windows installer or program")
@@ -363,7 +369,7 @@ func engines(_ options: [String]) async {
                                               : tr("falta (softwareupdate --install-rosetta)", "missing (softwareupdate --install-rosetta)")))
 }
 
-func analyze(_ options: [String]) {
+func analyze(_ options: [String]) async {
     let json = options.contains("--json")
     let paths = options.filter { $0 != "--json" }
     guard paths.count == 1 else {
@@ -389,6 +395,20 @@ func analyze(_ options: [String]) {
 
     print("\(report.fileName)  (\(formatSize(report.sizeBytes)))")
     print("  " + tr("Tipo:     ", "Type:     ") + describeKind(report))
+    if report.kind == .discImage {
+        // Mounted for a moment, hidden, to see the installer on the disc.
+        do {
+            let contents = try await DiscImage.contents(of: url, in: ProgramInstaller().staging)
+            print("  " + tr("En disco: ", "On disc:  ") + contents.setupPath + " · " + describeKind(contents.setup))
+            if let info = contents.setup.executable {
+                print("  " + tr("Archivo:  ", "File:     ") + describeExecutable(info) + tr(" (el instalador)", " (the installer)"))
+                if let product = describeProduct(info.version) { print("  " + tr("Instala:  ", "Installs: ") + product) }
+            }
+        } catch {
+            print("  " + tr("En disco: ", "On disc:  ") + String(describing: error))
+        }
+        return
+    }
     if let info = report.executable {
         let label = report.kind == .executable ? tr("Programa: ", "Program:  ") : tr("Archivo:  ", "File:     ")
         print("  " + label + describeExecutable(info) + (report.kind == .executable ? "" : tr(" (el instalador)", " (the installer)")))
@@ -482,11 +502,18 @@ func install(_ options: [String]) async {
             }
             return
         }
+        // A step that ends: the installer is still open, nothing new to say.
+        if case .runningInstaller(nil) = stage, case .runningInstaller = lastStage.value {
+            lastStage.value = stage
+            return
+        }
         lastStage.value = stage
         switch stage {
         case .checking: print(tr("1/6 Revisando el instalador…", "1/6 Checking the installer…"))
         case .downloadingEngine, .installingDotNet: break
         case .preparingWindows: print(tr("2/6 Preparando el espacio del programa (la primera vez tarda un poco)…", "2/6 Preparing the program's space (the first time takes a while)…"))
+        case .runningInstaller(let step?):
+            print("    " + step)
         case .runningInstaller:
             print(tr("3/6 Abriendo el instalador: sigue sus pasos en su ventana.",
                      "3/6 Opening the installer: follow its steps in its window."))
@@ -745,7 +772,7 @@ guard let command = arguments.first else {
 
 switch command {
 case "analizar", "analyze":
-    analyze(Array(arguments.dropFirst()))
+    await analyze(Array(arguments.dropFirst()))
 case "icono", "icon":
     extractIcon(Array(arguments.dropFirst()))
 case "motores", "engines", "motor", "engine":

@@ -28,6 +28,26 @@ public enum WineProcesses {
         return all().filter { $0.prefix == wanted }.map(\.entry)
     }
 
+    /// The Windows processes running in `prefix`, with their command lines.
+    public static func commandLines(prefix: URL) -> [InstallerActivity.Process] {
+        let wanted = prefix.standardizedFileURL.path
+        return all().filter { $0.prefix == wanted }.compactMap { _, entry in
+            arguments(of: entry.pid).map {
+                InstallerActivity.Process(pid: entry.pid, name: entry.name, arguments: windowsArguments($0.0))
+            }
+        }
+    }
+
+    /// Wine writes the Windows arguments over the original ones, and `argc` stays the original
+    /// count: the list can end with the start of the environment ("TMPDIR=/var/folders/…").
+    static func windowsArguments(_ arguments: [String]) -> [String] {
+        var result = arguments
+        while let last = result.last, result.count > 1, last.range(of: "^[A-Z_][A-Z0-9_]*=", options: .regularExpression) != nil {
+            result.removeLast()
+        }
+        return result
+    }
+
     /// Every Windows process of the person's, with the path of its prefix (standardized).
     public static func all() -> [(prefix: String, entry: Entry)] {
         let count = proc_listallpids(nil, 0)

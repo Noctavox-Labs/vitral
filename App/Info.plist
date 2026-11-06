@@ -20,6 +20,7 @@
 				<string>com.microsoft.windows-executable</string>
 				<string>com.microsoft.msi-installer</string>
 				<string>public.zip-archive</string>
+				<string>public.iso-image</string>
 			</array>
 		</dict>
 	</array>

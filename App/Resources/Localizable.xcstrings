@@ -53,16 +53,6 @@
         }
       }
     },
-    ".exe · .msi · .zip" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : ".exe · .msi · .zip"
-          }
-        }
-      }
-    },
     "Abriendo…" : {
       "localizations" : {
         "en" : {
@@ -313,6 +303,26 @@
         }
       }
     },
+    "CD o DVD" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CD or DVD"
+          }
+        }
+      }
+    },
+    "CD o DVD «%@»" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CD or DVD “%@”"
+          }
+        }
+      }
+    },
     "Cada programa queda como una app de Mac, con su ícono, lista para abrir con doble clic." : {
       "localizations" : {
         "en" : {
@@ -503,6 +513,16 @@
         }
       }
     },
+    "Disco" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disc"
+          }
+        }
+      }
+    },
     "El instalador abrió el programa: lo cierro para terminar la app…" : {
       "localizations" : {
         "en" : {
@@ -563,12 +583,22 @@
         }
       }
     },
-    "Eso no parece un instalador de Windows. Vitral abre archivos .exe, .msi y .zip." : {
+    "Ese archivo .iso no parece una imagen de CD o DVD." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "That doesn't look like a Windows installer. Vitral opens .exe, .msi and .zip files."
+            "value" : "That .iso file doesn't look like a CD or DVD image."
+          }
+        }
+      }
+    },
+    "Eso no parece un instalador de Windows. Vitral abre archivos .exe, .msi, .zip e .iso." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That doesn't look like a Windows installer. Vitral opens .exe, .msi, .zip and .iso files."
           }
         }
       }
@@ -649,6 +679,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "There's room for the engine and your programs."
+          }
+        }
+      }
+    },
+    "Imagen de CD o DVD" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CD or DVD image"
           }
         }
       }
@@ -739,6 +779,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "WiX installer (several packages)"
+          }
+        }
+      }
+    },
+    "Instalador de tipo desconocido" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installer of an unknown kind"
           }
         }
       }

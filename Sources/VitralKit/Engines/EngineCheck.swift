@@ -62,15 +62,27 @@ public enum EngineCheck {
     }
 
     /// Checks `program` and the DLLs of its folder it loads against the engine. With `prefix`
-    /// the DLLs installed in Windows' system folder count too (Visual C++ and other runtimes).
+    /// the DLLs installed in Windows' system folder count too (Visual C++ and other runtimes),
+    /// and those of its side-by-side assemblies.
     public static func missingImports(program: URL, engine: InstalledEngine, prefix: URL? = nil) -> [MissingImport] {
         guard let image = PortableExecutable.image(fileAt: program) else { return [] }
         let bits = image.format == .pe32 ? 32 : 64
         var folders = [dllFolder(of: engine, bits: bits)]
         if let prefix {
             folders.append(prefix.appendingPathComponent(bits == 32 ? "drive_c/windows/syswow64" : "drive_c/windows/system32"))
+            folders += sideBySideFolders(prefix: prefix, bits: bits)
         }
         return missingImports(program: program, systemFolders: folders)
+    }
+
+    /// The side-by-side assemblies (`windows/winsxs`) of the program's architecture. The Visual
+    /// C++ 2005 and 2008 runtimes go there, not in the system folder (`mfc80.dll` of Encarta
+    /// 2009), and Windows finds them through the program's manifest.
+    static func sideBySideFolders(prefix: URL, bits: Int) -> [URL] {
+        let winsxs = prefix.appendingPathComponent("drive_c/windows/winsxs")
+        let architecture = bits == 32 ? "x86_" : "amd64_"
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: winsxs.path)) ?? []
+        return names.filter { $0.lowercased().hasPrefix(architecture) }.sorted().map { winsxs.appendingPathComponent($0) }
     }
 
     /// `systemFolders` hold the DLLs Windows would provide, the engine's first.

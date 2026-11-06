@@ -43,6 +43,16 @@ final class AppModel {
         let icon: NSImage?
         /// Known not to work yet (Paint.NET 5.1, Power BI…), from the installer's name and version.
         var knownIssues: [Diagnosis] = []
+        /// A CD or DVD image: `report` and `icon` are then its installer's.
+        var disc: Disc?
+
+        struct Disc {
+            let fileName: String
+            let sizeBytes: Int64
+            let label: String?
+            /// "SETUP.EXE"
+            let setupPath: String
+        }
     }
 
     private(set) var mac = MacInfo.current()
@@ -143,12 +153,16 @@ final class AppModel {
 
     // MARK: Dropped installers
 
-    static let acceptedExtensions: Set<String> = ["exe", "msi", "zip"]
+    static let acceptedExtensions: Set<String> = Set(["exe", "msi", "zip"]).union(DiscImage.fileExtensions)
 
     func open(_ url: URL) {
         dropError = nil
         guard Self.acceptedExtensions.contains(url.pathExtension.lowercased()) else {
-            dropError = String(localized: "Eso no parece un instalador de Windows. Vitral abre archivos .exe, .msi y .zip.")
+            dropError = String(localized: "Eso no parece un instalador de Windows. Vitral abre archivos .exe, .msi, .zip e .iso.")
+            return
+        }
+        if DiscImage.fileExtensions.contains(url.pathExtension.lowercased()) {
+            Task { await openDisc(url) }
             return
         }
         do {
@@ -161,6 +175,29 @@ final class AppModel {
             if case .working = installState {} else { installState = .idle }
             let known = Diagnoser.diagnose(.analysis(report), catalog: .current).filter { $0.kind == .notYet || $0.kind == .never }
             dropped = DroppedFile(url: url, report: report, icon: icon, knownIssues: known)
+        } catch {
+            dropError = String(localized: "No pude leer ese archivo.")
+        }
+    }
+
+    /// A CD or DVD image: mounted for a moment, hidden, to show the installer it holds.
+    private func openDisc(_ url: URL) async {
+        do {
+            let image = try InstallerAnalyzer.analyze(fileAt: url)
+            guard image.kind == .discImage else {
+                dropError = String(localized: "Ese archivo .iso no parece una imagen de CD o DVD.")
+                return
+            }
+            let contents = try await DiscImage.contents(of: url, in: ProgramInstaller().staging)
+            showSetup = false
+            if case .working = installState {} else { installState = .idle }
+            let known = Diagnoser.diagnose(.analysis(contents.setup), catalog: .current).filter { $0.kind == .notYet || $0.kind == .never }
+            dropped = DroppedFile(url: url, report: contents.setup, icon: contents.icon.flatMap(NSImage.init(data:)),
+                                  knownIssues: known,
+                                  disc: .init(fileName: image.fileName, sizeBytes: image.sizeBytes, label: image.discLabel,
+                                              setupPath: contents.setupPath))
+        } catch let error as DiscImageError {
+            dropError = error.description
         } catch {
             dropError = String(localized: "No pude leer ese archivo.")
         }

@@ -83,6 +83,32 @@ private func makeElectronLikeProgram(_ folder: TemporaryFolder) throws -> URL {
     #expect(EngineCheck.missingImports(program: program, systemFolders: [engine]).map(\.label).contains("bcrypt.dll"))
 }
 
+@Test func sideBySideRuntimesCount() throws {
+    // Encarta 2009: a 32-bit program that imports MFC 8.0, installed in winsxs, not in syswow64.
+    let folder = try TemporaryFolder()
+    var mfc = SyntheticPE(machine: 0x014C, is64Bit: false, isDLL: true)
+    mfc.exports = ["AfxWinMain"]
+    var program = SyntheticPE(machine: 0x014C, is64Bit: false)
+    program.imports = ["mfc80.dll"]
+    program.functions = ["mfc80.dll": ["AfxWinMain"]]
+    try folder.write("prefix/drive_c/Program Files (x86)/Encarta/ENCARTA.EXE", program)
+    let exe = folder.url.appendingPathComponent("prefix/drive_c/Program Files (x86)/Encarta/ENCARTA.EXE")
+    let prefix = folder.url.appendingPathComponent("prefix")
+    let winsxs = "prefix/drive_c/windows/winsxs/"
+
+    // Only the 64-bit assembly: it does not count for a 32-bit program.
+    try folder.write(winsxs + "amd64_microsoft.vc80.mfc_1fc8b3b9a1e18e3b_8.0.50727.42_none_deadbeef/mfc80.dll", mfc)
+    #expect(EngineCheck.sideBySideFolders(prefix: prefix, bits: 32).isEmpty)
+    let engine = folder.url.appendingPathComponent("engine")
+    func missing() -> [String] {
+        EngineCheck.missingImports(program: exe, systemFolders: [engine] + EngineCheck.sideBySideFolders(prefix: prefix, bits: 32)).map(\.label)
+    }
+    #expect(missing() == ["mfc80.dll"])
+
+    try folder.write(winsxs + "x86_microsoft.vc80.mfc_1fc8b3b9a1e18e3b_8.0.50727.42_none_deadbeef/mfc80.dll", mfc)
+    #expect(missing().isEmpty)
+}
+
 @Test func summarizesWithoutRepeats() {
     let items = ["IsWindowArranged", "GetPointerDevice", "GetPointerPenInfo", "IsWindowArranged", "EnableMouseInPointer"].map {
         MissingImport(dll: "user32.dll", function: $0, delayLoaded: true, usedBy: "a.exe")

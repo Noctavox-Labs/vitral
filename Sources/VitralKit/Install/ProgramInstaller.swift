@@ -5,8 +5,9 @@ public enum InstallStage: Sendable, Equatable {
     case checking
     case downloadingEngine(Double)
     case preparingWindows
-    /// The installer is open: the person follows its steps.
-    case runningInstaller
+    /// The installer is open: the person follows its steps. With what it is doing, when its
+    /// processes say it ("Installing MSXML 6…", `InstallerActivity`).
+    case runningInstaller(String? = nil)
     /// The installer ended; something it started is still running (the program, a helper).
     case finishingInstaller
     /// The installer opened the program ("Launch …" checked): Vitral closes that copy.
@@ -18,6 +19,11 @@ public enum InstallStage: Sendable, Equatable {
     /// Installing Microsoft's .NET Framework 4.8 into the prefix (about five minutes).
     case installingDotNet(Double)
     case buildingApp
+
+    public var isRunningInstaller: Bool {
+        if case .runningInstaller = self { return true }
+        return false
+    }
 }
 
 public enum InstallError: Error, CustomStringConvertible {
@@ -186,6 +192,18 @@ public struct ProgramInstaller: Sendable {
         if report.kind == .zip, let inner = try await Self.installerInside(zip: file, unpackingIn: staging) {
             (unpacked, installer, report) = (inner.folder, inner.file, inner.report)
         }
+        // A CD or DVD image: mounted while installing, and in Windows' eyes a CD drive.
+        var disc: DiscImage?
+        defer { disc?.eject() }
+        if report.kind == .discImage {
+            try fm.createDirectory(at: staging, withIntermediateDirectories: true)
+            let mounted = try await DiscImage.mount(file, in: staging)
+            disc = mounted
+            guard let setup = mounted.setupProgram else { throw DiscImageError.noSetup(label: report.discLabel) }
+            (installer, report) = (setup, try InstallerAnalyzer.analyze(fileAt: setup))
+        }
+        // What the person chose: the disc image, the ZIP or the installer itself.
+        let source = disc == nil ? installer : file
         if let reason = Self.refusal(report) { throw InstallError.unsupported(reason) }
         guard MacSystem.hasRosetta else { throw InstallError.rosettaMissing }
         guard fm.isExecutableFile(atPath: options.launcher.path) else { throw InstallError.launcherMissing }
@@ -211,7 +229,7 @@ public struct ProgramInstaller: Sendable {
         let prefix = staging.appendingPathComponent(UUID().uuidString + ".prefix")
         try fm.createDirectory(at: staging, withIntermediateDirectories: true)
         try fm.createDirectory(at: Self.logs, withIntermediateDirectories: true)
-        let log = Self.logs.appendingPathComponent("Instalación - \(Wrapper.safeName(installer.deletingPathExtension().lastPathComponent)).log")
+        let log = Self.logs.appendingPathComponent("Instalación - \(Wrapper.safeName(source.deletingPathExtension().lastPathComponent)).log")
         fm.createFile(atPath: log.path, contents: nil)
         let logHandle = try FileHandle(forWritingTo: log)
         defer { try? logHandle.close() }
@@ -222,7 +240,13 @@ public struct ProgramInstaller: Sendable {
             try await session.createPrefix()
             try Task.checkCancellation()
             let setup = Recipes.installerSettings(for: report)
-            try await session.importRegistry(setup.registry)
+            var discDrive: String?
+            if let disc {
+                let letter = try disc.attach(to: prefix)
+                discDrive = letter
+                logHandle.write(Data("[Vitral] Disc \(report.fileName) from \(file.lastPathComponent) as drive \(letter.uppercased()): (\(DiscImage.label(of: try Data(contentsOf: file, options: .alwaysMapped)) ?? "no label"))\n".utf8))
+            }
+            try await session.importRegistry(setup.registry + (discDrive.map { [DiscImage.driveType($0)] } ?? []))
             for recipe in setup.applied {
                 logHandle.write(Data("[Vitral] \(Recipes.describe(recipe.id)) (\(recipe.because))\n".utf8))
             }
@@ -241,9 +265,24 @@ public struct ProgramInstaller: Sendable {
             enum Outcome { case finished(closedProgram: Bool), loop(String), stopped(String) }
             /// Runs the installer once and waits for what it left running.
             func runOnce(ignoringLogs: Set<String>) async throws -> Outcome {
-                progress(Self.needsInstaller(installer, report) ? .runningInstaller : .copyingProgram)
+                progress(Self.needsInstaller(installer, report) ? .runningInstaller() : .copyingProgram)
                 let watcher = Task { await Self.reportNewWindows(to: windowShown) }
                 defer { watcher.cancel() }
+                // What it is doing, from its processes: its own windows do not always say it.
+                let watchSteps = Self.needsInstaller(installer, report), installerName = installer.lastPathComponent
+                let activity = Task {
+                    guard watchSteps else { return }
+                    var last: String?
+                    while !Task.isCancelled {
+                        let step = InstallerActivity.current(prefix: session.prefix, installer: installerName)
+                        if step != last, !Task.isCancelled {
+                            last = step
+                            progress(.runningInstaller(step))
+                        }
+                        try? await Task.sleep(for: .seconds(2))
+                    }
+                }
+                defer { activity.cancel() }
                 // Some installers open the program and wait until it is closed (Inno Setup's
                 // [Run] entries without "nowait"): watch for it while the installer runs too.
                 let launch = Task { await Self.waitForLaunchedProgram(driveC: session.driveC, before: before) }
@@ -265,12 +304,17 @@ public struct ProgramInstaller: Sendable {
                 do {
                     try await runInstaller(installer, report: report, arguments: options.installerArguments, session: session, log: logHandle, logURL: log)
                 } catch {
+                    activity.cancel()
+                    await activity.value
                     launch.cancel()
                     loop.cancel()
                     if let package = await stoppedLoop.value { return .loop(package) }
                     // Closing everything may end msiexec with an error; the installation was done.
                     if !(await closedWhileRunning.value) { throw error }
                 }
+                // The installer ended: no more steps to show.
+                activity.cancel()
+                await activity.value
                 launch.cancel()
                 loop.cancel()
                 if let package = await stoppedLoop.value { return .loop(package) }
@@ -326,6 +370,11 @@ public struct ProgramInstaller: Sendable {
                 logHandle.write(Data(tr("[Vitral] El instalador abrió el programa: lo cerré para terminar la app.\n",
                                         "[Vitral] The installer opened the program: closed it to finish the app.\n").utf8))
             }
+            // The disc leaves the drive: the app does not keep it.
+            if let discDrive {
+                await session.waitForServer()
+                DiscImage.detach(letter: discDrive, from: prefix)
+            }
 
             progress(.findingProgram)
             let after = ProgramFinder.snapshot(driveC: session.driveC)
@@ -367,7 +416,7 @@ public struct ProgramInstaller: Sendable {
             var (settings, applied) = Recipes.settings(for: found.report)
             // Programs the catalog knows by name get their fixes now, not after failing.
             let known = RepairPlanner.knownProgram(names: RepairPlanner.names(of: found.report.executable?.version,
-                                                                               installer: installer.lastPathComponent),
+                                                                               installer: source.lastPathComponent),
                                                    settings: settings)
             settings = known.settings
             applied += known.applied
@@ -394,8 +443,8 @@ public struct ProgramInstaller: Sendable {
                 ?? found.folder.split(separator: "/").last.map(String.init) ?? installer.deletingPathExtension().lastPathComponent)
             let identifier = Wrapper.bundleIdentifier(for: name)
             let manifest = WrapperManifest(name: name, program: program, engine: engine.id, settings: settings,
-                                           recipes: applied, product: product, installer: installer.lastPathComponent,
-                                           installerSHA256: try? ComponentInstaller.sha256(of: installer), prefix: identifier)
+                                           recipes: applied, product: product, installer: source.lastPathComponent,
+                                           installerSHA256: try? ComponentInstaller.sha256(of: source), prefix: identifier)
             let exe = session.driveC.appendingPathComponent(program)
             let icns = (try? Data(contentsOf: exe, options: .alwaysMapped))
                 .flatMap(PortableExecutable.icon).flatMap { AppIcon.icns(fromICO: $0) }
@@ -629,11 +678,12 @@ public struct ProgramInstaller: Sendable {
         switch report.kind {
         case .zip: return false
         case .executable: return looksLikeSetup(file.lastPathComponent)
+        case .discImage: return true
         default: return true
         }
     }
 
-    static func looksLikeSetup(_ fileName: String) -> Bool {
+    public static func looksLikeSetup(_ fileName: String) -> Bool {
         let name = fileName.lowercased()
         return ["setup", "install", "instal"].contains { name.contains($0) }
     }

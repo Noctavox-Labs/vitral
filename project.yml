@@ -63,7 +63,7 @@ targets:
           - CFBundleTypeName: Windows installer
             CFBundleTypeRole: Viewer
             LSHandlerRank: Alternate
-            LSItemContentTypes: [com.microsoft.windows-executable, com.microsoft.msi-installer, public.zip-archive]
+            LSItemContentTypes: [com.microsoft.windows-executable, com.microsoft.msi-installer, public.zip-archive, public.iso-image]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.noctavox.vitral

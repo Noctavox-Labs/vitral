@@ -9,6 +9,8 @@ public enum InstallerKind: String, Codable, Sendable {
     case installShield
     case sevenZipSFX
     case zip
+    /// A CD or DVD image (`.iso`): its installer is inside (`DiscImage`).
+    case discImage
     /// An `.exe` that is not a known installer: probably the program itself (portable).
     case executable
     case unknown
@@ -36,6 +38,8 @@ public struct InstallerReport: Codable, Sendable, Equatable {
     /// Bits of the program it installs, when the installer shows them before running (only
     /// electron-builder, for now). The installer's own bits often differ: NSIS is always 32-bit.
     public var programBits: Int? = nil
+    /// The name of a CD or DVD (`discImage`), as Windows shows it.
+    public var discLabel: String? = nil
 }
 
 public enum InstallerAnalyzerError: Error, Equatable {
@@ -76,7 +80,8 @@ public enum InstallerAnalyzer {
             companionFiles: companionFiles(of: url, kind: kind),
             builder: script?.builder,
             runsPowerShell: script?.runsPowerShell ?? false,
-            programBits: script?.programBits
+            programBits: script?.programBits,
+            discLabel: kind == .discImage ? DiscImage.label(of: data.prefix(scanLimit)) : nil
         )
     }
 
@@ -89,7 +94,9 @@ public enum InstallerAnalyzer {
             return fileExtension.lowercased() == "msi" ? (.msi, nil) : (.unknown, nil)
         }
         if Array(head.prefix(4)) == zipMagic { return (.zip, nil) }
-        guard head.starts(with: [0x4D, 0x5A]) else { return (.unknown, nil) }
+        guard head.starts(with: [0x4D, 0x5A]) else {
+            return DiscImage.isDiscImage(data) ? (.discImage, nil) : (.unknown, nil)
+        }
 
         if let version = innoSetupVersion(r) { return (.innoSetup, version) }
         if r.contains("JR.Inno.Setup") || r.contains("Inno Setup Setup Data") { return (.innoSetup, nil) }

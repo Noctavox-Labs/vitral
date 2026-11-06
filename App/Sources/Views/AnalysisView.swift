@@ -33,14 +33,22 @@ struct AnalysisView: View {
             }
 
             VStack(alignment: .leading, spacing: 0) {
-                fact("Archivo", report.fileName + " · " + ByteCountFormatter.string(fromByteCount: report.sizeBytes, countStyle: .file), "doc")
-                Divider().padding(.leading, 44)
-                fact("Tipo", kindText, "shippingbox")
+                if let disc = file.disc {
+                    fact("Archivo", disc.fileName + " · " + ByteCountFormatter.string(fromByteCount: disc.sizeBytes, countStyle: .file), "doc")
+                    Divider().padding(.leading, 44)
+                    fact("Disco", disc.label.map { String(localized: "CD o DVD «\($0)»") } ?? String(localized: "CD o DVD"), "opticaldisc")
+                    Divider().padding(.leading, 44)
+                    fact("Tipo", disc.setupPath + " · " + kindText, "shippingbox")
+                } else {
+                    fact("Archivo", report.fileName + " · " + ByteCountFormatter.string(fromByteCount: report.sizeBytes, countStyle: .file), "doc")
+                    Divider().padding(.leading, 44)
+                    fact("Tipo", kindText, "shippingbox")
+                }
                 if let executable = report.executable {
                     Divider().padding(.leading, 44)
                     // For installers these headers are the installer's own (NSIS is always
                     // 32-bit), not the program's.
-                    if report.kind == .executable {
+                    if report.kind == .executable, !ProgramInstaller.looksLikeSetup(report.fileName) {
                         fact("Programa", executableText(executable), "cpu")
                     } else {
                         fact("Instalador", executableText(executable), "cpu")
@@ -119,7 +127,15 @@ struct AnalysisView: View {
                 .tint(Palette.progress)
                 Text(stageText(stage))
                     .font(.callout.weight(.medium))
-                if stage == .runningInstaller {
+                if case .runningInstaller(let step?) = stage {
+                    // Comes from VitralKit, already in the person's language.
+                    Label(step, systemImage: "gearshape.2")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .contentTransition(.opacity)
+                        .animation(.default, value: step)
+                }
+                if stage.isRunningInstaller {
                     Text("Si no ves su ventana, puede estar detrás de Vitral. Si al terminar abre el programa, Vitral lo cierra y sigue.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
@@ -131,7 +147,7 @@ struct AnalysisView: View {
                         .glassButton()
                         .keyboardShortcut(.cancelAction)
                         .disabled(stage == .buildingApp)
-                    if stage == .runningInstaller {
+                    if stage.isRunningInstaller {
                         Button("Mostrar el instalador") { model.showInstaller() }
                             .glassButton()
                     }
@@ -313,6 +329,9 @@ struct AnalysisView: View {
         case .installShield: return String(localized: "Instalador InstallShield")
         case .sevenZipSFX: return String(localized: "Archivo 7-Zip autoextraíble")
         case .zip: return String(localized: "Archivo ZIP")
+        case .discImage: return String(localized: "Imagen de CD o DVD")
+        case .executable where ProgramInstaller.looksLikeSetup(report.fileName):
+            return String(localized: "Instalador de tipo desconocido")
         case .executable: return String(localized: "Programa (no es un instalador)")
         case .unknown: return String(localized: "Desconocido")
         }

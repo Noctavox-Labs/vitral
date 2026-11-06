@@ -83,7 +83,7 @@ struct MainView: View {
         }
     }
 
-    static let installerTypes: [UTType] = ["exe", "msi"].compactMap { UTType(filenameExtension: $0) } + [.zip]
+    static let installerTypes: [UTType] = ["exe", "msi", "iso"].compactMap { UTType(filenameExtension: $0) } + [.zip]
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -134,7 +134,7 @@ struct DropZone: View {
                 .glassButton()
                 .controlSize(.large)
                 .padding(.top, 4)
-            Text(".exe · .msi · .zip")
+            Text(verbatim: ".exe · .msi · .zip · .iso")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
