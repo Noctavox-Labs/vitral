@@ -69,9 +69,17 @@ public struct ProgramLaunch: Sendable {
 
     /// Windows on screen that belong to the program (its process is named after the `.exe`).
     public func programWindowOwners() -> [pid_t] {
-        let exe = program.lastPathComponent.lowercased()
-        let stem = program.deletingPathExtension().lastPathComponent.lowercased()
-        return WineWindows.owners().filter { [exe, stem].contains($0.name.lowercased()) }.map(\.pid)
+        WineWindows.owners().filter { isProgram($0) }.map(\.pid)
+    }
+
+    /// The program's windows on screen, of every layer: message boxes that stay on top too.
+    public func programWindows() -> [WineWindows.Window] {
+        WineWindows.onScreen().filter { isProgram($0.owner) }
+    }
+
+    private func isProgram(_ owner: WineWindows.Owner) -> Bool {
+        let name = owner.name.lowercased()
+        return name == program.lastPathComponent.lowercased() || name == program.deletingPathExtension().lastPathComponent.lowercased()
     }
 }
 
@@ -97,14 +105,18 @@ public enum StartupWatch {
 
     /// Whether to open the program again: it crashed while starting, before showing a window.
     /// (One start in four of Shape It! with CrossOver 24 crashes like this; the next one works.)
-    public static func shouldRetry(ranFor seconds: TimeInterval, sawWindow: Bool, log: String, attempt: Int) -> Bool {
-        attempt < maxAttempts && !sawWindow && seconds < startupWindow && looksLikeCrash(log: log)
+    /// Not after an error box: the same box would show again.
+    public static func shouldRetry(ranFor seconds: TimeInterval, sawWindow: Bool, log: String, attempt: Int,
+                                   errorBox: Bool = false) -> Bool {
+        attempt < maxAttempts && !sawWindow && !errorBox && seconds < startupWindow && looksLikeCrash(log: log)
     }
 
-    /// Whether the program failed to open: no window, it ended early, and it crashed or ended
-    /// with an error. (Electron ends with status 3 when Chromium stops on purpose, and then
-    /// Wine prints no "Unhandled" line.)
-    public static func failedToStart(ranFor seconds: TimeInterval, sawWindow: Bool, status: Int32, log: String) -> Bool {
-        !sawWindow && seconds < startupWindow && (status != 0 || looksLikeCrash(log: log))
+    /// Whether the program failed to open: no window, and it ended early after crashing or with an
+    /// error (Electron ends with status 3 when Chromium stops on purpose, and then Wine prints no
+    /// "Unhandled" line); or it showed only error boxes and closed, however long one stayed open
+    /// (Encarta 2009's "Application cannot start" ends with status 0).
+    public static func failedToStart(ranFor seconds: TimeInterval, sawWindow: Bool, status: Int32, log: String,
+                                     errorBox: Bool = false) -> Bool {
+        !sawWindow && (errorBox || seconds < startupWindow && (status != 0 || looksLikeCrash(log: log)))
     }
 }

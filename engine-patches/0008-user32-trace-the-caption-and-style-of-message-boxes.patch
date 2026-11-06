@@ -1,0 +1,19 @@
+--- a/dlls/user32/msgbox.c
++++ b/dlls/user32/msgbox.c
+@@ -117,7 +117,15 @@
+     else if (lpmb->dwStyle & MB_TOPMOST)
+         NtUserSetWindowPos( hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE );
+ 
+-    TRACE_(msgbox)("%s\n", debugstr_w(lpszText));
++    /* The text first, as before; then the caption and the style, so the icon tells an error
++     * from a question. Vitral reads this to notice a program that shows an error box and
++     * closes, which is how many fail to start. */
++    if (TRACE_ON(msgbox))
++    {
++        WCHAR caption[256];
++        GetWindowTextW( hwnd, caption, ARRAY_SIZE(caption) );
++        TRACE_(msgbox)("%s caption %s style %#lx\n", debugstr_w(lpszText), debugstr_w(caption), lpmb->dwStyle);
++    }
+     SetWindowTextW(GetDlgItem(hwnd, MSGBOX_IDTEXT), lpszText);
+ 
+     /* Remove not selected buttons and assign the WS_GROUP style to the first button */

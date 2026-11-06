@@ -126,22 +126,40 @@ public enum LaunchLog {
         public let seconds: Int
         public let status: Int32
         public let sawWindow: Bool
+        /// It showed only error boxes, then closed.
+        public let errorBox: Bool
+        /// The error boxes Wine wrote during that run.
+        public let messageBoxes: [WineMessageBox]
+
+        public init(seconds: Int, status: Int32, sawWindow: Bool, errorBox: Bool = false, messageBoxes: [WineMessageBox] = []) {
+            self.seconds = seconds
+            self.status = status
+            self.sawWindow = sawWindow
+            self.errorBox = errorBox
+            self.messageBoxes = messageBoxes
+        }
     }
 
-    /// The last "Ended after 13 s (status 3, window: no)" line, in English or Spanish.
+    /// The last "Ended after 13 s (status 3, window: no)" line, in English or Spanish ("…, error
+    /// box: yes)" after only error boxes), with the error boxes since the "Opening" line before it.
     public static func lastRun(in text: String) -> Run? {
-        let pattern = #"(?:Ended after|Terminó a los) (\d+) s \((?:status|código) (-?\d+), (?:window|ventana): (yes|no|sí|si)\)"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let pattern = #"(?:Ended after|Terminó a los) (\d+) s \((?:status|código) (-?\d+), (?:window|ventana): (yes|no|sí|si)(, (?:error box|cuadro de error): (?:yes|sí|si))?\)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let opening = try? NSRegularExpression(pattern: #"(?:Opening \(attempt|Abriendo \(intento) \d+\)"#) else { return nil }
         let ns = text as NSString
         guard let match = regex.matches(in: text, range: NSRange(location: 0, length: ns.length)).last,
               let seconds = Int(ns.substring(with: match.range(at: 1))),
               let status = Int32(ns.substring(with: match.range(at: 2))) else { return nil }
-        return Run(seconds: seconds, status: status, sawWindow: ns.substring(with: match.range(at: 3)) != "no")
+        let start = opening.matches(in: text, range: NSRange(location: 0, length: match.range.location)).last?.range.location ?? 0
+        let run = ns.substring(with: NSRange(location: start, length: match.range.location - start))
+        return Run(seconds: seconds, status: status, sawWindow: ns.substring(with: match.range(at: 3)) != "no",
+                   errorBox: match.range(at: 4).location != NSNotFound,
+                   messageBoxes: WineMessageBox.all(in: run).filter(\.isError))
     }
 
     /// Whether that run was a failed start (as the launcher decides it).
     public static func failedToStart(_ run: Run) -> Bool {
-        !run.sawWindow && TimeInterval(run.seconds) < StartupWatch.startupWindow && run.status != 0
+        !run.sawWindow && (run.errorBox || TimeInterval(run.seconds) < StartupWatch.startupWindow && run.status != 0)
     }
 }
 

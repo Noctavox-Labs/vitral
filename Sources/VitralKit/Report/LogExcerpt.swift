@@ -108,6 +108,8 @@ public enum LogExcerpt {
         let range = NSRange(location: 0, length: (line as NSString).length)
         if harmless.contains(where: { $0.firstMatch(in: line, range: range) != nil }) { return nil }
         let body = withoutThread(line)
+        // What a program said in a message box (`WineMessageBox`).
+        if body.hasPrefix(WineMessageBox.marker) { return 0 }
         if body.hasPrefix("fixme:") || body.hasPrefix("trace:") || body.hasPrefix("warn:") || body.hasPrefix("info:") { return nil }
         if line.hasPrefix("[Vitral") || line.contains("Unhandled") || body.hasPrefix("err:module") || body.hasPrefix("err:seh")
             || line.hasPrefix("wine:") || line.localizedCaseInsensitiveContains("exception") { return 0 }

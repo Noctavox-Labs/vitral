@@ -45,7 +45,9 @@ public enum ProblemReporter {
     public static func app(_ inspection: AppInspection, closedWhileOpening attempts: Int? = nil,
                            mac: MacInfo = .current(), privacy: PrivateData = .current) -> ProblemReport {
         let name = inspection.app.deletingPathExtension().lastPathComponent
-        let kind: ProblemReport.Kind = attempts.map { .start(attempts: $0) } ?? .other
+        var kind: ProblemReport.Kind = attempts.map { .start(attempts: $0) } ?? .other
+        // It said why in its own words (Encarta 2009's "Application cannot start").
+        if let run = inspection.lastRun, run.errorBox, let box = run.messageBoxes.last { kind = .errorBox(box.summary) }
         guard let manifest = inspection.manifest, let prefix = inspection.prefix else {
             return finish(ProblemReport(kind: kind, productName: name, program: name, mac: describe(mac),
                                         facts: [], log: [], logFile: inspection.launchLog), privacy: privacy)
@@ -53,6 +55,10 @@ public enum ProblemReporter {
         let product = manifest.product
         let productName = product?.productName ?? manifest.name
         var facts: [ProblemReport.Fact] = [.init(tr("Programa", "Program"), manifest.program)]
+        // What the program itself said before closing (the summary has the last one).
+        if let boxes = inspection.lastRun?.messageBoxes, boxes.count > 1 || inspection.lastRun?.errorBox == false, !boxes.isEmpty {
+            facts.append(.init(tr("Mensaje de error", "Error message"), boxes.suffix(2).map { "«\($0.summary)»" }.joined(separator: " · ")))
+        }
         if let publisher = product?.companyName { facts.append(.init(tr("Editor", "Publisher"), publisher)) }
         if let installer = manifest.installer {
             facts.append(.init(tr("Instalador", "Installer"), installer + (manifest.installerSHA256.map { " · SHA-256 " + $0 } ?? "")))
@@ -113,6 +119,7 @@ public enum ProblemReporter {
         report.program = privacy.redact(report.program)
         report.productName = privacy.redact(report.productName)
         if case .install(let message) = report.kind { report.kind = .install(privacy.redact(message)) }
+        if case .errorBox(let message) = report.kind { report.kind = .errorBox(privacy.redact(message)) }
         return report
     }
 

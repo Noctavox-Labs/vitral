@@ -83,8 +83,8 @@ final class Launcher: NSObject, NSApplicationDelegate {
             let watcher = Task { [trial] in
                 await watchForWindow(started: started, offset: offset, trying: trial, sharedRunning: sharedRunning)
             }
-            // A fix that opens the program is saved as soon as the window shows, not when the
-            // program closes hours later.
+            // A fix that opens the program is saved once its first seconds pass without an error
+            // box closing it (the watcher's answer), not when the program closes hours later.
             let keeper = Task { [trial] in
                 if let trial, await watcher.value.opened { await keep(trial) }
             }
@@ -96,10 +96,11 @@ final class Launcher: NSObject, NSApplicationDelegate {
             await keeper.value
             let seconds = Date().timeIntervalSince(started)
             let attemptLog = readLog(from: offset)
-            write(tr("Terminó a los \(Int(seconds)) s (código \(status), ventana: \(sawWindow ? "sí" : "no"))",
-                     "Ended after \(Int(seconds)) s (status \(status), window: \(sawWindow ? "yes" : "no"))"))
+            let errorBox = outcome == .errorBox
+            write(tr("Terminó a los \(Int(seconds)) s (código \(status), ventana: \(sawWindow ? "sí" : "no")\(errorBox ? ", cuadro de error: sí" : ""))",
+                     "Ended after \(Int(seconds)) s (status \(status), window: \(sawWindow ? "yes" : "no")\(errorBox ? ", error box: yes" : ""))"))
 
-            if StartupWatch.shouldRetry(ranFor: seconds, sawWindow: sawWindow, log: attemptLog, attempt: attempt) {
+            if StartupWatch.shouldRetry(ranFor: seconds, sawWindow: sawWindow, log: attemptLog, attempt: attempt, errorBox: errorBox) {
                 write(tr("Se cayó al arrancar: vuelvo a intentar.", "It crashed while starting: trying again."))
                 loading.update(tr("Se cerró al arrancar. Vuelvo a intentar…", "It closed while starting. Trying again…"))
                 loading.show(after: .zero)
@@ -107,7 +108,8 @@ final class Launcher: NSObject, NSApplicationDelegate {
                 attempt += 1
                 continue
             }
-            guard hung || StartupWatch.failedToStart(ranFor: seconds, sawWindow: sawWindow, status: status, log: attemptLog) else { break }
+            guard hung || StartupWatch.failedToStart(ranFor: seconds, sawWindow: sawWindow, status: status, log: attemptLog,
+                                                     errorBox: errorBox) else { break }
 
             // It did not open. A fix being tried did not help: back to how it was.
             if !sharedRunning { await launch.session.killServer() }
@@ -388,6 +390,8 @@ final class Launcher: NSObject, NSApplicationDelegate {
         case hung
         /// The program ended first.
         case ended
+        /// The program ended having shown only error boxes.
+        case errorBox
 
         var opened: Bool { self == .window || self == .menuBar }
     }
@@ -396,22 +400,44 @@ final class Launcher: NSObject, NSApplicationDelegate {
     private var hung = false
 
     /// Watches the attempt that started at `started` (its output in the log from `offset`).
+    /// Error boxes it shows before a window of its own are not its window: if it shows only those
+    /// and closes, it did not open (Encarta 2009's "Application cannot start").
     private func watchForWindow(started: Date, offset: UInt64, trying trial: Trial?, sharedRunning: Bool) async -> Watch {
+        var boxes = StartupBoxes()
+        var read = offset
+        var opened = false
+        func seconds() -> String { String(format: "%.1f", Date().timeIntervalSince(started)) }
         while !Task.isCancelled {
-            if let pid = launch?.programWindowOwners().first {
-                programPID = pid
-                loading?.close()
-                bringProgramForward()
-                write(tr("Ventana a los \(String(format: "%.1f", Date().timeIntervalSince(started))) s",
-                         "Window after \(String(format: "%.1f", Date().timeIntervalSince(started))) s"))
-                return .window
+            if let launch {
+                let (own, appeared) = boxes.look(at: launch.programWindows(), newBoxes: WineMessageBox.all(in: readNewLines(from: &read)))
+                for (box, window) in appeared {
+                    programPID = window.owner.pid
+                    loading?.close()
+                    bringProgramForward()
+                    write(tr("Cuadro de error a los \(seconds()) s: «\(box.summary)»", "Error box after \(seconds()) s: «\(box.summary)»"))
+                }
+                if let own, !opened {
+                    opened = true
+                    programPID = own.owner.pid
+                    loading?.close()
+                    bringProgramForward()
+                    write(tr("Ventana a los \(seconds()) s", "Window after \(seconds()) s"))
+                }
+            }
+            if opened {
+                // Its first seconds still count: a splash screen, then an error box, then
+                // nothing is a failed start (Encarta 2009).
+                if Date().timeIntervalSince(started) > StartupWatch.startupWindow, !boxes.busy() { return .window }
+                try? await Task.sleep(for: .milliseconds(500))
+                continue
             }
             // Programs that live in the menu bar (Greenshot) never show a window: running
             // for a while without one, it has opened. Unless its logs show it is stuck on a
             // failure Vitral knows (Qt that could not make its window, a crash): then it is closed
             // so a fix can be tried. Never with another program of the same installer open, which
-            // would close too.
-            if Date().timeIntervalSince(started) > StartupWatch.menuBarProgramDelay, let launch, launch.programIsRunning() {
+            // would close too. The time counts from the last error box on screen.
+            let quietSince = max(started, boxes.lastShowing ?? started)
+            if Date().timeIntervalSince(quietSince) > StartupWatch.menuBarProgramDelay, let launch, launch.programIsRunning() {
                 if !sharedRunning, let failure = await stuckOn(started: started, offset: offset, trying: trial) {
                     // It may have shown its window, or ended, while the logs were read.
                     guard !Task.isCancelled, launch.programIsRunning(), launch.programWindowOwners().isEmpty else { continue }
@@ -428,7 +454,9 @@ final class Launcher: NSObject, NSApplicationDelegate {
             }
             try? await Task.sleep(for: .milliseconds(500))
         }
-        return .ended
+        // It ended.
+        if boxes.closedOnBox(started: started, opened: opened) { return .errorBox }
+        return opened ? .window : .ended
     }
 
     /// The known failure a program running without a window is stuck on, if there is one Vitral
@@ -501,6 +529,17 @@ final class Launcher: NSObject, NSApplicationDelegate {
         log?.write(Data("[Vitral \(stamp)] \(line)\n".utf8))
     }
 
+    /// The whole lines written since `offset`, which moves past them.
+    private func readNewLines(from offset: inout UInt64) -> String {
+        guard let logURL, let handle = try? FileHandle(forReadingFrom: logURL) else { return "" }
+        defer { try? handle.close() }
+        try? handle.seek(toOffset: offset)
+        guard let data = try? handle.readToEnd(), let end = data.lastIndex(of: UInt8(ascii: "\n")) else { return "" }
+        let lines = data[data.startIndex...end]
+        offset += UInt64(lines.count)
+        return String(decoding: lines, as: UTF8.self)
+    }
+
     private func readLog(from offset: UInt64) -> String {
         guard let logURL, let handle = try? FileHandle(forReadingFrom: logURL) else { return "" }
         defer { try? handle.close() }
@@ -524,11 +563,20 @@ final class Launcher: NSObject, NSApplicationDelegate {
         }
 
         var details: [String] = []
+        // What the program said, in its own words, before closing.
+        let boxes = inspection.lastRun.flatMap { $0.errorBox ? $0.messageBoxes : nil } ?? []
+        if let box = boxes.last {
+            details.append(tr("El programa mostró este error: «\(box.summary)»", "The program showed this error: «\(box.summary)»"))
+        }
+        // What the engine lacks, as a possible cause. A program that explained its own error got
+        // far enough to do so: whole DLLs it only loads on demand are optional ones, not the cause
+        // (Encarta 2009's MOBB200.DLL asks for rockalldll.dll).
+        let likely = boxes.isEmpty ? inspection.missing : inspection.missing.filter { !($0.delayLoaded && $0.function == nil) }
         if let known = diagnoses.first {
             details.append(known.title + ". " + known.explanation)
-        } else if let launch, let explanation = EngineCheck.explanation(inspection.missing, engine: launch.session.engine.engine) {
+        } else if let launch, let explanation = EngineCheck.explanation(likely, engine: launch.session.engine.engine) {
             // A function the engine lacks is the cause Vitral can name (aTube Catcher on CrossOver 24).
-            let newer = inspection.missing.contains { $0.function != nil } ? tr(" Hace falta un motor más nuevo.", " It needs a newer engine.") : ""
+            let newer = likely.contains { $0.function != nil } ? tr(" Hace falta un motor más nuevo.", " It needs a newer engine.") : ""
             details.append(tr("Puede ser por esto: ", "This may be why: ") + explanation + "." + newer)
         }
         let triedText = tried.map(\.description)
@@ -554,7 +602,8 @@ final class Launcher: NSObject, NSApplicationDelegate {
         alert.alertStyle = .warning
         alert.messageText = hung
             ? tr("\(name) no mostró su ventana", "\(name) did not show its window")
-            : tr("\(name) se cerró al abrir", "\(name) closed while opening")
+            : boxes.isEmpty ? tr("\(name) se cerró al abrir", "\(name) closed while opening")
+            : tr("\(name) mostró un error al abrir", "\(name) showed an error while opening")
         alert.informativeText = details.joined(separator: "\n\n")
         alert.addButton(withTitle: tr("Informar el problema…", "Report the Problem…"))
         alert.addButton(withTitle: tr("Mostrar el registro", "Show the Log"))

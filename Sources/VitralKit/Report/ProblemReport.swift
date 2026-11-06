@@ -9,6 +9,8 @@ public struct ProblemReport: Sendable, Equatable {
         case install(String)
         /// The program closed while opening, after this many attempts.
         case start(attempts: Int)
+        /// The program showed this error box while opening, and closed.
+        case errorBox(String)
         /// The person reports it: it opens, but something does not work.
         case other
     }
@@ -65,6 +67,7 @@ public struct ProblemReport: Sendable, Equatable {
         switch kind {
         case .install: return tr("\(program): no se instala", "\(program): does not install") + known
         case .start: return tr("\(program): se cierra al abrir", "\(program): closes while opening") + known
+        case .errorBox: return tr("\(program): muestra un error al abrir", "\(program): shows an error while opening") + known
         case .other: return "\(program): "
         }
     }
@@ -79,6 +82,8 @@ public struct ProblemReport: Sendable, Equatable {
                 ? tr("Se cerró al abrir, sin mostrar su ventana. Vitral lo intentó \(attempts) veces.",
                      "It closed while opening, without showing its window. Vitral tried \(attempts) times.")
                 : tr("Se cerró al abrir, sin mostrar su ventana.", "It closed while opening, without showing its window.")
+        case .errorBox(let message):
+            return tr("Mostró este error al abrir y se cerró: «\(message)»", "It showed this error while opening, and closed: «\(message)»")
         case .other:
             return ""
         }

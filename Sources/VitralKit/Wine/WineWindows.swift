@@ -10,21 +10,47 @@ public enum WineWindows {
         public let name: String
     }
 
+    /// A window on screen.
+    public struct Window: Hashable, Sendable {
+        public let number: Int
+        public let owner: Owner
+        /// 0 for normal windows. Message boxes that stay on top (system modal) are above it.
+        public let layer: Int
+        public let width: Double
+        public let height: Double
+
+        public init(number: Int, owner: Owner, layer: Int, width: Double, height: Double) {
+            self.number = number
+            self.owner = owner
+            self.layer = layer
+            self.width = width
+            self.height = height
+        }
+
+        public var area: Double { width * height }
+    }
+
     /// Owners of normal windows (layer 0) on screen, front to back, each once.
     public static func owners() -> [Owner] {
+        var seen = Set<pid_t>()
+        return onScreen(layer: 0).map(\.owner).filter { seen.insert($0.pid).inserted }
+    }
+
+    /// Windows on screen, front to back: of one layer, or of every layer.
+    public static func onScreen(layer: Int? = nil) -> [Window] {
         guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
                 as? [[String: Any]] else { return [] }
-        var seen = Set<pid_t>()
-        var owners: [Owner] = []
-        for window in list {
-            guard (window[kCGWindowLayer as String] as? Int) == 0,
+        var names: [pid_t: String] = [:]
+        return list.compactMap { window in
+            guard let windowLayer = window[kCGWindowLayer as String] as? Int, layer == nil || windowLayer == layer,
+                  let number = window[kCGWindowNumber as String] as? Int,
                   let pid = window[kCGWindowOwnerPID as String] as? pid_t,
-                  let name = window[kCGWindowOwnerName as String] as? String,
-                  !seen.contains(pid) else { continue }
-            seen.insert(pid)
-            owners.append(Owner(pid: pid, name: windowsFileName(of: pid) ?? name))
+                  let name = window[kCGWindowOwnerName as String] as? String else { return nil }
+            if names[pid] == nil { names[pid] = windowsFileName(of: pid) ?? name }
+            let bounds = window[kCGWindowBounds as String] as? [String: Double] ?? [:]
+            return Window(number: number, owner: Owner(pid: pid, name: names[pid] ?? name), layer: windowLayer,
+                          width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
         }
-        return owners
     }
 
     /// The file name a Windows process runs ("aTube Catcher.exe"), from its first argument

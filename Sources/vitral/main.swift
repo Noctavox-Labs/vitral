@@ -649,6 +649,10 @@ func diagnose(_ options: [String]) {
         if let run = inspection.lastRun {
             print(tr("Última vez: \(run.seconds) s, código \(run.status), ventana: \(run.sawWindow ? "sí" : "no")",
                      "Last time: \(run.seconds) s, status \(run.status), window: \(run.sawWindow ? "yes" : "no")"))
+            for box in run.messageBoxes {
+                print(tr("Cuadro de error: «\(box.summary)»", "Error box: «\(box.summary)»")
+                      + (run.errorBox ? tr(" (y se cerró)", " (and it closed)") : ""))
+            }
         }
         for log in inspection.programLogs { print(tr("Registro del programa: ", "Program log: ") + log.lastPathComponent) }
         diagnoses = inspection.diagnoses()

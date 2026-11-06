@@ -108,7 +108,9 @@ public struct InstalledEngine: Sendable {
             "WINEPREFIX": prefix.path,
             // Wine finds its libraries here (it is not on the default search path).
             "DYLD_FALLBACK_LIBRARY_PATH": libraries.path + ":/usr/lib",
-            "WINEDEBUG": "err+all,fixme-all",
+            // `msgbox`: the text of each message box, so Vitral knows what a program said
+            // before closing (`WineMessageBox`). One line per box.
+            "WINEDEBUG": "err+all,fixme-all,+msgbox",
             // MoltenVK prints every Vulkan extension otherwise.
             "MVK_CONFIG_LOG_LEVEL": "0",
             "WINEDLLOVERRIDES": Self.dllOverrides(prefix: prefix),
