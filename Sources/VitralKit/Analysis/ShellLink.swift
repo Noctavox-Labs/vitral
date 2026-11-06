@@ -1,8 +1,8 @@
 import Foundation
 
 /// A Windows shortcut (`.lnk`, the Shell Link format): what it opens. Only what Vitral needs is
-/// read: the target's path (from the LinkInfo block, or the relative path), its arguments and
-/// its working folder. Shortcuts that point at a shell item without a path (Control Panel…)
+/// read: the target's path (from the LinkInfo block, or the relative path), its arguments, its
+/// working folder and the icon it shows. Shortcuts that point at a shell item without a path (Control Panel…)
 /// have no target.
 public struct ShellLink: Equatable, Sendable {
     /// Windows path of the program, such as `C:\Program Files\App\app.exe`.
@@ -11,6 +11,11 @@ public struct ShellLink: Equatable, Sendable {
     public var relativePath: String?
     public var arguments: String
     public var workingDirectory: String?
+    /// The file whose icon the shortcut shows, when it is not the program's own: a Windows path
+    /// to an `.exe`, `.dll` or `.ico` (Encarta's three programs show icons of `ENCICO6B.EXE`).
+    public var iconLocation: String?
+    /// Which icon of that file: from 0, the nth in the file; negative, the one numbered -n.
+    public var iconIndex: Int = 0
 
     public static func parse(_ data: Data) -> ShellLink? {
         let bytes = [UInt8](data)
@@ -22,7 +27,7 @@ public struct ShellLink: Equatable, Sendable {
         // Header: size 0x4C and the shell link class id.
         guard u32(0) == 0x4C, bytes.count >= 0x4C,
               Array(bytes[4 ..< 20]) == [0x01, 0x14, 0x02, 0, 0, 0, 0, 0, 0xC0, 0, 0, 0, 0, 0, 0, 0x46],
-              let flags = u32(0x14) else { return nil }
+              let flags = u32(0x14), let index = u32(0x38) else { return nil }
         let unicode = flags & 0x80 != 0
         var offset = 0x4C
         if flags & 0x01 != 0 {  // HasLinkTargetIDList
@@ -63,6 +68,8 @@ public struct ShellLink: Equatable, Sendable {
         link.relativePath = strings[0x08].flatMap { $0.isEmpty ? nil : $0 }
         link.workingDirectory = strings[0x10].flatMap { $0.isEmpty ? nil : $0 }
         link.arguments = strings[0x20] ?? ""
+        link.iconLocation = strings[0x40].flatMap { $0.isEmpty ? nil : $0 }
+        link.iconIndex = Int(Int32(bitPattern: UInt32(index)))
         if link.target?.isEmpty ?? true { link.target = nil }
         return link.target == nil && link.relativePath == nil ? nil : link
     }

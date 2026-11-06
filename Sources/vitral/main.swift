@@ -17,8 +17,9 @@ func printUsage() {
         Uso:
           vitral analizar [--json] <archivo>   Revisa un instalador o programa de Windows sin ejecutarlo.
           vitral analizar [--json] <carpeta>   Revisa un programa ya instalado: cuál abrir y con qué está hecho.
-          vitral icono <programa.exe> <salida.icns|.ico>
-                                               Saca el ícono de un programa de Windows.
+          vitral icono <programa.exe> <salida.icns|.ico> [número]
+                                               Saca el ícono de un programa de Windows (u otro de sus íconos,
+                                               contados como Windows: desde 0, o negativo para el de ese número).
           vitral motores                       Muestra los motores de Wine y si están instalados.
           vitral motores instalar [id]         Descarga y verifica un motor (el recomendado si no se indica).
           vitral motores limpiar               Borra los motores que ninguna app usa (se vuelven a bajar si hacen falta).
@@ -52,8 +53,9 @@ func printUsage() {
         Usage:
           vitral analyze [--json] <file>     Inspect a Windows installer or program without running it.
           vitral analyze [--json] <folder>   Inspect an installed program: which file to open and what it is built with.
-          vitral icon <program.exe> <output.icns|.ico>
-                                             Extract the icon of a Windows program.
+          vitral icon <program.exe> <output.icns|.ico> [index]
+                                             Extract the icon of a Windows program (or another of its icons,
+                                             counted as Windows does: from 0, or negative for that number).
           vitral engines                     List the Wine engines and whether they are installed.
           vitral engines install [id]        Download and verify an engine (the recommended one by default).
           vitral engines clean               Delete the engines no app uses (downloaded again if needed).
@@ -282,16 +284,17 @@ func printEngineCheck(program: URL, prefix: URL?, label: String) {
 }
 
 func extractIcon(_ options: [String]) {
-    guard options.count == 2 else {
+    guard options.count == 2 || options.count == 3, options.count == 2 || Int(options[2]) != nil else {
         printUsage()
         exit(2)
     }
+    let index = options.count == 3 ? Int(options[2]) : nil
     let input = URL(fileURLWithPath: (options[0] as NSString).expandingTildeInPath)
     let output = URL(fileURLWithPath: (options[1] as NSString).expandingTildeInPath)
     guard let data = try? Data(contentsOf: input, options: .alwaysMapped) else {
         fail(tr("No pude leer el archivo: \(options[0])", "Could not read the file: \(options[0])"))
     }
-    guard let ico = PortableExecutable.icon(data) else {
+    guard let ico = PortableExecutable.icon(data, index: index ?? 0) else {
         fail(tr("Ese programa no tiene ícono.", "That program has no icon."))
     }
     let wantsICNS = output.pathExtension.lowercased() != "ico"

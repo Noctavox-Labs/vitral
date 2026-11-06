@@ -4,12 +4,15 @@ import Testing
 
 /// A `.lnk` like the ones Wine's shell writes: LinkInfo with an ANSI path, then Unicode strings
 /// that count their closing NUL.
-func makeShortcut(target: String?, relative: String? = nil, arguments: String = "") -> Data {
+func makeShortcut(target: String?, relative: String? = nil, arguments: String = "",
+                  icon: String? = nil, iconIndex: Int32 = 0) -> Data {
     var flags: UInt32 = 0x80 | 0x10   // IsUnicode, HasWorkingDir
     if target != nil { flags |= 0x02 }
     if relative != nil { flags |= 0x08 }
     if !arguments.isEmpty { flags |= 0x20 }
+    if icon != nil { flags |= 0x40 }
     var bytes = le32(0x4C) + [0x01, 0x14, 0x02, 0, 0, 0, 0, 0, 0xC0, 0, 0, 0, 0, 0, 0, 0x46] + le32(flags)
+    bytes += [UInt8](repeating: 0, count: 0x38 - bytes.count) + le32(UInt32(bitPattern: iconIndex))
     bytes += [UInt8](repeating: 0, count: 0x4C - bytes.count)
     if let target {
         let base = Array(target.utf8) + [0]
@@ -24,6 +27,7 @@ func makeShortcut(target: String?, relative: String? = nil, arguments: String = 
     if let relative { bytes += string(relative) }
     bytes += string(#"C:\Program Files\Suite"#)
     if !arguments.isEmpty { bytes += string(arguments) }
+    if let icon { bytes += string(icon) }
     return Data(bytes)
 }
 
@@ -137,4 +141,85 @@ private func makeSharedApp(_ folder: TemporaryFolder, name: String, program: Str
     #expect(Set(trashed.map(\.lastPathComponent)) == ["MetaEditor.app", "MetaTrader 5.app", "mt5"])
     #expect(!FileManager.default.fileExists(atPath: prefix.path))
     #expect(FileManager.default.fileExists(atPath: alone.path))
+}
+
+@Test func readsTheIconAShortcutShows() {
+    let link = ShellLink.parse(makeShortcut(target: #"C:\Program Files\Encarta\ENCARTA.EXE"#,
+                                            icon: #"C:\windows\Installer\{0904}\ENCICO6B.EXE"#, iconIndex: 9))
+    #expect(link?.iconLocation == #"C:\windows\Installer\{0904}\ENCICO6B.EXE"#)
+    #expect(link?.iconIndex == 9)
+    #expect(ShellLink.parse(makeShortcut(target: #"C:\a.exe"#, icon: #"C:\a.exe"#, iconIndex: -101))?.iconIndex == -101)
+    #expect(ShellLink.parse(makeShortcut(target: #"C:\a.exe"#))?.iconLocation == nil)
+}
+
+@Test func theSameProgramShowsTheIconItsShortcutNames() throws {
+    // Encarta 2009: the encyclopedia and Encarta Kids are the same ENCARTA.EXE; their shortcuts
+    // show icons 0 and 1 of a file the installer left in C:\windows\Installer.
+    let folder = try TemporaryFolder()
+    let driveC = folder.url.appendingPathComponent("drive_c")
+    var program = SyntheticPE()
+    program.icons = [(16, makePNG(side: 16))]
+    try folder.write("drive_c/Program Files/Encarta/Premium/ENCARTA.EXE", program)
+    try folder.write("drive_c/Program Files/Encarta/Kids/ENCARTA.EXE", program)
+    var icons = SyntheticPE(isDLL: false)
+    icons.icons = [(32, makePNG(side: 32))]
+    icons.moreIconGroups = [[(48, makePNG(side: 48))]]
+    try folder.write("drive_c/windows/Installer/{0904}/ICONS.EXE", icons)
+    let menu = "drive_c/users/crossover/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Encarta"
+    try folder.write("\(menu)/Encarta.lnk", makeShortcut(target: #"C:\Program Files\Encarta\Premium\ENCARTA.EXE"#,
+                                                         icon: #"C:\Program Files\Encarta\Premium\ENCARTA.EXE"#))
+    try folder.write("\(menu)/Encarta Kids.lnk", makeShortcut(target: #"C:\Program Files\Encarta\Kids\ENCARTA.EXE"#,
+                                                              icon: #"%SystemRoot%\Installer\{0904}\icons.exe"#, iconIndex: 1))
+
+    let programs = ProgramShortcuts.programs(shortcuts: ProgramShortcuts.snapshot(driveC: driveC), driveC: driveC)
+    let kids = try #require(programs.first { $0.name == "Encarta Kids" })
+    #expect(kids.icon == ProgramIcon(file: "windows/Installer/{0904}/ICONS.EXE", index: 1))
+    // Its own icon is no icon to remember.
+    #expect(programs.first { $0.name == "Encarta" }?.icon == nil)
+
+    let iconsData = try Data(contentsOf: driveC.appendingPathComponent("windows/Installer/{0904}/ICONS.EXE"))
+    let green = try #require(PortableExecutable.icon(iconsData, index: 1))
+    #expect(green != PortableExecutable.icon(iconsData, index: 0))
+    #expect(PortableExecutable.icon(iconsData, index: -2) == green)   // the group numbered 2
+    #expect(PortableExecutable.icon(iconsData, index: 5) == nil)
+    #expect(ProgramInstaller.icns(of: kids.program, shortcutIcon: kids.icon, driveC: driveC) == AppIcon.icns(fromICO: green))
+    // An icon that is not there: the program's own, as before.
+    let own = ProgramInstaller.icns(of: kids.program, shortcutIcon: nil, driveC: driveC)
+    #expect(own != nil)
+    #expect(ProgramInstaller.icns(of: kids.program, shortcutIcon: ProgramIcon(file: kids.icon!.file, index: 5), driveC: driveC) == own)
+    // An .ico file is the icon itself.
+    let ico = try #require(PortableExecutable.icon(Data(contentsOf: driveC.appendingPathComponent(kids.program))))
+    #expect(PortableExecutable.icon(ico, index: 3) == ico)
+}
+
+@Test func anOlderAppGetsTheIconItsShortcutShows() throws {
+    let folder = try TemporaryFolder()
+    let home = VitralHome(url: folder.url.appendingPathComponent("home"))
+    let driveC = home.prefixes.appendingPathComponent("p/drive_c")
+    var program = SyntheticPE()
+    program.icons = [(16, makePNG(side: 16))]
+    try FileManager.default.createDirectory(at: driveC.appendingPathComponent("Kids"), withIntermediateDirectories: true)
+    try program.build().write(to: driveC.appendingPathComponent("Kids/ENCARTA.EXE"))
+    var icons = SyntheticPE()
+    icons.icons = [(32, makePNG(side: 32))]
+    icons.moreIconGroups = [[(48, makePNG(side: 48, green: 0.9))]]
+    try FileManager.default.createDirectory(at: driveC.appendingPathComponent("users/crossover/Desktop"), withIntermediateDirectories: true)
+    try icons.build().write(to: driveC.appendingPathComponent("icons.exe"))
+    try makeShortcut(target: #"C:\Kids\ENCARTA.EXE"#, icon: #"C:\icons.exe"#, iconIndex: 1)
+        .write(to: driveC.appendingPathComponent("users/crossover/Desktop/Encarta Kids.lnk"))
+
+    let app = Wrapper(url: folder.url.appendingPathComponent("Encarta Kids.app"))
+    let launcher = folder.url.appendingPathComponent("launcher")
+    try Data("#!/bin/sh\n".utf8).write(to: launcher)
+    let manifest = WrapperManifest(name: "Encarta Kids", program: "Kids/ENCARTA.EXE", engine: "cx-test",
+                                   settings: LaunchSettings(), recipes: [], prefix: "p")
+    let old = try #require(ProgramInstaller.icns(of: "Kids/ENCARTA.EXE", shortcutIcon: nil, driveC: driveC))
+    try app.write(manifest: manifest, icns: old, launcher: launcher, bundleIdentifier: "test.kids")
+
+    let green = try #require(ProgramInstaller.icns(for: app, home: home))
+    #expect(green != old)
+    #expect(try app.updateIcon(green))
+    #expect(try !app.updateIcon(green))
+    #expect(try Data(contentsOf: app.iconURL) == green)
+    #expect(app.hasValidSignature)
 }

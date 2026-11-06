@@ -109,6 +109,13 @@ public enum PortableExecutable {
         image(data)?.iconFile()
     }
 
+    /// The icon a shortcut names: icon `index` of an executable or DLL (see `PEImage.iconFile`),
+    /// or an `.ico` file as it is.
+    public static func icon(_ data: Data, index: Int) -> Data? {
+        if data.count > 6, data.prefix(4) == Data([0, 0, 1, 0]) { return data }
+        return image(data)?.iconFile(index: index)
+    }
+
     /// The PE image inside `data`, or `nil` if it is not a 32- or 64-bit Windows executable.
     static func image(_ data: Data) -> PEImage? {
         let r = ByteReader(data: data)

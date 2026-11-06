@@ -165,6 +165,25 @@ public struct Wrapper: Sendable {
         return true
     }
 
+    /// Puts a newer icon in place (apps made with an older Vitral: Encarta Kids got Encarta's
+    /// icon, and old programs their 16-color drawings) and signs the app again. Returns whether
+    /// it changed.
+    @discardableResult
+    public func updateIcon(_ icns: Data) throws -> Bool {
+        guard isWrapper else { throw WrapperError.notAWrapper(url) }
+        if (try? Data(contentsOf: iconURL)) == icns { return false }
+        try icns.write(to: iconURL, options: .atomic)
+        let plist = contents.appendingPathComponent("Info.plist")
+        if let info = NSMutableDictionary(contentsOf: plist), info["CFBundleIconFile"] == nil {
+            info["CFBundleIconFile"] = "AppIcon"
+            try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: plist, options: .atomic)
+        }
+        if !FileManager.default.fileExists(atPath: embeddedPrefix.path) { try sign() }
+        // Finder and the Dock look at the icon again when the app changes.
+        try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: url.path)
+        return true
+    }
+
     /// A Vitral downloaded from the internet carries macOS's quarantine mark on its files, and a
     /// copy keeps it. The app Vitral makes is not signed as a whole (its Info.plist and icon are
     /// written here), so with the mark macOS would say it is damaged. Vitral made it on this Mac:

@@ -9,16 +9,33 @@ public struct ProgramChoice: Codable, Sendable, Hashable {
     public var program: String
     /// What the shortcut passes to the program.
     public var arguments: [String]
+    /// The icon the shortcut shows, when it is not the program's own.
+    public var icon: ProgramIcon?
 
-    public init(name: String, program: String, arguments: [String] = []) {
+    public init(name: String, program: String, arguments: [String] = [], icon: ProgramIcon? = nil) {
         self.name = name
         self.program = program
         self.arguments = arguments
+        self.icon = icon
     }
 
     /// The program's folder, relative to drive_c.
     public var folder: String { (program as NSString).deletingLastPathComponent }
     public var fileName: String { (program as NSString).lastPathComponent }
+}
+
+/// An icon a shortcut names: Encarta and Encarta Kids are the same ENCARTA.EXE, and their
+/// shortcuts show different icons of another file the installer left.
+public struct ProgramIcon: Codable, Sendable, Hashable {
+    /// The file, relative to drive_c: an `.exe`, `.dll` or `.ico`.
+    public var file: String
+    /// Which icon of it, as Windows counts them (`ShellLink.iconIndex`).
+    public var index: Int
+
+    public init(file: String, index: Int) {
+        self.file = file
+        self.index = index
+    }
 }
 
 /// The shortcuts an installer leaves are its own list of the programs meant for people: the
@@ -69,7 +86,9 @@ public enum ProgramShortcuts {
                   !ProgramAnalyzer.isHelper((program as NSString).lastPathComponent) else { continue }
             let arguments = ShellLink.splitArguments(link.arguments)
             guard !choices.contains(where: { $0.program.lowercased() == program.lowercased() && $0.arguments == arguments }) else { continue }
-            choices.append(ProgramChoice(name: Wrapper.safeName(name), program: program, arguments: arguments))
+            let icon = link.iconLocation.flatMap { onDriveC($0, driveC: driveC) }
+                .flatMap { $0 == program && link.iconIndex == 0 ? nil : ProgramIcon(file: $0, index: link.iconIndex) }
+            choices.append(ProgramChoice(name: Wrapper.safeName(name), program: program, arguments: arguments, icon: icon))
         }
         return choices
     }
@@ -104,7 +123,25 @@ public enum ProgramShortcuts {
         } else {
             return nil
         }
-        // Windows names are case-insensitive: find each one as it is on disk.
+        return onDisk(components, driveC: driveC)
+    }
+
+    /// A Windows path on drive C (`C:\windows\Installer\…\icons.exe`, also with `%SystemRoot%`
+    /// and the like), relative to drive_c as it is on disk, if it exists.
+    static func onDriveC(_ windowsPath: String, driveC: URL) -> String? {
+        var path = windowsPath.trimmingCharacters(in: CharacterSet(charactersIn: "\" "))
+        for (variable, value) in [("%SystemRoot%", #"C:\windows"#), ("%windir%", #"C:\windows"#),
+                                  ("%ProgramFiles(x86)%", #"C:\Program Files (x86)"#),
+                                  ("%ProgramFiles%", #"C:\Program Files"#), ("%SystemDrive%", "C:")] {
+            path = path.replacingOccurrences(of: variable, with: value, options: .caseInsensitive)
+        }
+        let parts = path.split(whereSeparator: { $0 == "\\" || $0 == "/" }).map(String.init)
+        guard let drive = parts.first, drive.lowercased() == "c:", parts.count > 1 else { return nil }
+        return onDisk(Array(parts.dropFirst()), driveC: driveC)
+    }
+
+    /// `components` under drive_c with each name as it is on disk (Windows names ignore case).
+    private static func onDisk(_ components: [String], driveC: URL) -> String? {
         var folder = driveC
         var found: [String] = []
         for (index, part) in components.enumerated() {

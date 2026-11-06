@@ -19,6 +19,8 @@ struct SyntheticPE {
     var fixedVersion: (UInt16, UInt16, UInt16, UInt16)?
     /// Image data for each icon (PNG or BMP). They become one icon group.
     var icons: [(side: UInt8, data: [UInt8])] = []
+    /// More icon groups after that one (numbered 2, 3…), as files of icons for shortcuts have.
+    var moreIconGroups: [[(side: UInt8, data: [UInt8])]] = []
     var dotNetRuntime: String?
 
     static let sectionRVA: UInt32 = 0x1000
@@ -87,14 +89,20 @@ struct SyntheticPE {
         }
 
         var resourceTypes: [(type: UInt32, items: [(id: UInt32, data: [UInt8])])] = []
-        if !icons.isEmpty {
-            resourceTypes.append((3, icons.enumerated().map { (UInt32($0.offset + 1), $0.element.data) }))
-            var group = le16(0) + le16(1) + le16(UInt16(icons.count))
-            for (index, icon) in icons.enumerated() {
-                group += [icon.side, icon.side, 0, 0] + le16(1) + le16(32) + le32(UInt32(icon.data.count))
-                group += le16(UInt16(index + 1))
+        let iconGroups = (icons.isEmpty ? [] : [icons]) + moreIconGroups
+        if !iconGroups.isEmpty {
+            var images: [(id: UInt32, data: [UInt8])] = [], groups: [(id: UInt32, data: [UInt8])] = []
+            for (number, members) in iconGroups.enumerated() {
+                var group = le16(0) + le16(1) + le16(UInt16(members.count))
+                for icon in members {
+                    images.append((UInt32(images.count + 1), icon.data))
+                    group += [icon.side, icon.side, 0, 0] + le16(1) + le16(32) + le32(UInt32(icon.data.count))
+                    group += le16(UInt16(images.count))
+                }
+                groups.append((UInt32(number + 1), group))
             }
-            resourceTypes.append((14, [(1, group)]))
+            resourceTypes.append((3, images))
+            resourceTypes.append((14, groups))
         }
         if !versionStrings.isEmpty || fixedVersion != nil {
             resourceTypes.append((16, [(1, versionResource())]))

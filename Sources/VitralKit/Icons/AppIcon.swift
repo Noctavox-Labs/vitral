@@ -16,11 +16,16 @@ public enum AppIcon {
     /// is always included so Finder has a good one.
     public static func icns(fromICO ico: Data) -> Data? {
         guard let source = CGImageSourceCreateWithData(ico as CFData, nil) else { return nil }
+        let depths = storedDepths(ico)
         let images = (0 ..< CGImageSourceGetCount(source))
-            .compactMap { CGImageSourceCreateImageAtIndex(source, $0, nil) }
-            .filter { $0.width > 0 && $0.width == $0.height }
+            .compactMap { index -> (image: CGImage, depth: Int)? in
+                guard let image = CGImageSourceCreateImageAtIndex(source, index, nil) else { return nil }
+                return (image, index < depths.count ? depths[index] : image.bitsPerPixel)
+            }
+            .filter { $0.image.width > 0 && $0.image.width == $0.image.height }
             // Smallest first; at equal size, more colors first.
-            .sorted { ($0.width, -$0.bitsPerPixel) < ($1.width, -$1.bitsPerPixel) }
+            .sorted { ($0.image.width, -$0.depth) < ($1.image.width, -$1.depth) }
+            .map(\.image)
         guard let largest = images.last else { return nil }
 
         let slots = icnsSlots.filter { $0.points * $0.scale <= max(128, largest.width) }
@@ -40,6 +45,24 @@ public enum AppIcon {
         }
         guard CGImageDestinationFinalize(destination) else { return nil }
         return output as Data
+    }
+
+    /// Bits per pixel of each image of an `.ico`, as stored: ImageIO hands every one back with
+    /// 32 bits, so the 16-color drawing of a size looked as good as the full-color one, and came
+    /// first (Encarta's icons came out dithered).
+    static func storedDepths(_ ico: Data) -> [Int] {
+        let bytes = [UInt8](ico)
+        func u16(_ at: Int) -> Int { at >= 0 && at + 2 <= bytes.count ? Int(bytes[at]) | Int(bytes[at + 1]) << 8 : 0 }
+        func u32(_ at: Int) -> Int { u16(at) | u16(at + 2) << 16 }
+        guard u16(0) == 0, u16(2) == 1 else { return [] }
+        return (0 ..< u16(4)).map { index in
+            let entry = 6 + 16 * index, image = u32(entry + 12)
+            // A PNG inside is full color; otherwise the bitmap header says (the directory's own
+            // count is often 0).
+            if image + 4 <= bytes.count, bytes[image ..< image + 4] == [0x89, 0x50, 0x4E, 0x47] { return 32 }
+            let header = u16(image + 14)
+            return header > 0 ? header : u16(entry + 6)
+        }
     }
 
     static func resized(_ image: CGImage, to side: Int) -> CGImage? {

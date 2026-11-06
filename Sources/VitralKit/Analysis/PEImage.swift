@@ -324,10 +324,14 @@ struct PEImage {
 
     var hasIcon: Bool { !resources(ofType: ResourceType.groupIcon.rawValue).isEmpty }
 
-    /// The program's icon as a Windows `.ico` file: the first icon group, which is the one
-    /// Windows shows for the executable.
-    func iconFile() -> Data? {
-        guard let group = resources(ofType: ResourceType.groupIcon.rawValue).first?.data else { return nil }
+    /// An icon of the file as a Windows `.ico` file. Index 0, the first icon group, is the one
+    /// Windows shows for the executable; a shortcut can name another, as Windows counts them:
+    /// from 0, the nth group in the file's order; negative, the group numbered -index.
+    func iconFile(index: Int = 0) -> Data? {
+        let groups = resources(ofType: ResourceType.groupIcon.rawValue)
+        let chosen = index >= 0 ? (index < groups.count ? groups[index] : nil)
+                                : groups.first { $0.name == .id(UInt32(clamping: -index)) }
+        guard let group = chosen?.data else { return nil }
         var images: [UInt32: Data] = [:]
         for (name, data) in resources(ofType: ResourceType.icon.rawValue) {
             if case .id(let id) = name { images[id] = data }

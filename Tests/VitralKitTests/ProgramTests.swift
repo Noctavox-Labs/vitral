@@ -7,14 +7,14 @@ import UniformTypeIdentifiers
 
 // MARK: - Helpers
 
-/// A square PNG of `side` pixels, filled with one color.
-func makePNG(side: Int) -> [UInt8] {
+/// A square PNG of `side` pixels, filled with one color (blue unless `green` is higher).
+func makePNG(side: Int, green: CGFloat = 0.4) -> [UInt8] {
     let context = CGContext(
         data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
         space: CGColorSpace(name: CGColorSpace.sRGB)!,
         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
     )!
-    context.setFillColor(red: 0.2, green: 0.4, blue: 0.8, alpha: 1)
+    context.setFillColor(red: 0.2, green: green, blue: 0.8, alpha: 1)
     context.fill(CGRect(x: 0, y: 0, width: side, height: side))
     let output = NSMutableData()
     let destination = CGImageDestinationCreateWithData(output, UTType.png.identifier as CFString, 1, nil)!
@@ -310,4 +310,19 @@ final class TemporaryFolder {
 
     let report = try ProgramAnalyzer.analyze(folderAt: folder.url.appendingPathComponent("MetaTrader 5"))
     #expect(report.mainExecutable == "terminal64.exe")
+}
+
+@Test func fullColorImagesWinOverOlderOnesOfTheSameSize() {
+    // Encarta's icons: each size drawn with 16 colors, 256 and full color, in that order.
+    func bitmap(bits: UInt16) -> [UInt8] { le32(40) + le32(16) + le32(32) + le16(1) + le16(bits) + [UInt8](repeating: 0, count: 24) }
+    let images = [bitmap(bits: 4), bitmap(bits: 8), makePNG(side: 16)]
+    var ico = le16(0) + le16(1) + le16(UInt16(images.count))
+    var offset = 6 + 16 * images.count
+    for image in images {
+        ico += [16, 16, 0, 0] + le16(1) + le16(0) + le32(UInt32(image.count)) + le32(UInt32(offset))
+        offset += image.count
+    }
+    ico += images.flatMap { $0 }
+    #expect(AppIcon.storedDepths(Data(ico)) == [4, 8, 32])
+    #expect(AppIcon.storedDepths(Data("not an icon".utf8)).isEmpty)
 }

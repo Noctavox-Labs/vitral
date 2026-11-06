@@ -400,7 +400,11 @@ final class AppModel {
         if let id = info?["CFBundleIdentifier"] as? String,
            !NSRunningApplication.runningApplications(withBundleIdentifier: id).isEmpty { return }
         _ = try? wrapper.moveEmbeddedPrefix(to: .default)
-        _ = try? wrapper.updateLauncher(from: launcher)
+        // A new launcher means a new Vitral: the icon, too, by its rules (once per version).
+        if (try? wrapper.updateLauncher(from: launcher)) == true, let icns = ProgramInstaller.icns(for: wrapper),
+           (try? wrapper.updateIcon(icns)) == true {
+            NSWorkspace.shared.noteFileSystemChanged(wrapper.url.path)
+        }
         if !FileManager.default.fileExists(atPath: wrapper.embeddedPrefix.path), !wrapper.hasValidSignature {
             try? wrapper.sign()
         }

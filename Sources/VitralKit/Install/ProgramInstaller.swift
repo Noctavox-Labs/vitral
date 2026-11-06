@@ -469,9 +469,8 @@ public struct ProgramInstaller: Sendable {
             let manifest = WrapperManifest(name: name, program: program, engine: engine.id, settings: settings,
                                            recipes: applied, product: product, installer: source.lastPathComponent,
                                            installerSHA256: try? ComponentInstaller.sha256(of: source), prefix: identifier)
-            let exe = session.driveC.appendingPathComponent(program)
-            let icns = (try? Data(contentsOf: exe, options: .alwaysMapped))
-                .flatMap(PortableExecutable.icon).flatMap { AppIcon.icns(fromICO: $0) }
+            let icon = picked.flatMap { $0.program.lowercased() == program.lowercased() ? $0.icon : nil }
+            let icns = Self.icns(of: program, shortcutIcon: icon, driveC: session.driveC)
             try wrapper.write(manifest: manifest, icns: icns, launcher: options.launcher, bundleIdentifier: identifier)
 
             try fm.createDirectory(at: home.prefixes, withIntermediateDirectories: true)
@@ -491,6 +490,26 @@ public struct ProgramInstaller: Sendable {
             try? fm.removeItem(at: prefix)   // its links to the person's folders go, not the folders
             throw error
         }
+    }
+
+    /// The icon an app made before should have now, by the same rule as a new one.
+    public static func icns(for wrapper: Wrapper, home: VitralHome = .default) -> Data? {
+        guard let manifest = try? wrapper.readManifest() else { return nil }
+        let driveC = wrapper.prefix(in: home).appendingPathComponent("drive_c")
+        let shortcut = ProgramShortcuts.programs(shortcuts: ProgramShortcuts.snapshot(driveC: driveC), driveC: driveC)
+            .first { $0.program.lowercased() == manifest.program.lowercased() }
+        return icns(of: manifest.program, shortcutIcon: shortcut?.icon, driveC: driveC)
+    }
+
+    /// The Mac icon of a program: the one its shortcut shows, as Windows does, otherwise the
+    /// program's own (Encarta Kids is the same ENCARTA.EXE as Encarta, with a green icon).
+    static func icns(of program: String, shortcutIcon: ProgramIcon?, driveC: URL) -> Data? {
+        func read(_ relative: String) -> Data? { try? Data(contentsOf: driveC.appendingPathComponent(relative), options: .alwaysMapped) }
+        if let shortcutIcon, let ico = read(shortcutIcon.file).flatMap({ PortableExecutable.icon($0, index: shortcutIcon.index) }),
+           let icns = AppIcon.icns(fromICO: ico) {
+            return icns
+        }
+        return read(program).flatMap(PortableExecutable.icon).flatMap { AppIcon.icns(fromICO: $0) }
     }
 
     /// Makes another app for a program of `app`'s Windows (one of `InstallResult.otherPrograms`,
@@ -529,9 +548,7 @@ public struct ProgramInstaller: Sendable {
         try fm.createDirectory(at: staging, withIntermediateDirectories: true)
         let work = staging.appendingPathComponent(UUID().uuidString + ".app")
         do {
-            let exe = session.driveC.appendingPathComponent(choice.program)
-            let icns = (try? Data(contentsOf: exe, options: .alwaysMapped))
-                .flatMap(PortableExecutable.icon).flatMap { AppIcon.icns(fromICO: $0) }
+            let icns = Self.icns(of: choice.program, shortcutIcon: choice.icon, driveC: session.driveC)
             try Wrapper(url: work).write(manifest: newManifest, icns: icns, launcher: launcher, bundleIdentifier: identifier)
             return try place(work, named: name, in: app.deletingLastPathComponent(), replace: false)
         } catch {
