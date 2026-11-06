@@ -13,6 +13,7 @@
   "Actualizaciones": "Updates",
   "Agregando…": "Adding…",
   "Agregar otro programa del mismo instalador": "Add Another Program from the Same Installer",
+  "Algo de %@ sigue abierto. Prueba otra vez o reinicia la Mac.": "Something of %@ is still open. Try again or restart the Mac.",
   "Antes hace falta instalar Rosetta.": "Rosetta has to be installed first.",
   "Aplicando los ajustes recomendados…": "Applying the recommended settings…",
   "Apple anunció que Rosetta deja de ser de uso general después de macOS 27; algunos programas podrían no abrir.": "Apple announced that Rosetta stops being generally available after macOS 27; some programs might not open.",
@@ -27,6 +28,7 @@
   "Buscar ahora": "Check Now",
   "Cada programa queda como una app de Mac, con su ícono, lista para abrir con doble clic.": "Each program becomes a Mac app with its own icon, ready to open with a double click.",
   "Cancelar": "Cancel",
+  "Cerrando…": "Closing…",
   "Cerrar": "Close",
   "Chip": "Chip",
   "Compatible.": "Supported.",
@@ -51,6 +53,8 @@
   "Espacio": "Storage",
   "Esta copia se compiló desde el código fuente, así que no se actualiza sola. Las versiones publicadas sí.": "This copy was built from source, so it doesn't update itself. Published releases do.",
   "Falta preparar tu Mac": "Your Mac isn't ready yet",
+  "Forzar cierre": "Force Quit",
+  "Forzar cierre…": "Force Quit…",
   "General": "General",
   "Hacen falta al menos 3 GB libres.": "At least 3 GB of free space is needed.",
   "Hay lugar para el motor y tus programas.": "There's room for the engine and your programs.",
@@ -79,6 +83,7 @@
   "Necesita": "Needs",
   "No pude leer ese archivo.": "I couldn't read that file.",
   "No se pudo agregar el programa": "Couldn't add the program",
+  "No se pudo cerrar": "Couldn’t Close",
   "No se pudo desinstalar": "Could not uninstall",
   "No se pudo instalar Rosetta. Revisa tu conexión a internet e inténtalo otra vez.": "Rosetta couldn't be installed. Check your internet connection and try again.",
   "No se puede abrir": "Can't Open",
@@ -125,5 +130,9 @@
   "Wine de CrossOver (compilación de Sikarugir), comprobado con SHA-256.": "CrossOver's Wine (Sikarugir build), checked with SHA-256.",
   "Wine de CrossOver, compilado por el proyecto Sikarugir. Se descarga de GitHub y se comprueba con SHA-256 antes de usarlo.": "CrossOver's Wine, built by the Sikarugir project. It's downloaded from GitHub and checked with SHA-256 before use.",
   "¿Desinstalar %@?": "Uninstall %@?",
-  "Última revisión: %@": "Last checked: %@"
+  "¿Forzar el cierre de %@?": "Force quit %@?",
+  "Última revisión: %@": "Last checked: %@",
+  "Úsalo si se congeló o no se cierra. Se cierra de inmediato y lo que no hayas guardado se pierde.": "Use it if it froze or won’t close. It closes right away, and anything you haven’t saved is lost.",
+  "Úsalo si se congeló o no se cierra. Se cierra de inmediato y lo que no hayas guardado se pierde. Si %@ está abierto, también se cierra: es del mismo instalador.": "Use it if it froze or won’t close. It closes right away, and anything you haven’t saved is lost. If %@ is open, it closes too: it came from the same installer.",
+  "Úsalo si se congeló o no se cierra. Se cierra de inmediato y lo que no hayas guardado se pierde. Si %@ están abiertos, también se cierran: son del mismo instalador.": "Use it if it froze or won’t close. It closes right away, and anything you haven’t saved is lost. If %@ are open, they close too: they came from the same installer."
 }

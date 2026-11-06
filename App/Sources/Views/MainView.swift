@@ -71,6 +71,11 @@ struct MainView: View {
         } message: {
             Text(model.uninstallError ?? "")
         }
+        .alert("No se pudo cerrar", isPresented: Binding(get: { model.forceQuitError != nil }, set: { if !$0 { model.forceQuitError = nil } })) {
+            Button("Aceptar", role: .cancel) {}
+        } message: {
+            Text(model.forceQuitError ?? "")
+        }
         .alert("No se pudo agregar el programa", isPresented: Binding(get: { model.addProgramError != nil }, set: { if !$0 { model.addProgramError = nil } })) {
             Button("Aceptar", role: .cancel) {}
         } message: {
@@ -162,6 +167,13 @@ struct LibraryGrid: View {
             }
         }
         .glassGroup(spacing: 16)
+        // Which apps are open, for "Force Quit" in their menu.
+        .task {
+            while !Task.isCancelled {
+                await model.refreshOpenApps()
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
     }
 }
 
@@ -204,9 +216,11 @@ struct LibraryCard: View {
     let app: AppModel.LibraryApp
     @State private var hovering = false
     @State private var confirmingUninstall = false
+    @State private var confirmingForceQuit = false
 
     var body: some View {
         let opening = model.opening.contains(app.url)
+        let quitting = model.quitting.contains(app.url)
         Button { model.openApp(app.url) } label: {
             VStack(spacing: 10) {
                 Image(nsImage: app.icon)
@@ -223,7 +237,14 @@ struct LibraryCard: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity)
-                if opening {
+                if quitting {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.mini).tint(Palette.progress)
+                        Text("Cerrando…")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                } else if opening {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.mini).tint(Palette.progress)
                         Text("Abriendo…")
@@ -250,6 +271,10 @@ struct LibraryCard: View {
         .help("Abrir \(app.name)")
         .contextMenu {
             Button("Abrir") { model.openApp(app.url) }
+            if model.isOpen(app) {
+                Button("Forzar cierre…") { confirmingForceQuit = true }
+                    .disabled(quitting)
+            }
             Button("Mostrar en Finder") { model.showInFinder(app.url) }
             if !app.others.isEmpty {
                 Divider()
@@ -262,6 +287,21 @@ struct LibraryCard: View {
             }
             Divider()
             Button("Desinstalar…", role: .destructive) { confirmingUninstall = true }
+        }
+        .confirmationDialog("¿Forzar el cierre de \(app.name)?", isPresented: $confirmingForceQuit) {
+            Button("Forzar cierre", role: .destructive) {
+                Task { await model.forceQuit(app) }
+            }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            let companions = model.companions(of: app)
+            if companions.isEmpty {
+                Text("Úsalo si se congeló o no se cierra. Se cierra de inmediato y lo que no hayas guardado se pierde.")
+            } else if companions.count == 1 {
+                Text("Úsalo si se congeló o no se cierra. Se cierra de inmediato y lo que no hayas guardado se pierde. Si \(companions[0]) está abierto, también se cierra: es del mismo instalador.")
+            } else {
+                Text("Úsalo si se congeló o no se cierra. Se cierra de inmediato y lo que no hayas guardado se pierde. Si \(companions.formatted(.list(type: .and))) están abiertos, también se cierran: son del mismo instalador.")
+            }
         }
         .confirmationDialog("¿Desinstalar \(app.name)?", isPresented: $confirmingUninstall) {
             let companions = model.companions(of: app)

@@ -147,3 +147,43 @@ private func makeOldApp(_ folder: TemporaryFolder, name: String) throws -> URL {
     #expect(trashed.value.map(\.lastPathComponent) == ["New.app", "test.New"])
     #expect(try String(contentsOf: folder.url.appendingPathComponent("My Documents/essay.txt"), encoding: .utf8) == "mine")
 }
+
+// MARK: Force Quit
+
+@Test func forceQuitEndsAHungProgramEvenWithoutTheEngine() async throws {
+    let folder = try TemporaryFolder()
+    let prefix = folder.url.appendingPathComponent("prefix")
+    try FileManager.default.createDirectory(at: prefix, withIntermediateDirectories: true)
+    // Stands in for a hung Windows program: Wine names its processes after the Windows path,
+    // and they carry their WINEPREFIX. macOS hides the environment of its own programs, so it is
+    // a copy of `sleep` signed again (as Wine is).
+    let sleep = folder.url.appendingPathComponent("sleep")
+    try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/sleep"), to: sleep)
+    let sign = Process()
+    sign.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+    sign.arguments = ["-f", "-s", "-", sleep.path]
+    sign.standardError = FileHandle.nullDevice
+    #expect(try await WineSession.wait(for: sign) == 0)
+    let hung = Process()
+    hung.executableURL = URL(fileURLWithPath: "/bin/bash")
+    hung.arguments = ["-c", #"exec -a 'C:\Program Files\Hung\hung.exe' "$0" 60"#, sleep.path]
+    hung.environment = ["WINEPREFIX": prefix.path]
+    try hung.run()
+    defer { if hung.isRunning { kill(hung.processIdentifier, SIGKILL) } }
+
+    var listed = false
+    for _ in 0..<60 where !listed {
+        listed = WineProcesses.list(prefix: prefix).contains { $0.name == "hung.exe" }
+        if !listed { try await Task.sleep(for: .milliseconds(50)) }
+    }
+    #expect(listed)
+    #expect(WineProcesses.all().contains { $0.prefix == prefix.standardizedFileURL.path && $0.entry.pid == hung.processIdentifier })
+
+    // No engine in this home: `wineserver -k` cannot run, so what is left gets SIGKILL.
+    let home = VitralHome(url: folder.url.appendingPathComponent("home"))
+    let session = WineSession(engine: InstalledEngine(engine: EngineCatalog.default, home: home), prefix: prefix)
+    #expect(await session.forceQuit(timeout: 0.5))
+    hung.waitUntilExit()
+    #expect(hung.terminationReason == .uncaughtSignal)
+    #expect(WineProcesses.list(prefix: prefix).isEmpty)
+}

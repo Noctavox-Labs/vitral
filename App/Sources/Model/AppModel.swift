@@ -29,6 +29,8 @@ final class AppModel {
         let name: String
         let icon: NSImage
         let manifest: WrapperManifest
+        /// Path of its prefix (standardized), to tell whether something of it is running.
+        let prefix: String
         /// Programs of its Windows that no app opens yet (a suite's other programs).
         var others: [ProgramChoice] = []
     }
@@ -282,6 +284,7 @@ final class AppModel {
             }
             return LibraryApp(url: wrapper.url, name: name.replacingOccurrences(of: ".app", with: ""),
                               icon: NSWorkspace.shared.icon(forFile: wrapper.url.path), manifest: manifest,
+                              prefix: wrapper.prefix(in: .default).standardizedFileURL.path,
                               others: (try? ProgramShortcuts.available(besides: wrapper.url)) ?? [])
         }
     }
@@ -347,6 +350,40 @@ final class AppModel {
             uninstallError = String(describing: error)
         }
         refreshLibrary()
+    }
+
+    // MARK: Force Quit
+
+    /// Prefixes with some Windows process running: an open program, or one that hung.
+    private(set) var openPrefixes: Set<String> = []
+    /// Apps being force quit, shown as "Closing…" on their card.
+    private(set) var quitting: Set<URL> = []
+    /// Last force quit error, shown in an alert.
+    var forceQuitError: String?
+
+    /// Whether something of the app's Windows is running (it or another program of its installer).
+    func isOpen(_ app: LibraryApp) -> Bool { openPrefixes.contains(app.prefix) }
+
+    /// Looks for running Windows processes; the library calls it every few seconds.
+    func refreshOpenApps() async {
+        let open = await Task.detached { Set(WineProcesses.all().map(\.prefix)) }.value
+        if open != openPrefixes { openPrefixes = open }
+    }
+
+    /// "Force Quit": closing a program from the Mac's menu waits for it to answer, with no time
+    /// limit, so a hung one never closes. This ends everything of its Windows at once.
+    func forceQuit(_ app: LibraryApp) async {
+        quitting.insert(app.url)
+        do {
+            if try await !ForceQuit.quit(app.url) {
+                forceQuitError = String(localized: "Algo de \(app.name) sigue abierto. Prueba otra vez o reinicia la Mac.")
+            }
+        } catch {
+            forceQuitError = String(describing: error)
+        }
+        quitting.remove(app.url)
+        opening.remove(app.url)
+        await refreshOpenApps()
     }
 
     /// Engine pieces no app uses, and their size on disk.

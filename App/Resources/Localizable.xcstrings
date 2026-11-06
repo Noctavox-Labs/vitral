@@ -147,6 +147,16 @@
         }
       }
     },
+    "Algo de %@ sigue abierto. Prueba otra vez o reinicia la Mac." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Something of %@ is still open. Try again or restart the Mac."
+          }
+        }
+      }
+    },
     "Antes hace falta instalar Rosetta." : {
       "localizations" : {
         "en" : {
@@ -283,6 +293,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "Cerrando…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closing…"
           }
         }
       }
@@ -523,6 +543,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Your Mac isn't ready yet"
+          }
+        }
+      }
+    },
+    "Forzar cierre" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Force Quit"
+          }
+        }
+      }
+    },
+    "Forzar cierre…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Force Quit…"
           }
         }
       }
@@ -803,6 +843,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Couldn't add the program"
+          }
+        }
+      }
+    },
+    "No se pudo cerrar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t Close"
           }
         }
       }
@@ -1267,12 +1317,52 @@
         }
       }
     },
+    "¿Forzar el cierre de %@?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Force quit %@?"
+          }
+        }
+      }
+    },
     "Última revisión: %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Last checked: %@"
+          }
+        }
+      }
+    },
+    "Úsalo si se congeló o no se cierra. Se cierra de inmediato y lo que no hayas guardado se pierde." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use it if it froze or won’t close. It closes right away, and anything you haven’t saved is lost."
+          }
+        }
+      }
+    },
+    "Úsalo si se congeló o no se cierra. Se cierra de inmediato y lo que no hayas guardado se pierde. Si %@ está abierto, también se cierra: es del mismo instalador." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use it if it froze or won’t close. It closes right away, and anything you haven’t saved is lost. If %@ is open, it closes too: it came from the same installer."
+          }
+        }
+      }
+    },
+    "Úsalo si se congeló o no se cierra. Se cierra de inmediato y lo que no hayas guardado se pierde. Si %@ están abiertos, también se cierran: son del mismo instalador." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use it if it froze or won’t close. It closes right away, and anything you haven’t saved is lost. If %@ are open, they close too: they came from the same installer."
           }
         }
       }

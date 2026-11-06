@@ -148,6 +148,27 @@ public struct WineSession: Sendable {
         await waitForServer()
     }
 
+    /// Ends every Windows process of the prefix, also hung ones ("Force Quit"). Closing a program
+    /// from the Mac's menu sends it Windows' end-of-session messages and waits until every window
+    /// answers, with no time limit (`macdrv_app_quit_request` in winemac.drv): a hung program never
+    /// closes that way. `wineserver -k` ends the processes with a signal, without asking them.
+    /// Whatever is left after `timeout` seconds (a server that does not answer, or an engine that
+    /// is gone) gets SIGKILL. Returns whether no process of the prefix is left.
+    @discardableResult
+    public func forceQuit(timeout: TimeInterval = 10) async -> Bool {
+        _ = try? await Self.wait(for: serverProcess(["-k"]))
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !serverIsRunning, WineProcesses.list(prefix: prefix).isEmpty { return true }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        for process in WineProcesses.list(prefix: prefix) { kill(process.pid, SIGKILL) }
+        for _ in 0..<8 where !WineProcesses.list(prefix: prefix).isEmpty {
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        return WineProcesses.list(prefix: prefix).isEmpty
+    }
+
     /// Creates the Windows folders and registry of a new prefix.
     public func createPrefix() async throws {
         try FileManager.default.createDirectory(at: prefix, withIntermediateDirectories: true)

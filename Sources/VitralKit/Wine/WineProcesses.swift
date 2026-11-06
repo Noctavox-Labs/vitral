@@ -25,6 +25,11 @@ public enum WineProcesses {
     /// The Windows processes running in `prefix`.
     public static func list(prefix: URL) -> [Entry] {
         let wanted = prefix.standardizedFileURL.path
+        return all().filter { $0.prefix == wanted }.map(\.entry)
+    }
+
+    /// Every Windows process of the person's, with the path of its prefix (standardized).
+    public static func all() -> [(prefix: String, entry: Entry)] {
         let count = proc_listallpids(nil, 0)
         guard count > 0 else { return [] }
         var pids = [pid_t](repeating: 0, count: Int(count) * 2)
@@ -33,9 +38,8 @@ public enum WineProcesses {
         return pids.prefix(Int(found)).compactMap { pid in
             guard pid > 0, let (arguments, environment) = arguments(of: pid),
                   let first = arguments.first, let name = WineWindows.windowsFileName(fromArgument: first),
-                  let own = environment["WINEPREFIX"],
-                  URL(fileURLWithPath: own).standardizedFileURL.path == wanted else { return nil }
-            return Entry(pid: pid, name: name)
+                  let own = environment["WINEPREFIX"] else { return nil }
+            return (URL(fileURLWithPath: own).standardizedFileURL.path, Entry(pid: pid, name: name))
         }
     }
 
