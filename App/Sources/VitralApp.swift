@@ -4,6 +4,10 @@ import VitralKit
 
 @main
 struct VitralApp: App {
+    /// First of all, Vitral's own app object (it closes the sheets before quitting): Sparkle asks
+    /// for one when `Updater` starts, and would get a plain `NSApplication`. Properties start in
+    /// the order they are written.
+    private let application = VitralApplication.shared
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = AppModel()
     @State private var updater = Updater()
@@ -14,6 +18,10 @@ struct VitralApp: App {
                 .environment(model)
                 .frame(minWidth: 720, minHeight: 560)
                 .onOpenURL { model.open($0) }
+                .onAppear {
+                    (NSApp as? VitralApplication)?.mayQuit = { [model] in model.mayQuit() }
+                    (NSApp as? VitralApplication)?.closeSheets = { [model] in model.closeSheets() }
+                }
         }
         .defaultSize(width: 900, height: 640)
         .windowToolbarStyle(.unified)

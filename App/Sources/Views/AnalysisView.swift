@@ -90,6 +90,7 @@ struct AnalysisView: View {
         .padding(30)
         .frame(width: 560)
         .interactiveDismissDisabled(model.isInstalling)
+        .onChange(of: model.sheetsClosed) { reporting = false }
         .sheet(isPresented: $reporting) {
             if case .failed(let message) = model.installState {
                 ReportView { await model.installationReport(file, message: message) }

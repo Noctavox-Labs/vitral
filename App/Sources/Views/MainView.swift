@@ -58,6 +58,7 @@ struct MainView: View {
         .fileImporter(isPresented: $choosingFile, allowedContentTypes: Self.installerTypes) { result in
             if case .success(let url) = result { model.open(url) }
         }
+        .onChange(of: model.sheetsClosed) { choosingFile = false }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button { choosingFile = true } label: {
@@ -450,6 +451,9 @@ struct LibraryCard: View {
         }
         .sheet(isPresented: $reporting) {
             ReportView { await model.report(for: app) }
+        }
+        .onChange(of: model.sheetsClosed) {
+            (reporting, confirmingUninstall, confirmingForceQuit) = (false, false, false)
         }
         .confirmationDialog("¿Forzar el cierre de \(app.name)?", isPresented: $confirmingForceQuit) {
             Button("Forzar cierre", role: .destructive) {

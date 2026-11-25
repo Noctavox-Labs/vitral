@@ -307,6 +307,35 @@ final class AppModel {
         installTask?.cancel()
     }
 
+    /// Bumped to close every sheet, also the ones views keep (a report, a confirmation): AppKit
+    /// does not quit while one is open (`VitralApplication`).
+    private(set) var sheetsClosed = 0
+
+    func closeSheets() {
+        dropped = nil
+        showSetup = false
+        sheetsClosed += 1
+    }
+
+    /// Quitting during an installation: asks first. Cancelling closes the installer and removes
+    /// the half-built app, as the Cancel button does; Vitral quits when that is done.
+    func mayQuit() -> Bool {
+        guard isInstalling, let task = installTask else { return true }
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Hay una instalación en curso")
+        alert.informativeText = String(localized: "Si sales, Vitral cierra el instalador y borra la app a medio armar.")
+        // Return keeps installing: an Enter meant for something else must not cancel it.
+        alert.addButton(withTitle: String(localized: "Seguir instalando"))
+        alert.addButton(withTitle: String(localized: "Cancelar la instalación y salir")).hasDestructiveAction = true
+        guard alert.runModal() == .alertSecondButtonReturn else { return false }
+        task.cancel()
+        Task {
+            await task.value
+            NSApp.terminate(nil)
+        }
+        return false
+    }
+
     /// Installs the dropped program and turns it into an app in ~/Applications.
     func install(_ file: DroppedFile) async {
         guard let launcher = InstallOptions.findLauncher() else {
