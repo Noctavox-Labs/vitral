@@ -289,32 +289,129 @@ private func writeQtProgram(_ folder: TemporaryFolder, at path: String, name: St
     #expect(getxattr(wrapper.launcherURL.path, "com.apple.quarantine", nil, 0, 0, 0) < 0)
 }
 
+/// A ZIP made with `ditto`, as the Finder makes them, from `files` (path → contents).
+private func makeZip(_ files: [String: Data], as name: String, in folder: TemporaryFolder) throws -> URL {
+    let source = folder.url.appendingPathComponent(name + "-src")
+    try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+    for (path, data) in files { try folder.write(name + "-src/" + path, data) }
+    let zip = folder.url.appendingPathComponent(name + ".zip")
+    let ditto = Process()
+    ditto.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+    ditto.arguments = ["-c", "-k", source.path, zip.path]
+    try ditto.run()
+    ditto.waitUntilExit()
+    return zip
+}
+
 @Test func runsTheInstallerAZipHolds() async throws {
     let folder = try TemporaryFolder()
-    func zip(_ files: [String: Data], as name: String) throws -> URL {
-        let source = folder.url.appendingPathComponent(name + "-src")
-        for (path, data) in files { try folder.write(name + "-src/" + path, data) }
-        let zip = folder.url.appendingPathComponent(name + ".zip")
-        let ditto = Process()
-        ditto.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        ditto.arguments = ["-c", "-k", source.path, zip.path]
-        try ditto.run()
-        ditto.waitUntilExit()
-        return zip
-    }
     let staging = folder.url.appendingPathComponent("staging")
     let setup = makeNSIS(texts: ["hello"])
 
-    let single = try zip(["paint.net.install.x64.exe": setup], as: "single")
-    let found = try #require(try await ProgramInstaller.installerInside(zip: single, unpackingIn: staging))
+    let single = try makeZip(["paint.net.install.x64.exe": setup], as: "single", in: folder)
+    let found = try #require(try await installer(single))
     #expect(found.file.lastPathComponent == "paint.net.install.x64.exe")
     #expect(found.report.kind == .nsis)
 
-    // A portable program (more than one file, or a program that is not an installer) stays a ZIP.
-    #expect(try await ProgramInstaller.installerInside(zip: try zip(["Setup.exe": setup, "readme.txt": Data()], as: "two"),
-                                                      unpackingIn: staging) == nil)
-    #expect(try await ProgramInstaller.installerInside(zip: try zip(["tool.txt": Data("x".utf8)], as: "text"),
-                                                      unpackingIn: staging) == nil)
+    // An installer with a note beside it is still an installer.
+    let withNote = try makeZip(["Setup.exe": setup, "readme.txt": Data()], as: "two", in: folder)
+    #expect(try await installer(withNote)?.file.lastPathComponent == "Setup.exe")
+    #expect(try await ZipPackage.unpack(try makeZip(["tool.txt": Data("x".utf8)], as: "text", in: folder), in: staging) == nil)
+
+    func installer(_ zip: URL) async throws -> (file: URL, report: InstallerReport)? {
+        guard case .installer(_, let file, let report) = try await ZipPackage.unpack(zip, in: staging) else { return nil }
+        return (file, report)
+    }
+}
+
+@Test func findsTheInstallerOfAFolderSentByWeTransfer() async throws {
+    // Shape It! Level 2: WeTransfer gave a ZIP with a folder, and in it the Inno Setup installer
+    // and its two data files. Vitral copied the installer as if it were the program.
+    let folder = try TemporaryFolder()
+    let staging = folder.url.appendingPathComponent("staging")
+    let inside = "Shape it Level 2 PPlus_3.0.1.zip/"
+    let zip = try makeZip([
+        inside + "Shape it Level 2 PPlus.exe": makePE(payload: Array("JR.Inno.Setup".utf8)),
+        inside + "Shape it Level 2 PPlus-1a.bin": Data(count: 2048),
+        inside + "Shape it Level 2 PPlus-1b.bin": Data(count: 1024),
+        "__MACOSX/._x": Data(), inside + ".DS_Store": Data(),
+    ], as: "wetransfer_shape-it-level-2", in: folder)
+
+    // A look without unpacking it all: the installer, and the files it needs, from the ZIP's list.
+    let contents = try #require(try await ZipPackage.contents(of: zip, in: staging))
+    #expect(contents.setupPath == inside + "Shape it Level 2 PPlus.exe")
+    #expect(contents.setup.kind == .innoSetup)
+    #expect(contents.setup.companionFiles == ["Shape it Level 2 PPlus-1a.bin", "Shape it Level 2 PPlus-1b.bin"])
+    #expect(try FileManager.default.contentsOfDirectory(atPath: staging.path).isEmpty)
+
+    // Unpacked to install: the data files beside the installer.
+    guard case .installer(let unpacked, let file, let report) = try await ZipPackage.unpack(zip, in: staging) else {
+        Issue.record("no installer")
+        return
+    }
+    #expect(report.kind == .innoSetup)
+    #expect(report.companionFiles == ["Shape it Level 2 PPlus-1a.bin", "Shape it Level 2 PPlus-1b.bin"])
+    let bin = file.deletingLastPathComponent().appendingPathComponent("Shape it Level 2 PPlus-1a.bin")
+    #expect((try? Data(contentsOf: bin))?.count == 2048)
+    // Only the unpacked ZIP stays: the first look is gone.
+    #expect(try FileManager.default.contentsOfDirectory(atPath: unpacked.path) == ["unpacked"])
+}
+
+@Test func looksInsideAZipInsideTheZip() async throws {
+    let folder = try TemporaryFolder()
+    let staging = folder.url.appendingPathComponent("staging")
+    let inner = try makeZip(["Carpeta [v2]/Setup.exe": makeNSIS(texts: ["hello"]), "Carpeta [v2]/data.cab": Data(count: 10)],
+                            as: "Programa", in: folder)
+    let outer = try makeZip(["Programa.zip": try Data(contentsOf: inner), "Léeme.txt": Data()], as: "wetransfer", in: folder)
+
+    let contents = try #require(try await ZipPackage.contents(of: outer, in: staging))
+    #expect(contents.setupPath == "Programa.zip › Carpeta [v2]/Setup.exe")
+    #expect(contents.setup.kind == .nsis)
+    guard case .installer(_, let file, _) = try await ZipPackage.unpack(outer, in: staging) else {
+        Issue.record("no installer")
+        return
+    }
+    #expect(FileManager.default.fileExists(atPath: file.deletingLastPathComponent().appendingPathComponent("data.cab").path))
+
+    // A portable program in the inner ZIP: that ZIP is what gets unpacked into Program Files.
+    let portable = try makeZip(["HeidiSQL/heidisql.exe": SyntheticPE().build()], as: "HeidiSQL_12", in: folder)
+    let sent = try makeZip(["HeidiSQL_12.zip": try Data(contentsOf: portable)], as: "wetransfer-portable", in: folder)
+    #expect(try await ZipPackage.contents(of: sent, in: staging) == nil)
+    guard case .portable(let work, let zip) = try await ZipPackage.unpack(sent, in: staging) else {
+        Issue.record("not the inner ZIP")
+        return
+    }
+    #expect(zip.lastPathComponent == "HeidiSQL_12.zip")
+    #expect(try Data(contentsOf: zip) == Data(contentsOf: portable))
+    #expect(try FileManager.default.contentsOfDirectory(atPath: work.path).count == 1)
+}
+
+@Test func aPortableProgramInAZipIsNotAnInstaller() async throws {
+    let folder = try TemporaryFolder()
+    let staging = folder.url.appendingPathComponent("staging")
+    var program = SyntheticPE()
+    program.versionStrings = ["FileDescription": "HeidiSQL"]
+    // Its own program beside an uninstaller, or beside an installer it brings (a runtime, a driver).
+    for (name, extra) in [("unins000.exe", makePE(payload: Array("JR.Inno.Setup".utf8))), ("DriverSetup.exe", makeNSIS(texts: ["x"]))] {
+        let zip = try makeZip(["HeidiSQL/heidisql.exe": program.build(), "HeidiSQL/" + name: extra,
+                               "HeidiSQL/libmariadb.dll": SyntheticPE(isDLL: true).build()], as: "portable-" + name, in: folder)
+        #expect(try await ZipPackage.contents(of: zip, in: staging) == nil)
+        #expect(try await ZipPackage.unpack(zip, in: staging) == nil)
+    }
+    #expect(try FileManager.default.contentsOfDirectory(atPath: staging.path).isEmpty)
+
+    // An installer of no known kind says what it is in its description.
+    var custom = SyntheticPE()
+    custom.versionStrings = ["FileDescription": "Shape it Level 2 PPlus Setup"]
+    let described = try makeZip(["Shape it.exe": custom.build()], as: "described", in: folder)
+    #expect(try await ZipPackage.contents(of: described, in: staging)?.setupPath == "Shape it.exe")
+    var uninstaller = SyntheticPE()
+    uninstaller.versionStrings = ["FileDescription": "Setup/Uninstall"]
+    #expect(!ZipPackage.isInstaller("tool.exe", try InstallerAnalyzer.analyze(fileAt: try {
+        let file = folder.url.appendingPathComponent("tool.exe")
+        try uninstaller.build().write(to: file)
+        return file
+    }())))
 }
 
 @Test func theSameProgramTwiceIsTheOneWithMoreAroundIt() throws {

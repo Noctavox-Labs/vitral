@@ -12,6 +12,8 @@ public enum InstallStage: Sendable, Equatable {
     case finishingInstaller
     /// The installer opened the program ("Launch …" checked): Vitral closes that copy.
     case closingProgram
+    /// Unpacking a ZIP to see whether it holds an installer, and to run it.
+    case unpacking
     /// A ZIP or a program that is not an installer: copied in, nothing to click.
     case copyingProgram
     case findingProgram
@@ -189,11 +191,18 @@ public struct ProgramInstaller: Sendable {
         progress(.checking)
         var installer = file
         var report = try InstallerAnalyzer.analyze(fileAt: file)
-        // A ZIP that only holds an installer (Paint.NET): unpack it and run that installer.
+        // A ZIP that holds an installer (Paint.NET; a folder sent by WeTransfer, as Shape It!
+        // Level 2 with its .bin files; a ZIP inside the ZIP): unpack it and run that installer.
+        // A portable program that came in a ZIP inside the ZIP: that inner ZIP is the program.
         var unpacked: URL?
         defer { if let unpacked { try? fm.removeItem(at: unpacked) } }
-        if report.kind == .zip, let inner = try await Self.installerInside(zip: file, unpackingIn: staging) {
-            (unpacked, installer, report) = (inner.folder, inner.file, inner.report)
+        if report.kind == .zip {
+            progress(.unpacking)
+            switch try await ZipPackage.unpack(file, in: staging) {
+            case .installer(let folder, let file, let inner): (unpacked, installer, report) = (folder, file, inner)
+            case .portable(let folder, let zip): (unpacked, installer) = (folder, zip)
+            case nil: break
+            }
         }
         // A CD or DVD image: mounted while installing, and in Windows' eyes a CD drive.
         var disc: DiscImage?
@@ -678,40 +687,6 @@ public struct ProgramInstaller: Sendable {
             // Installers return non-zero when cancelled; the program search decides what happened.
             _ = status
         }
-    }
-
-    /// The installer a ZIP holds, unpacked into a new folder in `staging`, when the ZIP holds just
-    /// that: one `.exe` or `.msi` that is an installer. Nil for anything else (a portable program
-    /// is unpacked into Program Files later).
-    static func installerInside(zip: URL, unpackingIn staging: URL) async throws
-        -> (folder: URL, file: URL, report: InstallerReport)? {
-        let list = Process()
-        list.executableURL = URL(fileURLWithPath: "/usr/bin/zipinfo")
-        list.arguments = ["-1", zip.path]
-        let pipe = Pipe()
-        list.standardOutput = pipe
-        list.standardError = FileHandle.nullDevice
-        try list.run()
-        let names = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-            .split(separator: "\n").map(String.init)
-            .filter { !$0.hasSuffix("/") && !$0.hasPrefix("__MACOSX/") && !($0 as NSString).lastPathComponent.hasPrefix(".") }
-        list.waitUntilExit()
-        guard list.terminationStatus == 0, names.count == 1, let name = names.first,
-              !name.contains(".."), ["exe", "msi"].contains((name as NSString).pathExtension.lowercased()) else { return nil }
-
-        let folder = staging.appendingPathComponent(UUID().uuidString + ".zip")
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let unzip = Process()
-        unzip.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        unzip.arguments = ["-x", "-k", zip.path, folder.path]
-        let status = try await WineSession.wait(for: unzip)
-        let file = folder.appendingPathComponent(name)
-        guard status == 0, let report = try? InstallerAnalyzer.analyze(fileAt: file),
-              needsInstaller(file, report), report.kind != .zip else {
-            try? FileManager.default.removeItem(at: folder)
-            return nil
-        }
-        return (folder, file, report)
     }
 
     /// Whether the file is an installer to run (or a ZIP or portable program to copy in).

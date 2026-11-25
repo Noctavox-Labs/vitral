@@ -403,6 +403,16 @@
         }
       }
     },
+    "Contiene" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holds"
+          }
+        }
+      }
+    },
     "Copiando el programa…" : {
       "localizations" : {
         "en" : {
@@ -489,6 +499,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Download %@"
+          }
+        }
+      }
+    },
+    "Descomprimiendo el archivo ZIP…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unpacking the ZIP file…"
           }
         }
       }

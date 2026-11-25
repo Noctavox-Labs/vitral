@@ -39,6 +39,12 @@ struct AnalysisView: View {
                     fact("Disco", disc.label.map { String(localized: "CD o DVD «\($0)»") } ?? String(localized: "CD o DVD"), "opticaldisc")
                     Divider().padding(.leading, 44)
                     fact("Tipo", disc.setupPath + " · " + kindText, "shippingbox")
+                } else if let archive = file.archive {
+                    fact("Archivo", archive.fileName + " · " + ByteCountFormatter.string(fromByteCount: archive.sizeBytes, countStyle: .file), "doc.zipper")
+                    Divider().padding(.leading, 44)
+                    fact("Contiene", archive.setupPath, "folder")
+                    Divider().padding(.leading, 44)
+                    fact("Tipo", kindText, "shippingbox")
                 } else {
                     fact("Archivo", report.fileName + " · " + ByteCountFormatter.string(fromByteCount: report.sizeBytes, countStyle: .file), "doc")
                     Divider().padding(.leading, 44)
@@ -271,6 +277,7 @@ struct AnalysisView: View {
         case .runningInstaller: String(localized: "Sigue los pasos del instalador en su ventana.")
         case .finishingInstaller: String(localized: "El instalador terminó. Terminando de instalar…")
         case .closingProgram: String(localized: "El instalador abrió el programa: lo cierro para terminar la app…")
+        case .unpacking: String(localized: "Descomprimiendo el archivo ZIP…")
         case .copyingProgram: String(localized: "Copiando el programa…")
         case .findingProgram: String(localized: "Buscando el programa instalado…")
         case .applyingSettings: String(localized: "Aplicando los ajustes recomendados…")

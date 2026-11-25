@@ -54,12 +54,21 @@ final class AppModel {
         var knownIssues: [Diagnosis] = []
         /// A CD or DVD image: `report` and `icon` are then its installer's.
         var disc: Disc?
+        /// A ZIP that holds an installer: `report` and `icon` are then that installer's.
+        var archive: Archive?
 
         struct Disc {
             let fileName: String
             let sizeBytes: Int64
             let label: String?
             /// "SETUP.EXE"
+            let setupPath: String
+        }
+
+        struct Archive {
+            let fileName: String
+            let sizeBytes: Int64
+            /// "Shape it Level 2 PPlus/Shape it Level 2 PPlus.exe"
             let setupPath: String
         }
     }
@@ -209,19 +218,49 @@ final class AppModel {
             Task { await openDisc(url) }
             return
         }
+        if url.pathExtension.lowercased() == "zip" {
+            Task { await openZip(url) }
+            return
+        }
         do {
             let report = try InstallerAnalyzer.analyze(fileAt: url)
             let icon = (try? Data(contentsOf: url, options: .alwaysMapped))
                 .flatMap(PortableExecutable.icon)
                 .flatMap(NSImage.init(data:))
-            // Only one sheet at a time: the analysis replaces the setup assistant.
-            showSetup = false
-            if case .working = installState {} else { installState = .idle }
-            let known = Diagnoser.diagnose(.analysis(report), catalog: .current).filter { $0.kind == .notYet || $0.kind == .never }
-            dropped = DroppedFile(url: url, report: report, icon: icon, knownIssues: known)
+            showAnalysis(of: url, report: report, icon: icon)
         } catch {
             dropError = String(localized: "No pude leer ese archivo.")
         }
+    }
+
+    /// A ZIP: when it holds an installer (a folder sent by WeTransfer, a ZIP inside the ZIP), the
+    /// analysis shows that installer. Only the programs at its top level are taken out to see it.
+    private func openZip(_ url: URL) async {
+        do {
+            let zip = try InstallerAnalyzer.analyze(fileAt: url)
+            guard zip.kind == .zip, let contents = try await ZipPackage.contents(of: url, in: ProgramInstaller().staging) else {
+                showAnalysis(of: url, report: zip, icon: nil)
+                return
+            }
+            // The ZIP's name counts too: Paint.NET 5.1 is known by "….install.x64.zip".
+            let known = (Diagnoser.diagnose(.analysis(contents.setup), catalog: .current) + Diagnoser.diagnose(.analysis(zip), catalog: .current))
+                .filter { $0.kind == .notYet || $0.kind == .never }
+            var seen = Set<String>()
+            showAnalysis(of: url, report: contents.setup, icon: contents.icon.flatMap(NSImage.init(data:)),
+                         knownIssues: known.filter { seen.insert($0.id).inserted },
+                         archive: .init(fileName: zip.fileName, sizeBytes: zip.sizeBytes, setupPath: contents.setupPath))
+        } catch {
+            dropError = String(localized: "No pude leer ese archivo.")
+        }
+    }
+
+    private func showAnalysis(of url: URL, report: InstallerReport, icon: NSImage?, knownIssues: [Diagnosis]? = nil,
+                              archive: DroppedFile.Archive? = nil) {
+        // Only one sheet at a time: the analysis replaces the setup assistant.
+        showSetup = false
+        if case .working = installState {} else { installState = .idle }
+        let known = knownIssues ?? Diagnoser.diagnose(.analysis(report), catalog: .current).filter { $0.kind == .notYet || $0.kind == .never }
+        dropped = DroppedFile(url: url, report: report, icon: icon, knownIssues: known, archive: archive)
     }
 
     /// A CD or DVD image: mounted for a moment, hidden, to show the installer it holds.

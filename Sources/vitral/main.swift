@@ -106,7 +106,7 @@ func describeKind(_ report: InstallerReport) -> String {
     case .wixBurn: return tr("Instalador WiX Burn (paquete de varios instaladores)", "WiX Burn bundle (installs several packages)")
     case .installShield: return tr("Instalador InstallShield", "InstallShield installer")
     case .sevenZipSFX: return tr("Archivo 7-Zip autoextraíble", "7-Zip self-extracting archive")
-    case .zip: return tr("Archivo ZIP (hay que descomprimirlo y buscar el programa)", "ZIP archive (unpack it and look for the program)")
+    case .zip: return tr("Archivo ZIP", "ZIP archive")
     case .discImage:
         let label = report.discLabel.map { " «\($0)»" } ?? ""
         return tr("Imagen de CD o DVD\(label) (se instala con el instalador del disco)", "CD or DVD image\(label) (installed with the disc's installer)")
@@ -413,6 +413,28 @@ func analyze(_ options: [String]) async {
         }
         return
     }
+    if report.kind == .zip {
+        // Only the programs at its top level are taken out, to see whether one is an installer.
+        do {
+            if let contents = try await ZipPackage.contents(of: url, in: ProgramInstaller().staging) {
+                print("  " + tr("Contiene: ", "Holds:    ") + contents.setupPath + " · " + describeKind(contents.setup))
+                if let info = contents.setup.executable {
+                    print("  " + tr("Archivo:  ", "File:     ") + describeExecutable(info) + tr(" (el instalador)", " (the installer)"))
+                    if let product = describeProduct(info.version) { print("  " + tr("Instala:  ", "Installs: ") + product) }
+                }
+                if !contents.setup.companionFiles.isEmpty {
+                    print("  " + tr("Necesita: ", "Needs:    ") + contents.setup.companionFiles.joined(separator: ", ")
+                          + tr(" (vienen en el ZIP)", " (in the ZIP)"))
+                }
+            } else {
+                print("  " + tr("Contiene: ", "Holds:    ") + tr("un programa portátil (se descomprime y se busca el programa)",
+                                                                  "a portable program (unpacked, then the program is looked for)"))
+            }
+        } catch {
+            print("  " + tr("Contiene: ", "Holds:    ") + String(describing: error))
+        }
+        return
+    }
     if let info = report.executable {
         let label = report.kind == .executable ? tr("Programa: ", "Program:  ") : tr("Archivo:  ", "File:     ")
         print("  " + label + describeExecutable(info) + (report.kind == .executable ? "" : tr(" (el instalador)", " (the installer)")))
@@ -535,6 +557,7 @@ func install(_ options: [String]) async {
         case .finishingInstaller: print(tr("    El instalador terminó.", "    The installer finished."))
         case .closingProgram: print(tr("    El instalador abrió el programa: lo cierro para terminar la app.",
                                        "    The installer opened the program: closing it to finish the app."))
+        case .unpacking: print(tr("    Descomprimiendo el archivo ZIP…", "    Unpacking the ZIP file…"))
         case .copyingProgram: print(tr("3/6 Copiando el programa…", "3/6 Copying the program…"))
         case .findingProgram: print(tr("4/6 Buscando el programa instalado…", "4/6 Looking for the installed program…"))
         case .applyingSettings: print(tr("5/6 Aplicando los ajustes recomendados…", "5/6 Applying the recommended settings…"))
