@@ -18,7 +18,8 @@
 ## La idea
 
 Arrastras un instalador de Windows (`.exe`, `.msi` o `.zip`, o la imagen `.iso` de un CD o DVD) a
-Vitral. Obtienes una app de Mac con el ícono del programa, a todo color, que abre con doble clic,
+Vitral. También sirve un ZIP que te mandaron: Vitral encuentra el instalador adentro, con los
+archivos que necesita, aunque esté en una carpeta o en un ZIP dentro del ZIP. Obtienes una app de Mac con el ícono del programa, a todo color, que abre con doble clic,
 se ve nítida en una pantalla Retina y ya viene configurada para ese programa.
 
 - **Decide por ti.** Vitral lee el instalador antes de ejecutar nada: tipo de instalador, 32 o 64
@@ -58,6 +59,7 @@ cd vitral
 swift run vitral analizar "ruta/al/Setup.exe"          # un instalador
 swift run vitral analizar "ruta/a/Mi Programa"         # la carpeta de un programa instalado
 swift run vitral analizar "ruta/al/Disco.iso"          # una imagen de CD o DVD
+swift run vitral analizar "ruta/al/Enviado.zip"        # el instalador dentro de un ZIP
 swift run vitral analizar --json "ruta/al/Setup.exe"   # para otros programas
 swift run vitral icono "ruta/al/Programa.exe" Programa.icns
 swift run vitral motores                               # motores de Wine y Rosetta
@@ -126,7 +128,8 @@ Mi Programa  (carpeta · 1203 archivos · 1,67 GB)
 ```
 
 En los instaladores reconoce Inno Setup, NSIS, Windows Installer (`.msi`), WiX Burn,
-InstallShield, archivos 7-Zip autoextraíbles, ZIP y programas sueltos, y distingue 16, 32 y 64
+InstallShield, archivos 7-Zip autoextraíbles, ZIP (busca adentro un instalador y sus archivos,
+sin descomprimirlo todo) y programas sueltos, y distingue 16, 32 y 64
 bits. En un programa instalado encuentra el archivo que hay que abrir y detecta Qt, Electron,
 CEF, .NET, Java, Unity, Unreal, el runtime de Visual C++, la interfaz gráfica (DirectX, OpenGL,
 Vulkan) y los antitrampas. `vitral icono` convierte el ícono del programa en uno de Mac, con
@@ -162,7 +165,7 @@ Los juegos vienen después.
 | MetaTrader 5 | Win32 | Funciona, junto con MetaEditor (del mismo instalador) |
 | Greenshot 1.3 | .NET Framework 4 | Abre con el .NET Framework 4.8 de Vitral; vive en la barra de menú |
 | Winamp 5.9 | Win32 (con *skins*) | Funciona |
-| Una app educativa de 32 bits | Qt 5 + QtWebEngine | Funciona con los ajustes de Qt de Vitral |
+| Una app educativa de 32 bits | Qt 5 + QtWebEngine | Funciona con los ajustes de Qt de Vitral, también desde un ZIP de WeTransfer (el instalador y sus archivos de datos en una carpeta) |
 | Una app en Electron 37 | Electron | Funciona con `--in-process-gpu` y DXMT |
 | Microsoft Encarta 2009 (Premium DVD, desde su `.iso`) | MFC + páginas de Internet Explorer (XSLT) | Funciona: búsqueda, artículos, imágenes y reproductor, con los arreglos de Vitral a Wine y Wine Gecko. Encarta Kids, del mismo disco, también |
 | vMix 29 | .NET Framework + Direct3D 11 | Se instala con .NET Framework 4.8 y reproduce video; los títulos GT y algunos controles de las entradas todavía no se dibujan, y se puede congelar |
@@ -229,7 +232,7 @@ muestra un programa. Vitral se los ofrece al proyecto Wine.
 | **1. Un comando** *(ahora)* | `vitral instalar Setup.exe` crea una app de Mac nítida, portable y con ícono, sin pasos a mano aparte del instalador del programa. Logrado con sus primeros objetivos: una app educativa en Qt 5 + QtWebEngine de 32 bits que necesitaba una docena de arreglos manuales, y una app en Electron 37, con el motor propio. Sigue: más Macs y programas de prueba |
 | **2. La app** *(empezada)* | App en SwiftUI con Liquid Glass: asistente de preparación (Rosetta, motor), arrastrar y soltar, biblioteca, «¿Se ve bien?», ajustes avanzados |
 | **3. Compartir** *(empezada)* | Versiones firmadas y notarizadas y actualizaciones automáticas, también para quien solo abre sus programas (hecho); exportar e importar |
-| **4. Más programas** *(empezada)* | [Lista de compatibilidad](#programas-probados), .NET Framework, instaladores con varios programas, imágenes de CD y DVD, páginas de Internet Explorer (Wine Gecko), programas que muestran un cuadro de error y se cierran, un catálogo de fallas conocidas con arreglos que Vitral prueba solo (descargado y firmado); sigue: ventanas en blanco y programas que se cuelgan, reintentar instalaciones, recetas de la comunidad |
+| **4. Más programas** *(empezada)* | [Lista de compatibilidad](#programas-probados), .NET Framework, instaladores con varios programas, instaladores en un ZIP, imágenes de CD y DVD, páginas de Internet Explorer (Wine Gecko), programas que muestran un cuadro de error y se cierran, un catálogo de fallas conocidas con arreglos que Vitral prueba solo (descargado y firmado); sigue: ventanas en blanco y programas que se cuelgan, reintentar instalaciones, recetas de la comunidad |
 | **5. Después de Rosetta** | Apple deja Rosetta para uso general después de macOS 27; Vitral está hecho para cambiar a un motor de Wine que no lo necesite |
 
 ## Principios
